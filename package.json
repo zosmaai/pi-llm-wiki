@@ -1,0 +1,50 @@
+{
+  "name": "@zosmaai/pi-llm-wiki",
+  "version": "0.1.0",
+  "description": "LLM Wiki for Pi — self-maintaining knowledge base following Karpathy's pattern. Obsidian-friendly, auto-updating, personal & company wiki.",
+  "keywords": [
+    "pi-package",
+    "pi-skill",
+    "pi-extension",
+    "llm-wiki",
+    "karpathy",
+    "knowledge-base",
+    "obsidian",
+    "second-brain",
+    "wiki",
+    "zosmaai"
+  ],
+  "license": "MIT",
+  "author": "zosmaai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zosmaai/pi-llm-wiki.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zosmaai/pi-llm-wiki/issues"
+  },
+  "homepage": "https://github.com/zosmaai/pi-llm-wiki#readme",
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "prompts": [
+      "./prompts"
+    ],
+    "image": "https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/main/assets/screenshot.png"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@mariozechner/pi-coding-agent": "^0.70.2",
+    "typebox": "^1.1.34"
+  }
+}

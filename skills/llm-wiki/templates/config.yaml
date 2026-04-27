@@ -1,0 +1,38 @@
+# LLM Wiki Configuration
+
+wiki:
+  mode: personal # personal | company
+  topic: "" # Main topic of this wiki
+  description: "" # Brief description
+
+topics:
+  - name: "" # Topic name
+    keywords: [] # Search keywords for auto-discovery
+    feeds: [] # RSS/Atom feed URLs
+    subreddits: [] # Subreddits to monitor
+    github_orgs: [] # GitHub orgs/users to watch
+
+discovery:
+  enabled: true
+  max_sources_per_cycle: 8 # Max sources to fetch per discover run
+  prefer_gap_filling: true # Prioritize known knowledge gaps
+  sources:
+    - web_search # Web search by topics + keywords
+    - reddit # Reddit monitoring
+    - github # GitHub trending / org releases
+    - feeds # RSS feeds
+
+ingest:
+  batch_size: 1 # Sources per ingest pass (1 = one at a time for quality)
+  discuss_with_user: true # Discuss key takeaways before writing wiki pages
+
+lint:
+  auto_fix: true # Auto-fix orphans, missing pages, broken links
+  report_contradictions: true # Flag contradictions for human review
+
+change_detection: false # Enable for company wiki mode — track pricing/feature changes
+
+obsidian:
+  vault_path: "" # Optional: path to Obsidian vault (if different from WIKI_ROOT)
+  dataview_enabled: true # Enable Dataview dashboard
+  attachment_folder: raw/assets # Obsidian attachment folder path
