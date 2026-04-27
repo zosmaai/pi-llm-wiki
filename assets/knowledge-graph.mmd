@@ -1,0 +1,34 @@
+graph LR
+    subgraph Entities["🧑 Entities"]
+        A["Andrej Karpathy"]
+        O["OpenAI"]
+        C["Claude"]
+    end
+    subgraph Concepts["💡 Concepts"]
+        LLM["LLM Wiki Pattern"]
+        RAG["RAG"]
+        MEMEX["Memex (1945)"]
+        OBS["Obsidian Integration"]
+    end
+    subgraph Sources["📄 Sources"]
+        S1["Karpathy's Gist"]
+        S2["Community Impl."]
+        S3["Pi Package"]
+    end
+
+    S1 --> LLM
+    S1 --> A
+    LLM --> RAG
+    LLM --> MEMEX
+    LLM --> OBS
+    S2 --> LLM
+    S3 --> LLM
+    S3 --> OBS
+    A --> O
+    A --> C
+    LLM --> O
+    LLM --> C
+
+    style Entities fill:#e1f5fe,stroke:#0288d1
+    style Concepts fill:#f3e5f5,stroke:#7b1fa2
+    style Sources fill:#fff3e0,stroke:#e65100

@@ -1,0 +1,41 @@
+flowchart TB
+    subgraph Human["👤 You (Curate & Ask)"]
+        direction LR
+        Sources["📄 Drop Sources"] --> Questions["❓ Ask Questions"]
+    end
+
+    subgraph LLM["🤖 LLM Agent (Writes & Maintains)"]
+        direction TB
+        SKILL["📜 SKILL.md Schema<br/>Rules & Conventions"]
+        INGEST["📥 Ingest<br/>Read → Summarize → Cross-ref"]
+        QUERY["🔍 Query<br/>Index → Synthesize → Cite"]
+        LINT["🧹 Lint<br/>Contradictions → Orphans → Gaps"]
+        DISCOVER["🌐 Discover<br/>Search → Fetch → Save"]
+    end
+
+    subgraph Storage["💾 File System"]
+        direction LR
+        RAW["raw/<br/>Immutable Sources"]
+        WIKI["wiki/<br/>Interlinked Markdown"]
+        OUTPUTS["outputs/<br/>Reports & Digests"]
+    end
+
+    Sources --> RAW
+    RAW --> INGEST
+    SKILL --> INGEST
+    INGEST --> WIKI
+    DISCOVER --> RAW
+    SKILL --> QUERY
+    Questions --> QUERY
+    QUERY --> WIKI
+    QUERY --> OUTPUTS
+    SKILL --> LINT
+    LINT --> WIKI
+    LINT --> OUTPUTS
+    SKILL --> DISCOVER
+
+    style RAW fill:#f9f,stroke:#333,stroke-width:2px
+    style WIKI fill:#bbf,stroke:#333,stroke-width:2px
+    style SKILL fill:#bfb,stroke:#333,stroke-width:2px
+    style Human fill:#ffd,stroke:#333,stroke-width:2px
+    style LLM fill:#eff,stroke:#333,stroke-width:2px

@@ -1,6 +1,6 @@
 {
   "name": "@zosmaai/pi-llm-wiki",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "LLM Wiki for Pi — self-maintaining knowledge base following Karpathy's pattern. Obsidian-friendly, auto-updating, personal & company wiki.",
   "keywords": [
     "pi-package",
@@ -33,9 +33,15 @@
     "prepare": "node -e \"try { require('husky').install() } catch {}\""
   },
   "pi": {
-    "extensions": ["./extensions"],
-    "skills": ["./skills"],
-    "prompts": ["./prompts"],
+    "extensions": [
+      "./extensions"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "prompts": [
+      "./prompts"
+    ],
     "image": "https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/main/assets/screenshot.png"
   },
   "peerDependencies": {
@@ -48,6 +54,7 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@mariozechner/pi-coding-agent": "^0.70.2",
+    "@mermaid-js/mermaid-cli": "^11.12.0",
     "typebox": "^1.1.34",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
