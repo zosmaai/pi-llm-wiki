@@ -89,7 +89,7 @@ describe("package structure", () => {
     expect(content).toContain("## Golden Rules");
     expect(content).toContain("RAW IS IMMUTABLE");
     expect(content).toContain("## Workflows");
-    expect(content).toContain("/wiki:ingest");
+    expect(content).toContain("/wiki-ingest");
     expect(content).toContain("Obsidian Integration");
     expect(content).toContain("Personal Wiki");
     expect(content).toContain("Company Wiki");
