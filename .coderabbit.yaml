@@ -1,0 +1,43 @@
+# CodeRabbit AI Code Review Configuration
+# Docs: https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: en-US
+early_access: false
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    ignore_title_keywords:
+      - "chore"
+      - "WIP"
+      - "wip"
+    drafts: false
+    base_branches:
+      - main
+  path_instructions:
+    - path: "extensions/**/*.ts"
+      instructions: |
+        Review TypeScript extension files for pi coding agent. Check that:
+        1. Tools use pi.registerTool() with TypeBox schemas
+        2. Error handling uses try/catch with proper messages
+        3. Unused parameters use underscore prefix or are removed
+        4. File exports a default function receiving ExtensionAPI
+    - path: "skills/**/SKILL.md"
+      instructions: |
+        Review SKILL.md for pi. Verify:
+        1. Frontmatter follows Agent Skills spec (name, description)
+        2. Workflows are clearly documented with steps
+        3. Golden rules and conventions are explicit
+    - path: "prompts/**/*.md"
+      instructions: |
+        Review prompt templates. Verify:
+        1. Frontmatter has description, args, section, topLevelCli
+        2. Instructions are actionable and clear
+
+chat:
+  auto_reply: true
