@@ -159,6 +159,14 @@ The LLM answers from your wiki, not from general knowledge — giving you answer
 
 ## 🏗️ Architecture
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/main/assets/screenshot.png" alt="LLM Wiki Architecture" width="90%">
+</p>
+
+<p align="center">
+  <em>Three-layer architecture: raw sources → LLM-managed wiki → Obsidian frontend</em>
+</p>
+
 The LLM Wiki follows a three-layer architecture:
 
 ```
@@ -233,6 +241,14 @@ These tools handle the scaffolding and bookkeeping so the LLM can focus on the a
 ---
 
 ## 📓 Using with Obsidian
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/main/assets/knowledge-graph.png" alt="Knowledge Graph" width="90%">
+</p>
+
+<p align="center">
+  <em>The LLM automatically connects entities, concepts, and sources with [[wikilinks]] — viewable in Obsidian's graph view</em>
+</p>
 
 1. Open the `wiki/` directory as an Obsidian vault
 2. Install these plugins:
