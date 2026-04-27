@@ -36,7 +36,7 @@
     "extensions": ["./extensions"],
     "skills": ["./skills"],
     "prompts": ["./prompts"],
-    "image": "https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/main/assets/screenshot.png"
+    "image": "https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/master/assets/screenshot.png"
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
