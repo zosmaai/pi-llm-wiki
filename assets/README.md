@@ -4,8 +4,8 @@ Placeholder for gallery screenshots.
 
 To generate a screenshot:
 
-1. Create a wiki using `/wiki:init`
-2. Add a few sources and run `/wiki:ingest`
+1. Create a wiki using `/wiki-init`
+2. Add a few sources and run `/wiki-ingest`
 3. Open `wiki/` in Obsidian for the graph view screenshot
 4. Save as `assets/screenshot.png`
 

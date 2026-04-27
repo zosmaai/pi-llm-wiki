@@ -5,7 +5,7 @@ section: LLM Wiki
 topLevelCli: true
 ---
 
-# /wiki:init
+# /wiki-init
 
 Initialize a new LLM Wiki in the current directory.
 
@@ -25,6 +25,6 @@ Read the LLM Wiki skill at `.pi/skills/llm-wiki/SKILL.md` (or wherever the skill
 6. Create `wiki/DASHBOARD.md` with Dataview queries for Obsidian
 7. Create `.gitignore` to exclude `outputs/` from version control if desired
 8. Initialize git repo if not already present
-9. Report the structure and suggest first steps: "Drop sources into `raw/` and run `/wiki:ingest`"
+9. Report the structure and suggest first steps: "Drop sources into `raw/` and run `/wiki-ingest`"
 
 If `--mode company`, add the `change_detection: true` flag to config.yaml and add a `wiki/decisions/` folder.

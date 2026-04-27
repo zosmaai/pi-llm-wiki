@@ -63,7 +63,7 @@ WIKI_ROOT/
 
 ## Workflows
 
-### `/wiki:init` — Initialize a new wiki
+### `/wiki-init` — Initialize a new wiki
 
 **When:** The user wants to start a new wiki on a topic.
 
@@ -74,7 +74,7 @@ WIKI_ROOT/
 5. Create `wiki/DASHBOARD.md` with Dataview queries
 6. Report the structure and suggest first steps
 
-### `/wiki:ingest [path]` — Process new sources
+### `/wiki-ingest [path]` — Process new sources
 
 **When:** New files appear in `raw/`. Process one or all new sources.
 
@@ -191,7 +191,7 @@ WIKI_ROOT/
 - If a file can't be read → log the error, skip it, continue
 - Batch size: process files one at a time for quality, or batch up to 5 for speed
 
-### `/wiki:query <question>` — Ask questions against the wiki
+### `/wiki-query <question>` — Ask questions against the wiki
 
 **When:** The user asks a question about wiki content.
 
@@ -208,7 +208,7 @@ WIKI_ROOT/
 - If the wiki lacks sufficient information → say so clearly, suggest what sources would help
 - Comparisons, analyses, and new connections → always save as synthesis pages (knowledge compounds)
 
-### `/wiki:lint` — Health check the wiki
+### `/wiki-lint` — Health check the wiki
 
 **When:** The user asks for a health check, or periodically.
 
@@ -228,7 +228,7 @@ WIKI_ROOT/
 7. Append to `wiki/LOG.md`
 8. Report key findings
 
-### `/wiki:discover` — Auto-discover new sources
+### `/wiki-discover` — Auto-discover new sources
 
 **When:** The user wants to find new content for the wiki.
 
@@ -251,7 +251,7 @@ WIKI_ROOT/
    ---
    ```
 6. Update `.discoveries/history.json`
-7. Report: `Discovered [N] new sources. Run /wiki:ingest to process them.`
+7. Report: `Discovered [N] new sources. Run /wiki-ingest to process them.`
 
 **Rules:**
 
@@ -259,7 +259,7 @@ WIKI_ROOT/
 - Skip: ads, shallow listicles, duplicates, paywalled content
 - Prefer: in-depth articles, papers, guides, high-quality analysis
 
-### `/wiki:run` — Full cycle: discover → ingest → lint
+### `/wiki-run` — Full cycle: discover → ingest → lint
 
 **When:** The user wants a complete refresh.
 
@@ -270,7 +270,7 @@ WIKI_ROOT/
 5. Save summary report → `outputs/run-YYYY-MM-DD.md`
 6. Report final summary
 
-### `/wiki:status` — Show wiki health
+### `/wiki-status` — Show wiki health
 
 **When:** The user wants a quick overview.
 
@@ -289,7 +289,7 @@ Knowledge Gaps: [N]
 Health: ✅ Good | ⚠️ Warning | 🔴 Needs Attention
 ```
 
-### `/wiki:digest` — Daily/Weekly digest
+### `/wiki-digest` — Daily/Weekly digest
 
 **When:** The user wants a summary of recent changes.
 
@@ -298,17 +298,17 @@ Health: ✅ Good | ⚠️ Warning | 🔴 Needs Attention
 3. Report in a concise digest format
 4. Save → `outputs/digest-YYYY-MM-DD.md`
 
-### `/wiki:watch <interval>` — Auto-run on schedule
+### `/wiki-watch <interval>` — Auto-run on schedule
 
 **When:** The user wants the wiki to stay current automatically.
 
 Set up a recurring schedule using pi's schedule system:
 
 ```
-/wiki:watch daily    → schedule_prompt action=add schedule="0 0 8 * * *" prompt="Run `/wiki:run` for the LLM Wiki"
-/wiki:watch weekly   → schedule_prompt action=add schedule="0 0 9 * * 1" prompt="Run `/wiki:run` for the LLM Wiki"
-/wiki:watch hourly   → schedule_prompt action=add schedule="0 0 * * * *" prompt="Run `/wiki:run` for the LLM Wiki"
-/wiki:watch stop     → list and remove scheduled wiki jobs
+/wiki-watch daily    → schedule_prompt action=add schedule="0 0 8 * * *" prompt="Run `/wiki-run` for the LLM Wiki"
+/wiki-watch weekly   → schedule_prompt action=add schedule="0 0 9 * * 1" prompt="Run `/wiki-run` for the LLM Wiki"
+/wiki-watch hourly   → schedule_prompt action=add schedule="0 0 * * * *" prompt="Run `/wiki-run` for the LLM Wiki"
+/wiki-watch stop     → list and remove scheduled wiki jobs
 ```
 
 ---
@@ -407,10 +407,10 @@ To keep the wiki always fresh, use pi's scheduling:
 
 ```bash
 # Daily at 8 AM — discover + ingest + lint
-/wiki:watch daily
+/wiki-watch daily
 
 # Or manually:
-/wiki:run
+/wiki-run
 ```
 
 The schedule checks your configured topics, discovers new sources, ingests them, and lints for health — all automatically.

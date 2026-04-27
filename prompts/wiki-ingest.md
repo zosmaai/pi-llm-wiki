@@ -5,7 +5,7 @@ section: LLM Wiki
 topLevelCli: true
 ---
 
-# /wiki:ingest
+# /wiki-ingest
 
 Process new files in `raw/` and integrate them into the wiki.
 
@@ -14,7 +14,7 @@ Read the LLM Wiki skill at `.pi/skills/llm-wiki/SKILL.md` first to understand th
 ## Steps
 
 1. Read `config.yaml` and `.discoveries/history.json`
-2. If a specific path is given (e.g., `/wiki:ingest raw/articles/my-file.md`), process just that file
+2. If a specific path is given (e.g., `/wiki-ingest raw/articles/my-file.md`), process just that file
 3. If no path given, scan all files in `raw/` and find ones not in history
 4. For each new source:
    a. Read the full content

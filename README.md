@@ -53,14 +53,14 @@ Every `[[wikilink]]` the LLM creates becomes a visible connection in Obsidian's 
 │   ├── wiki_discover_sources          Find new source material from the web
 │   └── wiki_watch                     Schedule auto-updates
 └── 💬 prompts/                        ← 8 slash commands:
-    ├── /wiki:init                     Initialize a new wiki
-    ├── /wiki:ingest                   Process new sources
-    ├── /wiki:query                    Ask questions against the wiki
-    ├── /wiki:lint                     Health check
-    ├── /wiki:discover                 Auto-discover sources
-    ├── /wiki:run                      Full cycle (discover → ingest → lint)
-    ├── /wiki:status                   Wiki health overview
-    └── /wiki:digest                   Daily/weekly summary
+    ├── /wiki-init                     Initialize a new wiki
+    ├── /wiki-ingest                   Process new sources
+    ├── /wiki-query                    Ask questions against the wiki
+    ├── /wiki-lint                     Health check
+    ├── /wiki-discover                 Auto-discover sources
+    ├── /wiki-run                      Full cycle (discover → ingest → lint)
+    ├── /wiki-status                   Wiki health overview
+    └── /wiki-digest                   Daily/weekly summary
 ```
 
 ---
@@ -116,7 +116,7 @@ pi
 Then inside pi:
 
 ```
-/wiki:init "AI Engineering"
+/wiki-init "AI Engineering"
 ```
 
 This creates your wiki directory structure and template files.
@@ -132,7 +132,7 @@ Drop content into `raw/`:
 ### 3️⃣ Ingest
 
 ```
-/wiki:ingest
+/wiki-ingest
 ```
 
 The LLM reads every new source, creates wiki pages, cross-references everything, and builds the index. A single source typically generates 5-15 wiki pages (summary + entities + concepts + cross-refs).
@@ -140,7 +140,7 @@ The LLM reads every new source, creates wiki pages, cross-references everything,
 ### 4️⃣ Query
 
 ```
-/wiki:query What are the key patterns in modern AI engineering?
+/wiki-query What are the key patterns in modern AI engineering?
 ```
 
 The LLM answers from your wiki, not from general knowledge — giving you answers grounded in your curated sources.
@@ -149,10 +149,10 @@ The LLM answers from your wiki, not from general knowledge — giving you answer
 
 ```bash
 # Auto-update daily at 8 AM
-/wiki:run --schedule daily
+/wiki-run --schedule daily
 
 # Or run manually anytime
-/wiki:run
+/wiki-run
 ```
 
 ---
@@ -213,14 +213,14 @@ my-wiki/
 
 | Command          | Description         | Example                                   |
 | ---------------- | ------------------- | ----------------------------------------- |
-| `/wiki:init`     | Create a new wiki   | `/wiki:init "Rust Programming"`           |
-| `/wiki:ingest`   | Process new sources | `/wiki:ingest raw/articles/my-article.md` |
-| `/wiki:query`    | Ask a question      | `/wiki:query "Compare RAG vs LLM Wiki"`   |
-| `/wiki:lint`     | Health check        | `/wiki:lint --fix`                        |
-| `/wiki:discover` | Find new sources    | `/wiki:discover --topic "AI agents"`      |
-| `/wiki:run`      | Full cycle          | `/wiki:run --schedule daily`              |
-| `/wiki:status`   | Show health         | `/wiki:status`                            |
-| `/wiki:digest`   | Daily summary       | `/wiki:digest --period weekly`            |
+| `/wiki-init`     | Create a new wiki   | `/wiki-init "Rust Programming"`           |
+| `/wiki-ingest`   | Process new sources | `/wiki-ingest raw/articles/my-article.md` |
+| `/wiki-query`    | Ask a question      | `/wiki-query "Compare RAG vs LLM Wiki"`   |
+| `/wiki-lint`     | Health check        | `/wiki-lint --fix`                        |
+| `/wiki-discover` | Find new sources    | `/wiki-discover --topic "AI agents"`      |
+| `/wiki-run`      | Full cycle          | `/wiki-run --schedule daily`              |
+| `/wiki-status`   | Show health         | `/wiki-status`                            |
+| `/wiki-digest`   | Daily summary       | `/wiki-digest --period weekly`            |
 
 ---
 
@@ -284,7 +284,7 @@ Best for: Competitive intelligence, market research, customer insights, internal
 - **Change detection** — Re-check competitor sources for pricing, feature, and positioning changes
 - Confidence levels in frontmatter: `high | medium | low`
 - Slack/email thread exports as sources
-- Generate battlecards with `/wiki:query "Create a battlecard for Competitor X"`
+- Generate battlecards with `/wiki-query "Create a battlecard for Competitor X"`
 
 ---
 
@@ -294,9 +294,9 @@ Keep your wiki current without thinking about it:
 
 ```bash
 # Inside pi
-/wiki:run --schedule daily    # Discover → ingest → lint every day at 8 AM
-/wiki:run --schedule weekly   # Every Monday at 9 AM
-/wiki:run --schedule hourly   # Every hour (for fast-moving topics)
+/wiki-run --schedule daily    # Discover → ingest → lint every day at 8 AM
+/wiki-run --schedule weekly   # Every Monday at 9 AM
+/wiki-run --schedule hourly   # Every hour (for fast-moving topics)
 ```
 
 The scheduler uses pi's built-in `schedule_prompt` system. All operations run in the background and the wiki stays updated.
@@ -308,32 +308,32 @@ The scheduler uses pi's built-in `schedule_prompt` system. All operations run in
 ### Research Wiki
 
 ```bash
-/wiki:init "LLM Agents"
+/wiki-init "LLM Agents"
 # Drop 5 papers into raw/papers/
-/wiki:ingest
+/wiki-ingest
 # Creates ~30-50 wiki pages (entities, concepts, cross-refs)
-/wiki:query "What are the main approaches to tool use in LLM agents?"
-/wiki:lint
+/wiki-query "What are the main approaches to tool use in LLM agents?"
+/wiki-lint
 ```
 
 ### Book Companion
 
 ```bash
-/wiki:init "Dune" --mode personal
+/wiki-init "Dune" --mode personal
 # Drop chapter notes into raw/notes/
-/wiki:ingest raw/notes/ch01-opening-test.md
-/wiki:query "Who are the main factions and what do they want?"
-/wiki:query "Create a timeline of events up to Chapter 5"
+/wiki-ingest raw/notes/ch01-opening-test.md
+/wiki-query "Who are the main factions and what do they want?"
+/wiki-query "Create a timeline of events up to Chapter 5"
 ```
 
 ### Competitive Intelligence
 
 ```bash
-/wiki:init "PM Tool Market" --mode company
+/wiki-init "PM Tool Market" --mode company
 # Drop competitor landing pages, reviews, pricing pages
-/wiki:ingest
-/wiki:query "Create a comparison table of Linear, Notion, and Jira"
-/wiki:run --schedule weekly
+/wiki-ingest
+/wiki-query "Create a comparison table of Linear, Notion, and Jira"
+/wiki-run --schedule weekly
 ```
 
 ---

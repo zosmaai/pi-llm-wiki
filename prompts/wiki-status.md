@@ -5,7 +5,7 @@ section: LLM Wiki
 topLevelCli: true
 ---
 
-# /wiki:status
+# /wiki-status
 
 Show a quick overview of wiki health and statistics.
 

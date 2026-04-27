@@ -71,7 +71,7 @@ flowchart TB
 | ---------- | -------------------- | ------------------------------------------------------------------------------------------- |
 | **Ingest** | Add source to `raw/` | LLM reads, creates summary, updates 5-15 wiki pages, cross-references, flags contradictions |
 | **Query**  | Ask any question     | LLM searches index, reads relevant pages, synthesizes answer with `[[citations]]`           |
-| **Lint**   | `/wiki:lint`         | Health check: contradictions, orphans, missing pages, stale claims, knowledge gaps          |
+| **Lint**   | `/wiki-lint`         | Health check: contradictions, orphans, missing pages, stale claims, knowledge gaps          |
 
 ## Two Modes
 

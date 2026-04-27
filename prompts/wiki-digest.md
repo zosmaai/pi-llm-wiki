@@ -5,7 +5,7 @@ section: LLM Wiki
 topLevelCli: true
 ---
 
-# /wiki:digest
+# /wiki-digest
 
 Generate a digest of recent wiki activity.
 

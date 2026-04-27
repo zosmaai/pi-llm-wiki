@@ -30,7 +30,7 @@ SORT updated ASC
 
 ## Orphan Pages
 
-_Pages with no inbound [[wikilinks]] — run `/wiki:lint` to detect and fix._
+_Pages with no inbound [[wikilinks]] — run `/wiki-lint` to detect and fix._
 
 ## Most-Connected Concepts
 
@@ -38,7 +38,7 @@ _Pages with the most inbound [[wikilinks]] — these are the knowledge hubs._
 
 ## Knowledge Gaps
 
-_Topics mentioned but lacking their own page — run `/wiki:lint` to detect._
+_Topics mentioned but lacking their own page — run `/wiki-lint` to detect._
 
 ## Recent Activity
 

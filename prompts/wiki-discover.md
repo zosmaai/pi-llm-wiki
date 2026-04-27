@@ -5,7 +5,7 @@ section: LLM Wiki
 topLevelCli: true
 ---
 
-# /wiki:discover
+# /wiki-discover
 
 Find new source material for the wiki by searching the web.
 
@@ -24,6 +24,6 @@ Read the LLM Wiki skill at `.pi/skills/llm-wiki/SKILL.md` first. Also read `conf
    a. Fetch full content
    b. Save to `raw/articles/YYYY-MM-DD-slug.md` with frontmatter (title, url, discovered, topic)
 6. Update `.discoveries/history.json`
-7. Report: "Discovered [N] new sources. Run `/wiki:ingest` to process them."
+7. Report: "Discovered [N] new sources. Run `/wiki-ingest` to process them."
 
 **Rules:** Max 5-10 sources. Skip ads, listicles, duplicates. Prefer in-depth analysis.

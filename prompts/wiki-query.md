@@ -5,7 +5,7 @@ section: LLM Wiki
 topLevelCli: true
 ---
 
-# /wiki:query
+# /wiki-query
 
 Ask a question and get an answer synthesized from wiki content.
 
@@ -24,7 +24,7 @@ Read the LLM Wiki skill at `.pi/skills/llm-wiki/SKILL.md` first to understand th
 **Example:**
 
 ```
-/wiki:query What are the key differences between RAG and LLM Wiki?
+/wiki-query What are the key differences between RAG and LLM Wiki?
 → Reads INDEX.md, finds pages on RAG and LLM Wiki patterns
 → Reads both pages
 → Synthesizes a comparison table with [[wikilink]] citations

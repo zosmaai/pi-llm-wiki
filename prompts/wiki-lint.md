@@ -5,7 +5,7 @@ section: LLM Wiki
 topLevelCli: true
 ---
 
-# /wiki:lint
+# /wiki-lint
 
 Run a comprehensive health check on the wiki.
 
