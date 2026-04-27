@@ -33,15 +33,9 @@
     "prepare": "node -e \"try { require('husky').install() } catch {}\""
   },
   "pi": {
-    "extensions": [
-      "./extensions"
-    ],
-    "skills": [
-      "./skills"
-    ],
-    "prompts": [
-      "./prompts"
-    ],
+    "extensions": ["./extensions"],
+    "skills": ["./skills"],
+    "prompts": ["./prompts"],
     "image": "https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/main/assets/screenshot.png"
   },
   "peerDependencies": {
