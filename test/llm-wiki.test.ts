@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 // ─── Helpers ────────────────────────────────────────────
 
@@ -13,7 +13,7 @@ const __dname =
     ? __dirname
     : typeof import.meta !== "undefined" && import.meta.dirname
       ? import.meta.dirname
-      : dirname(fileURLToPath(__fname || "file://" + process.cwd() + "/test/dummy.ts"));
+      : dirname(fileURLToPath(__fname || `file://${process.cwd()}/test/dummy.ts`));
 
 const rootDir = resolve(__dname, "..");
 
@@ -166,12 +166,12 @@ describe("skill frontmatter validation", () => {
     const content = readFile(skillPath);
     const match = content.match(/^---\n([\s\S]*?)\n---/);
     expect(match).not.toBeNull();
-    const frontmatter = match![1];
+    const frontmatter = match?.[1];
     expect(frontmatter).toContain("name: llm-wiki");
 
     const nameMatch = frontmatter.match(/name:\s*(\S+)/);
     expect(nameMatch).not.toBeNull();
-    const name = nameMatch![1];
+    const name = nameMatch?.[1];
     expect(name).toMatch(/^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/);
     expect(name.length).toBeLessThanOrEqual(64);
     expect(name).not.toContain("--");
@@ -182,9 +182,9 @@ describe("skill frontmatter validation", () => {
     const content = readFile(skillPath);
     const match = content.match(/^---\n([\s\S]*?)\n---/);
     expect(match).not.toBeNull();
-    const descMatch = match![1].match(/description:\s*(.+)/);
+    const descMatch = match?.[1].match(/description:\s*(.+)/);
     expect(descMatch).not.toBeNull();
-    expect(descMatch![1].length).toBeLessThanOrEqual(1024);
+    expect(descMatch?.[1].length).toBeLessThanOrEqual(1024);
   });
 });
 
