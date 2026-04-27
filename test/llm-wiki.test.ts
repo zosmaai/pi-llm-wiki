@@ -164,14 +164,14 @@ describe("skill frontmatter validation", () => {
 
   it("should have name matching directory, lowercase with hyphens only", () => {
     const content = readFile(skillPath);
-    const match = content.match(/^---\n([\s\S]*?)\n---/);
+    const match = content.match(/^---\n([\s\S]*?)\n---/) as RegExpMatchArray | null;
     expect(match).not.toBeNull();
-    const frontmatter = match?.[1];
+    const frontmatter = match![1];
     expect(frontmatter).toContain("name: llm-wiki");
 
     const nameMatch = frontmatter.match(/name:\s*(\S+)/);
     expect(nameMatch).not.toBeNull();
-    const name = nameMatch?.[1];
+    const name = nameMatch![1];
     expect(name).toMatch(/^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/);
     expect(name.length).toBeLessThanOrEqual(64);
     expect(name).not.toContain("--");
@@ -180,11 +180,11 @@ describe("skill frontmatter validation", () => {
 
   it("should have a description under 1024 characters", () => {
     const content = readFile(skillPath);
-    const match = content.match(/^---\n([\s\S]*?)\n---/);
+    const match = content.match(/^---\n([\s\S]*?)\n---/) as RegExpMatchArray | null;
     expect(match).not.toBeNull();
-    const descMatch = match?.[1].match(/description:\s*(.+)/);
+    const descMatch = match![1].match(/description:\s*(.+)/);
     expect(descMatch).not.toBeNull();
-    expect(descMatch?.[1].length).toBeLessThanOrEqual(1024);
+    expect(descMatch![1].length).toBeLessThanOrEqual(1024);
   });
 });
 
