@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type Check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run Tests
+        run: npm test
+
+      - name: Extract Version from Tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Update package.json version
+        run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version
+
+      - name: Generate Release Notes
+        id: notes
+        run: |
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD -- . 2>/dev/null || echo "- Initial release")
+          echo "NOTES<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "@zosmaai/pi-llm-wiki v${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## 📦 @zosmaai/pi-llm-wiki v${{ steps.version.outputs.VERSION }}
+
+            ${{ steps.notes.outputs.NOTES }}
+
+            ### Install
+            \`\`\`bash
+            pi install npm:@zosmaai/pi-llm-wiki@${{ steps.version.outputs.VERSION }}
+            \`\`\`
+
+            ### What's Included
+            - **Skill**: Self-maintaining wiki schema (SKILL.md)
+            - **Extension**: 5 TypeScript tools (wiki_ingest, wiki_status_report, wiki_lint_report, wiki_discover_sources, wiki_watch)
+            - **Prompt Templates**: 8 slash commands (/wiki:init, :ingest, :query, :lint, :discover, :run, :status, :digest)
+            - **Templates**: INDEX.md, LOG.md, DASHBOARD.md, config.yaml, 4 page templates
+          generate_release_notes: false
