@@ -59,7 +59,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "@zosmaai/pi-llm-wiki v${{ steps.version.outputs.VERSION }}"
+          name: "v${{ steps.version.outputs.VERSION }}"
           body: |
             ## 📦 @zosmaai/pi-llm-wiki v${{ steps.version.outputs.VERSION }}
 
@@ -72,7 +72,7 @@ jobs:
 
             ### What's Included
             - **Skill**: Self-maintaining wiki schema (SKILL.md)
-            - **Extension**: 5 TypeScript tools (wiki_ingest, wiki_status_report, wiki_lint_report, wiki_discover_sources, wiki_watch)
+            - **Extension**: 10 TypeScript tools (wiki_bootstrap, wiki_capture_source, wiki_ingest, wiki_ensure_page, wiki_search, wiki_lint, wiki_status, wiki_rebuild_meta, wiki_log_event, wiki_watch)
             - **Prompt Templates**: 8 slash commands (/wiki:init, :ingest, :query, :lint, :discover, :run, :status, :digest)
-            - **Templates**: INDEX.md, LOG.md, DASHBOARD.md, config.yaml, 4 page templates
+            - **Templates**: INDEX.md, LOG.md, DASHBOARD.md, config.yaml, 5 page templates
           generate_release_notes: false

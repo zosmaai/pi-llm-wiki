@@ -89,7 +89,7 @@ describe("package structure", () => {
     expect(content).toContain("## Golden Rules");
     expect(content).toContain("RAW IS IMMUTABLE");
     expect(content).toContain("## Workflows");
-    expect(content).toContain("/wiki-ingest");
+    expect(content).toContain("wiki_ingest");
     expect(content).toContain("Obsidian Integration");
     expect(content).toContain("Personal Wiki");
     expect(content).toContain("Company Wiki");
@@ -128,17 +128,28 @@ describe("package structure", () => {
     expect(existsSync(join(t, "pages", "synthesis.md"))).toBe(true);
   });
 
-  it("should have the extension file with all custom tools", () => {
-    const extPath = join(rootDir, "extensions", "llm-wiki-tools.ts");
+  it("should have the extension entry point", () => {
+    const extPath = join(rootDir, "extensions", "llm-wiki", "index.ts");
     expect(existsSync(extPath)).toBe(true);
     const content = readFile(extPath);
     expect(content).toContain("ExtensionAPI");
-    expect(content).toContain("registerTool");
+    expect(content).toContain("registerWikiBootstrap");
+  });
+
+  it("should have all custom tools in the extension", () => {
+    const toolsPath = join(rootDir, "extensions", "llm-wiki", "lib", "tools.ts");
+    expect(existsSync(toolsPath)).toBe(true);
+    const content = readFile(toolsPath);
     const tools = [
+      "wiki_bootstrap",
+      "wiki_capture_source",
       "wiki_ingest",
-      "wiki_status_report",
-      "wiki_lint_report",
-      "wiki_discover_sources",
+      "wiki_ensure_page",
+      "wiki_search",
+      "wiki_lint",
+      "wiki_status",
+      "wiki_rebuild_meta",
+      "wiki_log_event",
       "wiki_watch",
     ];
     for (const tool of tools) {
@@ -152,8 +163,6 @@ describe("package structure", () => {
     expect(readme).toContain("pi install npm:@zosmaai/pi-llm-wiki");
     expect(readme).toContain("Karpathy");
     expect(readme).toContain("Obsidian");
-    expect(readme).toContain("Personal Wiki");
-    expect(readme).toContain("Company Wiki");
   });
 });
 

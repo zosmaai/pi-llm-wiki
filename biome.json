@@ -1,5 +1,8 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "files": {
+    "ignore": ["coverage", "dist", "node_modules"]
+  },
   "organizeImports": {
     "enabled": true
   },

@@ -33,12 +33,13 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Run Tests
-        run: npm test
+      - name: Run Tests with Coverage
+        run: npm run test:coverage
 
-      - name: Upload Coverage
+      - name: Upload Coverage to Codecov
         if: ${{ matrix.node-version == 22 && github.event_name == 'push' }}
-        uses: actions/upload-artifact@v4
+        uses: codecov/codecov-action@v5
         with:
-          name: coverage
-          path: coverage/
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+          verbose: true
