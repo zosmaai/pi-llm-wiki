@@ -160,7 +160,7 @@ The LLM answers from your wiki, not from general knowledge — giving you answer
 ## 🏗️ Architecture
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/master/assets/screenshot.png" alt="LLM Wiki Architecture" width="90%">
+  <img src="https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/main/assets/screenshot.png" alt="LLM Wiki Architecture" width="90%">
 </p>
 
 <p align="center">
@@ -243,7 +243,7 @@ These tools handle the scaffolding and bookkeeping so the LLM can focus on the a
 ## 📓 Using with Obsidian
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/master/assets/knowledge-graph.png" alt="Knowledge Graph" width="90%">
+  <img src="https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/main/assets/knowledge-graph.png" alt="Knowledge Graph" width="90%">
 </p>
 
 <p align="center">

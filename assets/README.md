@@ -10,4 +10,4 @@ To generate a screenshot:
 4. Save as `assets/screenshot.png`
 
 The screenshot URL in package.json should point to:
-`https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/master/assets/screenshot.png`
+`https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/main/assets/screenshot.png`

@@ -1,6 +1,6 @@
 {
   "name": "@zosmaai/pi-llm-wiki",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "LLM Wiki for Pi — self-maintaining knowledge base following Karpathy's pattern. Obsidian-friendly, auto-updating, personal & company wiki.",
   "keywords": [
     "pi-package",
@@ -33,10 +33,16 @@
     "prepare": "node -e \"try { require('husky').install() } catch {}\""
   },
   "pi": {
-    "extensions": ["./extensions"],
-    "skills": ["./skills"],
-    "prompts": ["./prompts"],
-    "image": "https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/master/assets/screenshot.png"
+    "extensions": [
+      "./extensions"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "prompts": [
+      "./prompts"
+    ],
+    "image": "https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/main/assets/screenshot.png"
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
