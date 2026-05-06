@@ -22,6 +22,36 @@ export interface CaptureResult {
   extracted: string;
 }
 
+const DEFAULT_MARKITDOWN_TIMEOUT_MS = 180_000;
+const DEFAULT_CURL_TIMEOUT_SECONDS = 30;
+
+function markitdownTimeoutMs(): number {
+  return positiveIntegerFromEnv("WIKI_MARKITDOWN_TIMEOUT_MS", DEFAULT_MARKITDOWN_TIMEOUT_MS);
+}
+
+function positiveIntegerFromEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function isPdfUrl(url: string): boolean {
+  try {
+    return new URL(url).pathname.toLowerCase().endsWith(".pdf");
+  } catch {
+    return url.toLowerCase().split(/[?#]/, 1)[0].endsWith(".pdf");
+  }
+}
+
+function looksLikePdf(content: string): boolean {
+  return content.trimStart().startsWith("%PDF-");
+}
+
+function pdfExtractionFailureMessage(source: string): string {
+  return `_PDF content could not be converted to markdown from ${source}. Try increasing WIKI_MARKITDOWN_TIMEOUT_MS._\n`;
+}
+
 /** Capture a URL into a source packet. */
 export async function captureUrl(
   pi: ExtensionAPI,
@@ -38,8 +68,9 @@ export async function captureUrl(
   // Try to fetch and extract content
   let extracted = "";
   let title = url;
+  const isPdf = isPdfUrl(url);
 
-  // Try markitdown first
+  // Try MarkItDown first.
   const markitdown = await exec(
     pi,
     "sh",
@@ -53,7 +84,7 @@ export async function captureUrl(
         pi,
         "sh",
         ["-c", `uvx --from 'markitdown[pdf]' markitdown "${url}" 2>/dev/null || echo ""`],
-        { signal, timeout: 30_000 },
+        { signal, timeout: markitdownTimeoutMs() },
       );
       if (mdResult.stdout.trim()) {
         extracted = mdResult.stdout;
@@ -66,21 +97,35 @@ export async function captureUrl(
     }
   }
 
-  // Fallback: try fetch_content equivalent via curl
+  // Fallback: try fetch_content equivalent via curl for text/html sources.
+  // Do not write binary PDF bytes into extracted.md when PDF conversion fails.
   if (!extracted) {
-    try {
-      const curlResult = await exec(pi, "curl", ["-sL", "--max-time", "30", url], {
-        signal,
-        timeout: 35_000,
-      });
-      if (curlResult.stdout) {
-        extracted = curlResult.stdout;
-        // Try to extract title from HTML
-        const titleMatch = extracted.match(/<title>([^<]*)<\/title>/i);
-        if (titleMatch) title = titleMatch[1].trim();
+    if (isPdf) {
+      extracted = pdfExtractionFailureMessage(url);
+    } else {
+      try {
+        const curlResult = await exec(
+          pi,
+          "curl",
+          ["-sL", "--max-time", String(DEFAULT_CURL_TIMEOUT_SECONDS), url],
+          {
+            signal,
+            timeout: (DEFAULT_CURL_TIMEOUT_SECONDS + 5) * 1_000,
+          },
+        );
+        if (curlResult.stdout) {
+          if (looksLikePdf(curlResult.stdout)) {
+            extracted = pdfExtractionFailureMessage(url);
+          } else {
+            extracted = curlResult.stdout;
+            // Try to extract title from HTML
+            const titleMatch = extracted.match(/<title>([^<]*)<\/title>/i);
+            if (titleMatch) title = titleMatch[1].trim();
+          }
+        }
+      } catch {
+        // curl failed too
       }
-    } catch {
-      // curl failed too
     }
   }
 
@@ -126,12 +171,13 @@ export async function captureFile(
   mkdirSync(join(packetPath, "original"), { recursive: true });
   mkdirSync(join(packetPath, "attachments"), { recursive: true });
 
-  const content = readText(filePath);
+  const isPdf = filePath.toLowerCase().endsWith(".pdf");
+  const content = isPdf ? "" : readText(filePath);
   const fileName = filePath.split("/").pop() || "unknown";
 
-  // Try markitdown for PDFs
+  // Try MarkItDown for PDFs.
   let extracted = content;
-  if (filePath.toLowerCase().endsWith(".pdf")) {
+  if (isPdf) {
     const markitdown = await exec(
       pi,
       "sh",
@@ -145,13 +191,14 @@ export async function captureFile(
           pi,
           "sh",
           ["-c", `uvx --from 'markitdown[pdf]' markitdown "${filePath}" 2>/dev/null || echo ""`],
-          { signal, timeout: 30_000 },
+          { signal, timeout: markitdownTimeoutMs() },
         );
         if (mdResult.stdout.trim()) extracted = mdResult.stdout;
       } catch {
-        // fallback to original
+        extracted = pdfExtractionFailureMessage(filePath);
       }
     }
+    if (!extracted) extracted = pdfExtractionFailureMessage(filePath);
   }
 
   // Copy original to packet
