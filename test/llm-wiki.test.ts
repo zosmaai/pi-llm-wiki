@@ -157,6 +157,17 @@ describe("package structure", () => {
     }
   });
 
+  it("should keep PDF extraction timeout configurable and avoid PDF byte fallbacks", () => {
+    const sourcePacketPath = join(rootDir, "extensions", "llm-wiki", "lib", "source-packet.ts");
+    expect(existsSync(sourcePacketPath)).toBe(true);
+    const content = readFile(sourcePacketPath);
+    expect(content).toContain("WIKI_MARKITDOWN_TIMEOUT_MS");
+    expect(content).toContain("DEFAULT_MARKITDOWN_TIMEOUT_MS = 180_000");
+    expect(content).toContain("isPdfUrl(url)");
+    expect(content).toContain("looksLikePdf(curlResult.stdout)");
+    expect(content).toContain("pdfExtractionFailureMessage");
+  });
+
   it("should have a comprehensive README with install instructions", () => {
     const readme = readFile(join(rootDir, "README.md"));
     expect(readme).toContain("@zosmaai/pi-llm-wiki");
