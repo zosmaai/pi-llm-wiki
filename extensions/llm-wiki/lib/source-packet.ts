@@ -70,7 +70,7 @@ export async function captureUrl(
   let title = url;
   const isPdf = isPdfUrl(url);
 
-  // Try MarkItDown first. The timeout is shared by all MarkItDown conversions.
+  // Try MarkItDown first.
   const markitdown = await exec(
     pi,
     "sh",
@@ -99,31 +99,33 @@ export async function captureUrl(
 
   // Fallback: try fetch_content equivalent via curl for text/html sources.
   // Do not write binary PDF bytes into extracted.md when PDF conversion fails.
-  if (!extracted && isPdf) {
-    extracted = pdfExtractionFailureMessage(url);
-  } else if (!extracted) {
-    try {
-      const curlResult = await exec(
-        pi,
-        "curl",
-        ["-sL", "--max-time", String(DEFAULT_CURL_TIMEOUT_SECONDS), url],
-        {
-          signal,
-          timeout: (DEFAULT_CURL_TIMEOUT_SECONDS + 5) * 1_000,
-        },
-      );
-      if (curlResult.stdout) {
-        if (looksLikePdf(curlResult.stdout)) {
-          extracted = pdfExtractionFailureMessage(url);
-        } else {
-          extracted = curlResult.stdout;
-          // Try to extract title from HTML
-          const titleMatch = extracted.match(/<title>([^<]*)<\/title>/i);
-          if (titleMatch) title = titleMatch[1].trim();
+  if (!extracted) {
+    if (isPdf) {
+      extracted = pdfExtractionFailureMessage(url);
+    } else {
+      try {
+        const curlResult = await exec(
+          pi,
+          "curl",
+          ["-sL", "--max-time", String(DEFAULT_CURL_TIMEOUT_SECONDS), url],
+          {
+            signal,
+            timeout: (DEFAULT_CURL_TIMEOUT_SECONDS + 5) * 1_000,
+          },
+        );
+        if (curlResult.stdout) {
+          if (looksLikePdf(curlResult.stdout)) {
+            extracted = pdfExtractionFailureMessage(url);
+          } else {
+            extracted = curlResult.stdout;
+            // Try to extract title from HTML
+            const titleMatch = extracted.match(/<title>([^<]*)<\/title>/i);
+            if (titleMatch) title = titleMatch[1].trim();
+          }
         }
+      } catch {
+        // curl failed too
       }
-    } catch {
-      // curl failed too
     }
   }
 
@@ -173,7 +175,7 @@ export async function captureFile(
   const content = isPdf ? "" : readText(filePath);
   const fileName = filePath.split("/").pop() || "unknown";
 
-  // Try MarkItDown for PDFs. The timeout is shared by all MarkItDown conversions.
+  // Try MarkItDown for PDFs.
   let extracted = content;
   if (isPdf) {
     const markitdown = await exec(
@@ -196,6 +198,7 @@ export async function captureFile(
         extracted = pdfExtractionFailureMessage(filePath);
       }
     }
+    if (!extracted) extracted = pdfExtractionFailureMessage(filePath);
   }
 
   // Copy original to packet
@@ -205,8 +208,6 @@ export async function captureFile(
     // If cp fails, just write the content
     writeFileSync(join(packetPath, "original", fileName), content, "utf-8");
   }
-
-  if (isPdf && !extracted) extracted = pdfExtractionFailureMessage(filePath);
 
   // Write extracted text
   writeFileSync(join(packetPath, "extracted.md"), extracted, "utf-8");
