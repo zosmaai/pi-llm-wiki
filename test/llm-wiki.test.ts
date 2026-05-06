@@ -157,7 +157,7 @@ describe("package structure", () => {
     }
   });
 
-  it("should keep PDF extraction timeout configurable and avoid PDF byte fallbacks", () => {
+  it("should keep MarkItDown timeout configurable and avoid PDF byte fallbacks", () => {
     const sourcePacketPath = join(rootDir, "extensions", "llm-wiki", "lib", "source-packet.ts");
     expect(existsSync(sourcePacketPath)).toBe(true);
     const content = readFile(sourcePacketPath);

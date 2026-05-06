@@ -70,7 +70,7 @@ export async function captureUrl(
   let title = url;
   const isPdf = isPdfUrl(url);
 
-  // Try markitdown first
+  // Try MarkItDown first. The timeout is shared by all MarkItDown conversions.
   const markitdown = await exec(
     pi,
     "sh",
@@ -173,7 +173,7 @@ export async function captureFile(
   const content = isPdf ? "" : readText(filePath);
   const fileName = filePath.split("/").pop() || "unknown";
 
-  // Try markitdown for PDFs
+  // Try MarkItDown for PDFs. The timeout is shared by all MarkItDown conversions.
   let extracted = content;
   if (isPdf) {
     const markitdown = await exec(
