@@ -111,9 +111,31 @@ describe("package structure", () => {
       expect(existsSync(path)).toBe(true);
       const content = readFile(path);
       expect(content).toContain("description:");
+      expect(content).toContain("argument-hint:");
       expect(content).toContain("section: LLM Wiki");
       expect(content).toContain("topLevelCli: true");
+      expect(content).not.toContain("\nargs:");
     }
+  });
+
+  it("should include prompt arguments in templates that accept them", () => {
+    const promptsWithArgs = [
+      "wiki-init.md",
+      "wiki-ingest.md",
+      "wiki-query.md",
+      "wiki-lint.md",
+      "wiki-discover.md",
+      "wiki-run.md",
+      "wiki-digest.md",
+    ];
+    for (const prompt of promptsWithArgs) {
+      const content = readFile(join(rootDir, "prompts", prompt));
+      expect(content).toContain("$ARGUMENTS");
+    }
+
+    const query = readFile(join(rootDir, "prompts", "wiki-query.md"));
+    expect(query).toContain("## User Question");
+    expect(query).toContain("$ARGUMENTS");
   });
 
   it("should have all wiki template files", () => {

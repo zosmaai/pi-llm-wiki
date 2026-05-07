@@ -1,6 +1,6 @@
 ---
 description: Process new source files in raw/ and update the wiki. Creates summaries, entities, concepts, and cross-references.
-args: [path]
+argument-hint: "[path]"
 section: LLM Wiki
 topLevelCli: true
 ---
@@ -8,6 +8,10 @@ topLevelCli: true
 # /wiki-ingest
 
 Process new files in `raw/` and integrate them into the wiki.
+
+## User Arguments
+
+$ARGUMENTS
 
 Read the LLM Wiki skill at `.pi/skills/llm-wiki/SKILL.md` first to understand the full schema, page formats, and conventions.
 

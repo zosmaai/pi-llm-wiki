@@ -1,6 +1,6 @@
 ---
 description: Generate a daily or weekly digest of wiki changes — new sources, pages, insights, and gaps.
-args: [--period daily|weekly]
+argument-hint: "[--period daily|weekly]"
 section: LLM Wiki
 topLevelCli: true
 ---
@@ -8,6 +8,10 @@ topLevelCli: true
 # /wiki-digest
 
 Generate a digest of recent wiki activity.
+
+## User Arguments
+
+$ARGUMENTS
 
 ## Steps
 
