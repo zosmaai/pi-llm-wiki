@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { appendEvent } from "./metadata.js";
 import { type VaultPaths, exec, fmtDate, nextSourceId, readText, writeJson } from "./utils.js";
@@ -22,6 +22,39 @@ export interface CaptureResult {
   extracted: string;
 }
 
+const URL_ORIGINAL_EXTENSIONS = new Set([".html", ".htm", ".md", ".pdf", ".txt", ".xml", ".json"]);
+
+function originalFileNameForUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const ext = extname(parsed.pathname).toLowerCase();
+    if (URL_ORIGINAL_EXTENSIONS.has(ext)) return `source${ext}`;
+  } catch {
+    const path = url.split(/[?#]/, 1)[0] ?? "";
+    const ext = extname(path).toLowerCase();
+    if (URL_ORIGINAL_EXTENSIONS.has(ext)) return `source${ext}`;
+  }
+
+  return "source.html";
+}
+
+async function preserveUrlOriginal(
+  pi: ExtensionAPI,
+  packetPath: string,
+  url: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const originalPath = join(packetPath, "original", originalFileNameForUrl(url));
+  try {
+    await exec(pi, "curl", ["-sL", "--max-time", "30", "-o", originalPath, url], {
+      signal,
+      timeout: 35_000,
+    });
+  } catch {
+    // Preserve best-effort extraction behavior even when the original artifact cannot be saved.
+  }
+}
+
 /** Capture a URL into a source packet. */
 export async function captureUrl(
   pi: ExtensionAPI,
@@ -34,6 +67,8 @@ export async function captureUrl(
   mkdirSync(packetPath, { recursive: true });
   mkdirSync(join(packetPath, "original"), { recursive: true });
   mkdirSync(join(packetPath, "attachments"), { recursive: true });
+
+  await preserveUrlOriginal(pi, packetPath, url, signal);
 
   // Try to fetch and extract content
   let extracted = "";
