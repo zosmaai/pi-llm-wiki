@@ -244,14 +244,20 @@ describe("source packet capture", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("should render Original URLs as clickable Markdown links", async () => {
+  it("should preserve the original artifact for URL captures and render clickable links", async () => {
     const paths = getVaultPaths(join(tempDir, "wiki-root"));
     ensureVaultStructure(paths);
 
     const html = "<html><head><title>Example Page</title></head><body>Hello</body></html>";
     const pi = {
-      exec: async (command: string) => {
+      exec: async (command: string, args: string[]) => {
         if (command === "sh") return { stdout: "no\n", stderr: "", code: 0 };
+        if (command === "curl" && args.includes("-o")) {
+          const outputPath = args[args.indexOf("-o") + 1];
+          writeFileSync(outputPath, html, "utf-8");
+          return { stdout: "", stderr: "", code: 0 };
+        }
+
         if (command === "curl") return { stdout: html, stderr: "", code: 0 };
         throw new Error(`Unexpected command: ${command}`);
       },
@@ -259,8 +265,14 @@ describe("source packet capture", () => {
 
     const url = "https://example.com/article";
     const result = await captureUrl(pi as never, paths, url);
-    const sourcePage = readFile(result.sourcePagePath);
 
+    // Original artifact preserved
+    expect(existsSync(join(result.packetPath, "original", "source.html"))).toBe(true);
+    expect(readFile(join(result.packetPath, "original", "source.html"))).toBe(html);
+    expect(readFile(join(result.packetPath, "extracted.md"))).toBe(html);
+
+    // Clickable URL in source page
+    const sourcePage = readFile(result.sourcePagePath);
     expect(sourcePage).toContain(`> _Original: [${url}](${url})_`);
   });
 });
