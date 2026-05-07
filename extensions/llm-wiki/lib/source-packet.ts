@@ -227,7 +227,7 @@ export function captureText(paths: VaultPaths, text: string, title?: string): Ca
 function buildSourcePageSkeleton(manifest: Record<string, unknown>, extracted: string): string {
   const id = String(manifest.id);
   const title = String(manifest.title || id);
-  const url = manifest.url ? `\n> _Original: ${manifest.url}_` : "";
+  const url = manifest.url ? `\n> _Original: [${manifest.url}](${manifest.url})_` : "";
   const format = String(manifest.format || "unknown");
   const captured = String(manifest.captured || fmtDate());
 

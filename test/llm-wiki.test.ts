@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { captureUrl } from "../extensions/llm-wiki/lib/source-packet.js";
+import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
 
 // ─── Helpers ────────────────────────────────────────────
 
@@ -198,6 +200,37 @@ describe("skill frontmatter validation", () => {
 });
 
 // ─── Wiki Directory Structure Tests ─────────────────────
+
+describe("source packet capture", () => {
+  beforeEach(() => {
+    tempDir = join(tmpdir(), `pi-llm-wiki-capture-${Date.now()}`);
+    mkdirSync(tempDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("should render Original URLs as clickable Markdown links", async () => {
+    const paths = getVaultPaths(join(tempDir, "wiki-root"));
+    ensureVaultStructure(paths);
+
+    const html = "<html><head><title>Example Page</title></head><body>Hello</body></html>";
+    const pi = {
+      exec: async (command: string) => {
+        if (command === "sh") return { stdout: "no\n", stderr: "", code: 0 };
+        if (command === "curl") return { stdout: html, stderr: "", code: 0 };
+        throw new Error(`Unexpected command: ${command}`);
+      },
+    };
+
+    const url = "https://example.com/article";
+    const result = await captureUrl(pi as never, paths, url);
+    const sourcePage = readFile(result.sourcePagePath);
+
+    expect(sourcePage).toContain(`> _Original: [${url}](${url})_`);
+  });
+});
 
 describe("wiki directory structure", () => {
   let wikiDir: string;
