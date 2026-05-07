@@ -1,6 +1,6 @@
 ---
 description: Auto-discover new sources from the web. Searches based on config topics and known knowledge gaps.
-args: [--topic <topic>]
+argument-hint: "[--topic <topic>]"
 section: LLM Wiki
 topLevelCli: true
 ---
@@ -8,6 +8,10 @@ topLevelCli: true
 # /wiki-discover
 
 Find new source material for the wiki by searching the web.
+
+## User Arguments
+
+$ARGUMENTS
 
 Read the LLM Wiki skill at `.pi/skills/llm-wiki/SKILL.md` first. Also read `config.yaml` for topics and feeds.
 

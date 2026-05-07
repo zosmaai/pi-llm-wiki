@@ -1,6 +1,6 @@
 ---
 description: Ask questions against the wiki. Synthesizes answers from wiki pages with cross-reference citations.
-args: <question>
+argument-hint: "<question>"
 section: LLM Wiki
 topLevelCli: true
 ---
@@ -8,6 +8,10 @@ topLevelCli: true
 # /wiki-query
 
 Ask a question and get an answer synthesized from wiki content.
+
+## User Question
+
+$ARGUMENTS
 
 Read the LLM Wiki skill at `.pi/skills/llm-wiki/SKILL.md` first to understand the full schema and conventions.
 

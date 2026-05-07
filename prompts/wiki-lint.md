@@ -1,6 +1,6 @@
 ---
 description: Health check the wiki. Detects contradictions, orphans, missing pages, stale claims, and knowledge gaps.
-args: [--fix]
+argument-hint: "[--fix]"
 section: LLM Wiki
 topLevelCli: true
 ---
@@ -8,6 +8,10 @@ topLevelCli: true
 # /wiki-lint
 
 Run a comprehensive health check on the wiki.
+
+## User Arguments
+
+$ARGUMENTS
 
 Read the LLM Wiki skill at `.pi/skills/llm-wiki/SKILL.md` first to understand the full schema and conventions.
 

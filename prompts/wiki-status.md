@@ -1,6 +1,6 @@
 ---
 description: Show wiki health overview — source count, page stats, orphan count, last activity dates.
-args: []
+argument-hint: ""
 section: LLM Wiki
 topLevelCli: true
 ---

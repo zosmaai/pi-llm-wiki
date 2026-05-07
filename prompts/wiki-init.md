@@ -1,6 +1,6 @@
 ---
 description: Initialize a new LLM Wiki in the current directory. Creates the full directory structure, config, and template files.
-args: <topic> [--mode personal|company]
+argument-hint: "<topic> [--mode personal|company]"
 section: LLM Wiki
 topLevelCli: true
 ---
@@ -8,6 +8,10 @@ topLevelCli: true
 # /wiki-init
 
 Initialize a new LLM Wiki in the current directory.
+
+## User Arguments
+
+$ARGUMENTS
 
 Read the LLM Wiki skill at `.pi/skills/llm-wiki/SKILL.md` (or wherever the skill is installed) first to understand the full schema and conventions.
 

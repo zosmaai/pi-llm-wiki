@@ -1,6 +1,6 @@
 ---
 description: Run the full wiki cycle: discover → ingest → lint. Optionally schedule for auto-updates.
-args: [--schedule daily|weekly]
+argument-hint: "[--schedule daily|weekly]"
 section: LLM Wiki
 topLevelCli: true
 ---
@@ -8,6 +8,10 @@ topLevelCli: true
 # /wiki-run
 
 Run the complete wiki maintenance cycle: discover new sources, ingest them, and lint for health.
+
+## User Arguments
+
+$ARGUMENTS
 
 Read the LLM Wiki skill at `.pi/skills/llm-wiki/SKILL.md` first.
 
