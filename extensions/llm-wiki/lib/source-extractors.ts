@@ -311,7 +311,8 @@ function renderJsonObject(
 
   for (const [key, value] of Object.entries(object)) {
     if (Array.isArray(value) || isRecord(value)) {
-      renderJsonValue(value, lines, depth + 1, key);
+      const childDepth = label ? depth + 1 : depth;
+      renderJsonValue(value, lines, childDepth, key);
     } else {
       lines.push(`${indent(depth)}- **${humanizeKey(key)}:** ${formatJsonScalar(value)}`);
     }
@@ -330,8 +331,9 @@ function renderJsonArray(array: unknown[], lines: string[], depth: number, label
   for (const [index, item] of array.entries()) {
     if (isRecord(item)) {
       const itemTitle = titleFromValue(item) || `Item ${index + 1}`;
-      lines.push(`${heading(depth + 1)} ${itemTitle}`, "");
-      renderJsonObject(item, lines, depth + 1);
+      const itemDepth = label ? depth + 1 : depth;
+      lines.push(`${heading(itemDepth)} ${itemTitle}`, "");
+      renderJsonObject(item, lines, itemDepth);
     } else if (Array.isArray(item)) {
       lines.push(`${indent(depth)}- Item ${index + 1}:`);
       renderJsonArray(item, lines, depth + 1);

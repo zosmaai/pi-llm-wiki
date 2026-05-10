@@ -480,10 +480,12 @@ describe("source packet capture", () => {
     const extracted = readFile(join(result.packetPath, "extracted.md"));
     expect(extracted).toContain("# Project Roadmap");
     expect(extracted).toContain("**Scope:** Improve the client portal and project record.");
-    expect(extracted).toContain("## Assumptions");
+    expect(extracted).toMatch(/^## Assumptions$/m);
+    expect(extracted).not.toMatch(/^### Assumptions$/m);
     expect(extracted).toContain("- Routes already exist");
-    expect(extracted).toContain("## Tasks");
-    expect(extracted).toContain("### Client portal hardening");
+    expect(extracted).toMatch(/^## Tasks$/m);
+    expect(extracted).not.toMatch(/^### Tasks$/m);
+    expect(extracted).toMatch(/^### Client portal hardening$/m);
     expect(extracted).toContain("Shows open actions");
     expect(extracted).not.toContain('"tasks"');
     expect(extracted).not.toContain("{");
