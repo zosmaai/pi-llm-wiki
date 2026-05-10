@@ -1,0 +1,367 @@
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { exec } from "./utils.js";
+
+export interface ExtractedContent {
+  extracted: string;
+  title?: string;
+}
+
+export interface FileExtractor {
+  format: string;
+  shouldReadText: boolean;
+  matches(filePath: string): boolean;
+  extract(args: FileExtractArgs): Promise<string> | string;
+}
+
+interface FileExtractArgs {
+  pi: ExtensionAPI;
+  filePath: string;
+  content: string;
+  signal?: AbortSignal;
+}
+
+interface UrlExtractor {
+  matches(url: string): boolean;
+  extract(args: UrlExtractArgs): Promise<ExtractedContent>;
+}
+
+interface UrlExtractArgs {
+  pi: ExtensionAPI;
+  url: string;
+  signal?: AbortSignal;
+}
+
+const DEFAULT_MARKITDOWN_TIMEOUT_MS = 180_000;
+const DEFAULT_CURL_TIMEOUT_SECONDS = 30;
+
+const FILE_EXTRACTORS: FileExtractor[] = [
+  {
+    format: "pdf",
+    shouldReadText: false,
+    matches: hasExtension(".pdf"),
+    extract: ({ pi, filePath, signal }) => extractPdf(pi, filePath, signal),
+  },
+  textFileExtractor("markdown", [".md"]),
+  textFileExtractor("text", [".txt"]),
+  textFileExtractor("html", [".html", ".htm"]),
+  {
+    format: "xml",
+    shouldReadText: true,
+    matches: hasExtension(".xml"),
+    extract: ({ content }) => xmlToMarkdown(content),
+  },
+  {
+    format: "json",
+    shouldReadText: true,
+    matches: hasExtension(".json"),
+    extract: ({ content }) => jsonToMarkdown(content),
+  },
+  textFileExtractor("docx", [".docx"]),
+  textFileExtractor("file", []),
+];
+
+const URL_EXTRACTORS: UrlExtractor[] = [
+  {
+    matches: isPdfUrl,
+    extract: ({ pi, url, signal }) => extractPdfUrl(pi, url, signal),
+  },
+  {
+    matches: () => true,
+    extract: ({ pi, url, signal }) => extractTextUrl(pi, url, signal),
+  },
+];
+
+export function fileExtractorFor(filePath: string): FileExtractor {
+  return (
+    FILE_EXTRACTORS.find((extractor) => extractor.matches(filePath)) ?? FILE_EXTRACTORS.at(-1)!
+  );
+}
+
+export function extractUrlContent(
+  pi: ExtensionAPI,
+  url: string,
+  signal?: AbortSignal,
+): Promise<ExtractedContent> {
+  const extractor =
+    URL_EXTRACTORS.find((candidate) => candidate.matches(url)) ?? URL_EXTRACTORS.at(-1)!;
+  return extractor.extract({ pi, url, signal });
+}
+
+export function pdfExtractionFailureMessage(source: string): string {
+  return `_PDF content could not be converted to markdown from ${source}. Try increasing WIKI_MARKITDOWN_TIMEOUT_MS._\n`;
+}
+
+function textFileExtractor(format: string, extensions: string[]): FileExtractor {
+  return {
+    format,
+    shouldReadText: true,
+    matches: extensions.length ? hasAnyExtension(extensions) : () => true,
+    extract: ({ content }) => content,
+  };
+}
+
+function hasExtension(extension: string): (path: string) => boolean {
+  return (path) => path.toLowerCase().endsWith(extension);
+}
+
+function hasAnyExtension(extensions: string[]): (path: string) => boolean {
+  return (path) => extensions.some((extension) => hasExtension(extension)(path));
+}
+
+async function extractPdf(pi: ExtensionAPI, source: string, signal?: AbortSignal): Promise<string> {
+  const extracted = await extractWithMarkItDown(pi, source, signal);
+  return extracted || pdfExtractionFailureMessage(source);
+}
+
+async function extractPdfUrl(
+  pi: ExtensionAPI,
+  url: string,
+  signal?: AbortSignal,
+): Promise<ExtractedContent> {
+  const extracted = await extractPdf(pi, url, signal);
+  return { extracted, title: titleFromMarkdown(extracted) };
+}
+
+async function extractTextUrl(
+  pi: ExtensionAPI,
+  url: string,
+  signal?: AbortSignal,
+): Promise<ExtractedContent> {
+  const markitdownExtracted = await extractWithMarkItDown(pi, url, signal);
+  if (markitdownExtracted) {
+    return { extracted: markitdownExtracted, title: titleFromMarkdown(markitdownExtracted) };
+  }
+
+  const curlExtracted = await fetchTextUrl(pi, url, signal);
+  if (!curlExtracted) return { extracted: "" };
+  if (looksLikePdf(curlExtracted)) return { extracted: pdfExtractionFailureMessage(url) };
+  return { extracted: curlExtracted, title: titleFromHtml(curlExtracted) };
+}
+
+async function extractWithMarkItDown(
+  pi: ExtensionAPI,
+  source: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (!(await hasMarkItDown(pi, signal))) return "";
+
+  try {
+    const mdResult = await exec(
+      pi,
+      "sh",
+      ["-c", `uvx --from 'markitdown[pdf]' markitdown "${source}" 2>/dev/null || echo ""`],
+      { signal, timeout: markitdownTimeoutMs() },
+    );
+    return mdResult.stdout.trim() ? mdResult.stdout : "";
+  } catch {
+    return "";
+  }
+}
+
+async function hasMarkItDown(pi: ExtensionAPI, signal?: AbortSignal): Promise<boolean> {
+  const markitdown = await exec(
+    pi,
+    "sh",
+    ["-c", `which uvx >/dev/null 2>&1 && echo "yes" || echo "no"`],
+    { signal },
+  );
+  return markitdown.stdout.trim() === "yes";
+}
+
+async function fetchTextUrl(pi: ExtensionAPI, url: string, signal?: AbortSignal): Promise<string> {
+  try {
+    const curlResult = await exec(
+      pi,
+      "curl",
+      ["-sL", "--max-time", String(DEFAULT_CURL_TIMEOUT_SECONDS), url],
+      {
+        signal,
+        timeout: (DEFAULT_CURL_TIMEOUT_SECONDS + 5) * 1_000,
+      },
+    );
+    return curlResult.stdout || "";
+  } catch {
+    return "";
+  }
+}
+
+function markitdownTimeoutMs(): number {
+  return positiveIntegerFromEnv("WIKI_MARKITDOWN_TIMEOUT_MS", DEFAULT_MARKITDOWN_TIMEOUT_MS);
+}
+
+function positiveIntegerFromEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function isPdfUrl(url: string): boolean {
+  try {
+    return new URL(url).pathname.toLowerCase().endsWith(".pdf");
+  } catch {
+    return url.toLowerCase().split(/[?#]/, 1)[0].endsWith(".pdf");
+  }
+}
+
+function looksLikePdf(content: string): boolean {
+  return content.trimStart().startsWith("%PDF-");
+}
+
+function titleFromMarkdown(markdown: string): string | undefined {
+  return markdown.match(/^#\s+(.+)$/m)?.[1]?.trim();
+}
+
+function titleFromHtml(html: string): string | undefined {
+  return html.match(/<title>([^<]*)<\/title>/i)?.[1]?.trim();
+}
+
+/** Basic XML to markdown conversion: strip tags while preserving text structure. */
+function xmlToMarkdown(xml: string): string {
+  let title = "";
+  const titleMatch = xml.match(/<title[^>]*>([^<]*)<\/title>/i);
+  if (titleMatch) title = titleMatch[1].trim();
+
+  let text = xml.replace(/<\?xml[^>]*\?>\s*/gi, "");
+  text = text.replace(/<!DOCTYPE[^>]*>\s*/gi, "");
+  text = text.replace(/<\/(p|div|section|article|li|h\d|tr|blockquote|pre)>/gi, "\n");
+  text = text.replace(/<br\s*\/?>/gi, "\n");
+
+  let prev = "";
+  while (prev !== text) {
+    prev = text;
+    text = text.replace(/<[a-zA-Z\/!?][^>]*>/g, "");
+  }
+  text = text.replace(/</g, "");
+
+  text = text.replace(/&(?:amp|lt|gt|quot|#\d+);/gi, (entity) => {
+    const map: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"' };
+    const lower = entity.toLowerCase();
+    if (map[lower]) return map[lower];
+    if (lower.startsWith("&#")) return String.fromCodePoint(Number.parseInt(entity.slice(2, -1)));
+    return entity;
+  });
+
+  text = text.replace(/\n{3,}/g, "\n\n").trim();
+  if (!text) return xml;
+
+  const lines = [];
+  if (title) lines.push(`# ${title}\n`);
+  lines.push(text);
+  return lines.join("\n\n");
+}
+
+function jsonToMarkdown(json: string): string {
+  let value: unknown;
+  try {
+    value = JSON.parse(json);
+  } catch {
+    return json;
+  }
+
+  const lines: string[] = [];
+  const title = titleFromValue(value) || "JSON Extract";
+  lines.push(`# ${title}`, "");
+  renderJsonValue(value, lines, 0);
+
+  const markdown = lines
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return markdown || json;
+}
+
+function titleFromValue(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  for (const key of ["title", "name", "id"]) {
+    const candidate = value[key];
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+  }
+  return undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function renderJsonValue(value: unknown, lines: string[], depth: number, label?: string): void {
+  if (Array.isArray(value)) {
+    renderJsonArray(value, lines, depth, label);
+    return;
+  }
+
+  if (isRecord(value)) {
+    renderJsonObject(value, lines, depth, label);
+    return;
+  }
+
+  if (label) lines.push(`${indent(depth)}- **${humanizeKey(label)}:** ${formatJsonScalar(value)}`);
+  else lines.push(`${indent(depth)}- ${formatJsonScalar(value)}`);
+}
+
+function renderJsonObject(
+  object: Record<string, unknown>,
+  lines: string[],
+  depth: number,
+  label?: string,
+): void {
+  if (label) {
+    lines.push(`${heading(depth)} ${humanizeKey(label)}`, "");
+  }
+
+  for (const [key, value] of Object.entries(object)) {
+    if (Array.isArray(value) || isRecord(value)) {
+      renderJsonValue(value, lines, depth + 1, key);
+    } else {
+      lines.push(`${indent(depth)}- **${humanizeKey(key)}:** ${formatJsonScalar(value)}`);
+    }
+  }
+  lines.push("");
+}
+
+function renderJsonArray(array: unknown[], lines: string[], depth: number, label?: string): void {
+  if (label) lines.push(`${heading(depth)} ${humanizeKey(label)}`, "");
+
+  if (array.length === 0) {
+    lines.push(`${indent(depth)}- _(empty)_`, "");
+    return;
+  }
+
+  for (const [index, item] of array.entries()) {
+    if (isRecord(item)) {
+      const itemTitle = titleFromValue(item) || `Item ${index + 1}`;
+      lines.push(`${heading(depth + 1)} ${itemTitle}`, "");
+      renderJsonObject(item, lines, depth + 1);
+    } else if (Array.isArray(item)) {
+      lines.push(`${indent(depth)}- Item ${index + 1}:`);
+      renderJsonArray(item, lines, depth + 1);
+    } else {
+      lines.push(`${indent(depth)}- ${formatJsonScalar(item)}`);
+    }
+  }
+  lines.push("");
+}
+
+function formatJsonScalar(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return String(value);
+}
+
+function humanizeKey(key: string): string {
+  return key
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (char) => char.toUpperCase());
+}
+
+function heading(depth: number): string {
+  return "#".repeat(Math.min(depth + 2, 6));
+}
+
+function indent(depth: number): string {
+  return "  ".repeat(Math.max(0, depth));
+}
