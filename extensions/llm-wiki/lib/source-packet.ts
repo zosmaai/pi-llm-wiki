@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { appendEvent } from "./metadata.js";
+import { type ExtractedContent, extractUrlContent, fileExtractorFor } from "./source-extractors.js";
 import { type VaultPaths, exec, fmtDate, nextSourceId, readText, writeJson } from "./utils.js";
 
 /**
@@ -22,50 +23,171 @@ export interface CaptureResult {
   extracted: string;
 }
 
-const DEFAULT_MARKITDOWN_TIMEOUT_MS = 180_000;
-const DEFAULT_CURL_TIMEOUT_SECONDS = 30;
-
-function markitdownTimeoutMs(): number {
-  return positiveIntegerFromEnv("WIKI_MARKITDOWN_TIMEOUT_MS", DEFAULT_MARKITDOWN_TIMEOUT_MS);
+interface SourcePacket {
+  sourceId: string;
+  packetPath: string;
 }
 
-function positiveIntegerFromEnv(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function isPdfUrl(url: string): boolean {
-  try {
-    return new URL(url).pathname.toLowerCase().endsWith(".pdf");
-  } catch {
-    return url.toLowerCase().split(/[?#]/, 1)[0].endsWith(".pdf");
-  }
-}
-
-function looksLikePdf(content: string): boolean {
-  return content.trimStart().startsWith("%PDF-");
-}
-
-function pdfExtractionFailureMessage(source: string): string {
-  return `_PDF content could not be converted to markdown from ${source}. Try increasing WIKI_MARKITDOWN_TIMEOUT_MS._\n`;
+interface CaptureSource {
+  needsOriginalDir: boolean;
+  fallbackText: string;
+  preserveOriginal?(packetPath: string): Promise<void>;
+  extract(): Promise<ExtractedContent> | ExtractedContent;
+  manifest(content: ExtractedContent): Record<string, unknown>;
+  event(content: ExtractedContent): Record<string, unknown>;
 }
 
 const URL_ORIGINAL_EXTENSIONS = new Set([".html", ".htm", ".md", ".pdf", ".txt", ".xml", ".json"]);
 
-function originalFileNameForUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-    const ext = extname(parsed.pathname).toLowerCase();
-    if (URL_ORIGINAL_EXTENSIONS.has(ext)) return `source${ext}`;
-  } catch {
-    const path = url.split(/[?#]/, 1)[0] ?? "";
-    const ext = extname(path).toLowerCase();
-    if (URL_ORIGINAL_EXTENSIONS.has(ext)) return `source${ext}`;
-  }
+/** Capture a URL into a source packet. */
+export async function captureUrl(
+  pi: ExtensionAPI,
+  paths: VaultPaths,
+  url: string,
+  signal?: AbortSignal,
+): Promise<CaptureResult> {
+  return captureSource(paths, urlCaptureSource(pi, url, signal));
+}
 
-  return "source.html";
+/** Capture a local file into a source packet. */
+export async function captureFile(
+  pi: ExtensionAPI,
+  paths: VaultPaths,
+  filePath: string,
+  signal?: AbortSignal,
+): Promise<CaptureResult> {
+  return captureSource(paths, fileCaptureSource(pi, filePath, signal));
+}
+
+/** Capture pasted text into a source packet. */
+export function captureText(paths: VaultPaths, text: string, title?: string): CaptureResult {
+  return captureSourceSync(paths, textCaptureSource(text, title));
+}
+
+async function captureSource(paths: VaultPaths, source: CaptureSource): Promise<CaptureResult> {
+  const packet = createSourcePacket(paths, source.needsOriginalDir);
+  await source.preserveOriginal?.(packet.packetPath);
+  const content = await source.extract();
+  return finalizeCapture(paths, packet, source, content);
+}
+
+function captureSourceSync(paths: VaultPaths, source: CaptureSource): CaptureResult {
+  const packet = createSourcePacket(paths, source.needsOriginalDir);
+  const content = source.extract() as ExtractedContent;
+  return finalizeCapture(paths, packet, source, content);
+}
+
+function urlCaptureSource(pi: ExtensionAPI, url: string, signal?: AbortSignal): CaptureSource {
+  return {
+    needsOriginalDir: true,
+    fallbackText: contentExtractionFailureMessage(url),
+    preserveOriginal: (packetPath) => preserveUrlOriginal(pi, packetPath, url, signal),
+    extract: () => extractUrlContent(pi, url, signal),
+    manifest: (content) => ({
+      title: content.title || url,
+      url,
+      format: "web",
+    }),
+    event: () => ({ url, format: "web" }),
+  };
+}
+
+function fileCaptureSource(
+  pi: ExtensionAPI,
+  filePath: string,
+  signal?: AbortSignal,
+): CaptureSource {
+  const fileName = filePath.split("/").pop() || "unknown";
+  const extractor = fileExtractorFor(filePath);
+  const content = extractor.shouldReadText ? readText(filePath) : "";
+
+  return {
+    needsOriginalDir: true,
+    fallbackText: "",
+    preserveOriginal: (packetPath) =>
+      preserveFileOriginal(pi, packetPath, filePath, fileName, content, signal),
+    extract: async () => ({
+      extracted: await extractor.extract({ pi, filePath, content, signal }),
+    }),
+    manifest: () => ({
+      title: fileName,
+      file_path: filePath,
+      format: extractor.format,
+    }),
+    event: () => ({ file_path: filePath, format: extractor.format }),
+  };
+}
+
+function textCaptureSource(text: string, title?: string): CaptureSource {
+  return {
+    needsOriginalDir: false,
+    fallbackText: "",
+    extract: () => ({ extracted: text }),
+    manifest: () => ({
+      title: title || `Pasted text — ${fmtDate()}`,
+      format: "text",
+    }),
+    event: () => ({ format: "text" }),
+  };
+}
+
+function createSourcePacket(paths: VaultPaths, needsOriginalDir: boolean): SourcePacket {
+  const sourceId = nextSourceId(paths);
+  const packetPath = join(paths.rawSources, sourceId);
+  mkdirSync(packetPath, { recursive: true });
+  mkdirSync(join(packetPath, "attachments"), { recursive: true });
+  if (needsOriginalDir) mkdirSync(join(packetPath, "original"), { recursive: true });
+  return { sourceId, packetPath };
+}
+
+function finalizeCapture(
+  paths: VaultPaths,
+  packet: SourcePacket,
+  source: CaptureSource,
+  content: ExtractedContent,
+): CaptureResult {
+  const extracted = content.extracted || source.fallbackText;
+  const manifest = {
+    id: packet.sourceId,
+    captured: fmtDate(),
+    packet_version: "1.0",
+    ...source.manifest({ ...content, extracted }),
+  };
+
+  writeFileSync(join(packet.packetPath, "extracted.md"), extracted, "utf-8");
+  writeJson(join(packet.packetPath, "manifest.json"), manifest);
+
+  const sourcePagePath = join(paths.wiki, "sources", `${packet.sourceId}.md`);
+  writeFileSync(sourcePagePath, buildSourcePageSkeleton(manifest, extracted), "utf-8");
+
+  appendEvent(paths, {
+    kind: "capture",
+    source_id: packet.sourceId,
+    ...source.event({ ...content, extracted }),
+  });
+
+  return {
+    sourceId: packet.sourceId,
+    packetPath: packet.packetPath,
+    sourcePagePath,
+    extracted,
+  };
+}
+
+async function preserveFileOriginal(
+  pi: ExtensionAPI,
+  packetPath: string,
+  filePath: string,
+  fileName: string,
+  fallbackContent: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  try {
+    await exec(pi, "cp", [filePath, join(packetPath, "original", fileName)], { signal });
+  } catch {
+    // If cp fails, preserve whatever text content was available.
+    writeFileSync(join(packetPath, "original", fileName), fallbackContent, "utf-8");
+  }
 }
 
 async function preserveUrlOriginal(
@@ -85,232 +207,22 @@ async function preserveUrlOriginal(
   }
 }
 
-/** Capture a URL into a source packet. */
-export async function captureUrl(
-  pi: ExtensionAPI,
-  paths: VaultPaths,
-  url: string,
-  signal?: AbortSignal,
-): Promise<CaptureResult> {
-  const sourceId = nextSourceId(paths);
-  const packetPath = join(paths.rawSources, sourceId);
-  mkdirSync(packetPath, { recursive: true });
-  mkdirSync(join(packetPath, "original"), { recursive: true });
-  mkdirSync(join(packetPath, "attachments"), { recursive: true });
-
-  await preserveUrlOriginal(pi, packetPath, url, signal);
-
-  // Try to fetch and extract content
-  let extracted = "";
-  let title = url;
-  const isPdf = isPdfUrl(url);
-
-  // Try MarkItDown first.
-  const markitdown = await exec(
-    pi,
-    "sh",
-    ["-c", `which uvx >/dev/null 2>&1 && echo "yes" || echo "no"`],
-    { signal },
-  );
-
-  if (markitdown.stdout.trim() === "yes") {
-    try {
-      const mdResult = await exec(
-        pi,
-        "sh",
-        ["-c", `uvx --from 'markitdown[pdf]' markitdown "${url}" 2>/dev/null || echo ""`],
-        { signal, timeout: markitdownTimeoutMs() },
-      );
-      if (mdResult.stdout.trim()) {
-        extracted = mdResult.stdout;
-        // Try to extract title from first h1
-        const h1Match = extracted.match(/^#\s+(.+)$/m);
-        if (h1Match) title = h1Match[1].trim();
-      }
-    } catch {
-      // markitdown failed, fall through
-    }
-  }
-
-  // Fallback: try fetch_content equivalent via curl for text/html sources.
-  // Do not write binary PDF bytes into extracted.md when PDF conversion fails.
-  if (!extracted) {
-    if (isPdf) {
-      extracted = pdfExtractionFailureMessage(url);
-    } else {
-      try {
-        const curlResult = await exec(
-          pi,
-          "curl",
-          ["-sL", "--max-time", String(DEFAULT_CURL_TIMEOUT_SECONDS), url],
-          {
-            signal,
-            timeout: (DEFAULT_CURL_TIMEOUT_SECONDS + 5) * 1_000,
-          },
-        );
-        if (curlResult.stdout) {
-          if (looksLikePdf(curlResult.stdout)) {
-            extracted = pdfExtractionFailureMessage(url);
-          } else {
-            extracted = curlResult.stdout;
-            // Try to extract title from HTML
-            const titleMatch = extracted.match(/<title>([^<]*)<\/title>/i);
-            if (titleMatch) title = titleMatch[1].trim();
-          }
-        }
-      } catch {
-        // curl failed too
-      }
-    }
-  }
-
-  // Write extracted text
-  writeFileSync(
-    join(packetPath, "extracted.md"),
-    extracted || `_Content could not be extracted from ${url}_\n`,
-    "utf-8",
-  );
-
-  // Write manifest
-  const manifest = {
-    id: sourceId,
-    title,
-    url,
-    captured: fmtDate(),
-    format: "web",
-    packet_version: "1.0",
-  };
-  writeJson(join(packetPath, "manifest.json"), manifest);
-
-  // Create skeleton source page in wiki
-  const sourcePagePath = join(paths.wiki, "sources", `${sourceId}.md`);
-  const sourcePageContent = buildSourcePageSkeleton(manifest, extracted);
-  writeFileSync(sourcePagePath, sourcePageContent, "utf-8");
-
-  // Log event
-  appendEvent(paths, { kind: "capture", source_id: sourceId, url, format: "web" });
-
-  return { sourceId, packetPath, sourcePagePath, extracted };
-}
-
-/** Capture a local file into a source packet. */
-export async function captureFile(
-  pi: ExtensionAPI,
-  paths: VaultPaths,
-  filePath: string,
-  signal?: AbortSignal,
-): Promise<CaptureResult> {
-  const sourceId = nextSourceId(paths);
-  const packetPath = join(paths.rawSources, sourceId);
-  mkdirSync(packetPath, { recursive: true });
-  mkdirSync(join(packetPath, "original"), { recursive: true });
-  mkdirSync(join(packetPath, "attachments"), { recursive: true });
-
-  const lowerPath = filePath.toLowerCase();
-  const isPdf = lowerPath.endsWith(".pdf");
-  const isXml = lowerPath.endsWith(".xml");
-  const content = isPdf ? "" : readText(filePath);
-  const fileName = filePath.split("/").pop() || "unknown";
-
-  let extracted = content;
-
-  // Convert XML to markdown
-  if (isXml && content) {
-    extracted = xmlToMarkdown(content);
-  }
-
-  // Try MarkItDown for PDFs.
-  if (isPdf) {
-    const markitdown = await exec(
-      pi,
-      "sh",
-      ["-c", `which uvx >/dev/null 2>&1 && echo "yes" || echo "no"`],
-      { signal },
-    );
-
-    if (markitdown.stdout.trim() === "yes") {
-      try {
-        const mdResult = await exec(
-          pi,
-          "sh",
-          ["-c", `uvx --from 'markitdown[pdf]' markitdown "${filePath}" 2>/dev/null || echo ""`],
-          { signal, timeout: markitdownTimeoutMs() },
-        );
-        if (mdResult.stdout.trim()) extracted = mdResult.stdout;
-      } catch {
-        extracted = pdfExtractionFailureMessage(filePath);
-      }
-    }
-    if (!extracted) extracted = pdfExtractionFailureMessage(filePath);
-  }
-
-  // Copy original to packet
+function originalFileNameForUrl(url: string): string {
   try {
-    await exec(pi, "cp", [filePath, join(packetPath, "original", fileName)], { signal });
+    const parsed = new URL(url);
+    const ext = extname(parsed.pathname).toLowerCase();
+    if (URL_ORIGINAL_EXTENSIONS.has(ext)) return `source${ext}`;
   } catch {
-    // If cp fails, just write the content
-    writeFileSync(join(packetPath, "original", fileName), content, "utf-8");
+    const path = url.split(/[?#]/, 1)[0] ?? "";
+    const ext = extname(path).toLowerCase();
+    if (URL_ORIGINAL_EXTENSIONS.has(ext)) return `source${ext}`;
   }
 
-  // Write extracted text
-  writeFileSync(join(packetPath, "extracted.md"), extracted, "utf-8");
-
-  // Write manifest
-  const manifest = {
-    id: sourceId,
-    title: fileName,
-    file_path: filePath,
-    captured: fmtDate(),
-    format: guessFormat(filePath),
-    packet_version: "1.0",
-  };
-  writeJson(join(packetPath, "manifest.json"), manifest);
-
-  // Create skeleton source page
-  const sourcePagePath = join(paths.wiki, "sources", `${sourceId}.md`);
-  const sourcePageContent = buildSourcePageSkeleton(manifest, extracted);
-  writeFileSync(sourcePagePath, sourcePageContent, "utf-8");
-
-  // Log event
-  appendEvent(paths, {
-    kind: "capture",
-    source_id: sourceId,
-    file_path: filePath,
-    format: manifest.format,
-  });
-
-  return { sourceId, packetPath, sourcePagePath, extracted };
+  return "source.html";
 }
 
-/** Capture pasted text into a source packet. */
-export function captureText(paths: VaultPaths, text: string, title?: string): CaptureResult {
-  const sourceId = nextSourceId(paths);
-  const packetPath = join(paths.rawSources, sourceId);
-  mkdirSync(packetPath, { recursive: true });
-  mkdirSync(join(packetPath, "attachments"), { recursive: true });
-
-  // Write extracted text
-  writeFileSync(join(packetPath, "extracted.md"), text, "utf-8");
-
-  // Write manifest
-  const manifest = {
-    id: sourceId,
-    title: title || `Pasted text — ${fmtDate()}`,
-    captured: fmtDate(),
-    format: "text",
-    packet_version: "1.0",
-  };
-  writeJson(join(packetPath, "manifest.json"), manifest);
-
-  // Create skeleton source page
-  const sourcePagePath = join(paths.wiki, "sources", `${sourceId}.md`);
-  const sourcePageContent = buildSourcePageSkeleton(manifest, text);
-  writeFileSync(sourcePagePath, sourcePageContent, "utf-8");
-
-  // Log event
-  appendEvent(paths, { kind: "capture", source_id: sourceId, format: "text" });
-
-  return { sourceId, packetPath, sourcePagePath, extracted: text };
+function contentExtractionFailureMessage(source: string): string {
+  return `_Content could not be extracted from ${source}_\n`;
 }
 
 /** Build a skeleton source page from manifest and extracted text. */
@@ -369,60 +281,4 @@ status: skeleton
 - **Extracted:** [raw/sources/${id}/extracted.md](../raw/sources/${id}/extracted.md)
 - **Manifest:** [raw/sources/${id}/manifest.json](../raw/sources/${id}/manifest.json)
 `;
-}
-
-/** Basic XML to markdown conversion: strip tags while preserving text structure. */
-function xmlToMarkdown(xml: string): string {
-  // Extract title from first <title> or root element
-  let title = "";
-  const titleMatch = xml.match(/<title[^>]*>([^<]*)<\/title>/i);
-  if (titleMatch) title = titleMatch[1].trim();
-
-  // Strip XML declaration and doctype
-  let text = xml.replace(/<\?xml[^>]*\?>\s*/gi, "");
-  text = text.replace(/<!DOCTYPE[^>]*>\s*/gi, "");
-
-  // Replace block-level tags with newlines
-  text = text.replace(/<\/(p|div|section|article|li|h\d|tr|blockquote|pre)>/gi, "\n");
-  text = text.replace(/<br\s*\/?>/gi, "\n");
-
-  // Strip remaining tags — match < followed by tag name characters to >
-  // Using a loop to handle malformed/broken tags that lack a closing >
-  let prev = "";
-  while (prev !== text) {
-    prev = text;
-    text = text.replace(/<[a-zA-Z\/!?][^>]*>/g, "");
-  }
-  // Remove any stray < that didn't form a complete tag
-  text = text.replace(/</g, "");
-
-  // Decode XML entities in a single pass to avoid double-unescaping
-  text = text.replace(/&(?:amp|lt|gt|quot|#\d+);/gi, (entity) => {
-    const map: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"' };
-    const lower = entity.toLowerCase();
-    if (map[lower]) return map[lower];
-    if (lower.startsWith("&#")) return String.fromCodePoint(Number.parseInt(entity.slice(2, -1)));
-    return entity;
-  });
-
-  // Clean up excessive blank lines
-  text = text.replace(/\n{3,}/g, "\n\n").trim();
-
-  if (!text) return xml; // fallback: return raw if stripping produced nothing
-
-  const lines = [];
-  if (title) lines.push(`# ${title}\n`);
-  lines.push(text);
-  return lines.join("\n\n");
-}
-
-function guessFormat(filePath: string): string {
-  const lower = filePath.toLowerCase();
-  if (lower.endsWith(".pdf")) return "pdf";
-  if (lower.endsWith(".md")) return "markdown";
-  if (lower.endsWith(".txt")) return "text";
-  if (lower.endsWith(".html") || lower.endsWith(".htm")) return "html";
-  if (lower.endsWith(".xml")) return "xml";
-  if (lower.endsWith(".docx")) return "docx";
-  return "file";
 }

@@ -183,13 +183,27 @@ describe("package structure", () => {
 
   it("should keep MarkItDown timeout configurable and avoid PDF byte fallbacks", () => {
     const sourcePacketPath = join(rootDir, "extensions", "llm-wiki", "lib", "source-packet.ts");
+    const sourceExtractorsPath = join(
+      rootDir,
+      "extensions",
+      "llm-wiki",
+      "lib",
+      "source-extractors.ts",
+    );
     expect(existsSync(sourcePacketPath)).toBe(true);
-    const content = readFile(sourcePacketPath);
-    expect(content).toContain("WIKI_MARKITDOWN_TIMEOUT_MS");
-    expect(content).toContain("DEFAULT_MARKITDOWN_TIMEOUT_MS = 180_000");
-    expect(content).toContain("isPdfUrl(url)");
-    expect(content).toContain("looksLikePdf(curlResult.stdout)");
-    expect(content).toContain("pdfExtractionFailureMessage");
+    expect(existsSync(sourceExtractorsPath)).toBe(true);
+
+    const sourcePacket = readFile(sourcePacketPath);
+    const sourceExtractors = readFile(sourceExtractorsPath);
+    expect(sourcePacket).toContain("captureSource");
+    expect(sourcePacket).toContain("fileExtractorFor");
+    expect(sourcePacket).toContain("extractUrlContent");
+    expect(sourceExtractors).toContain("WIKI_MARKITDOWN_TIMEOUT_MS");
+    expect(sourceExtractors).toContain("DEFAULT_MARKITDOWN_TIMEOUT_MS = 180_000");
+    expect(sourceExtractors).toContain("URL_EXTRACTORS");
+    expect(sourceExtractors).toContain("matches: isPdfUrl");
+    expect(sourceExtractors).toContain("looksLikePdf(curlExtracted)");
+    expect(sourceExtractors).toContain("pdfExtractionFailureMessage");
   });
 
   it("should have a comprehensive README with install instructions", () => {
@@ -437,6 +451,62 @@ describe("source packet capture", () => {
     const extracted = readFile(join(result.packetPath, "extracted.md"));
     // Should have the text content at minimum
     expect(extracted).toContain("Hello");
+  });
+
+  it("should convert JSON files to readable markdown in extracted.md", async () => {
+    const paths = makePaths();
+    const jsonContent = JSON.stringify(
+      {
+        title: "Project Roadmap",
+        scope: "Improve the client portal and project record.",
+        assumptions: ["Routes already exist", "Use generated API types"],
+        tasks: [
+          {
+            id: "client-portal",
+            title: "Client portal hardening",
+            acceptance: ["Shows open actions", "Build passes"],
+          },
+        ],
+      },
+      null,
+      2,
+    );
+    const jsonPath = join(tempDir, "roadmap.json");
+    writeFileSync(jsonPath, jsonContent, "utf-8");
+
+    const pi = mockPi();
+    const result = await captureFile(pi as never, paths, jsonPath);
+
+    const extracted = readFile(join(result.packetPath, "extracted.md"));
+    expect(extracted).toContain("# Project Roadmap");
+    expect(extracted).toContain("**Scope:** Improve the client portal and project record.");
+    expect(extracted).toMatch(/^## Assumptions$/m);
+    expect(extracted).not.toMatch(/^### Assumptions$/m);
+    expect(extracted).toContain("- Routes already exist");
+    expect(extracted).toMatch(/^## Tasks$/m);
+    expect(extracted).not.toMatch(/^### Tasks$/m);
+    expect(extracted).toMatch(/^### Client portal hardening$/m);
+    expect(extracted).toContain("Shows open actions");
+    expect(extracted).not.toContain('"tasks"');
+    expect(extracted).not.toContain("{");
+
+    expect(existsSync(join(result.packetPath, "original", "roadmap.json"))).toBe(true);
+
+    const manifest = JSON.parse(readFile(join(result.packetPath, "manifest.json")));
+    expect(manifest.format).toBe("json");
+  });
+
+  it("should fall back to raw JSON content when parsing fails", async () => {
+    const paths = makePaths();
+    const jsonContent = `{ "title": "Broken", `;
+    const jsonPath = join(tempDir, "broken.json");
+    writeFileSync(jsonPath, jsonContent, "utf-8");
+
+    const pi = mockPi();
+    const result = await captureFile(pi as never, paths, jsonPath);
+
+    const extracted = readFile(join(result.packetPath, "extracted.md"));
+    expect(extracted).toBe(jsonContent);
   });
 });
 
