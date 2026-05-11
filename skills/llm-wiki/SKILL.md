@@ -45,21 +45,48 @@ WIKI_ROOT/
 
 ## How the Extension Helps You
 
-| Task               | Before (skill-only)          | Now (extension-backed)                |
-| ------------------ | ---------------------------- | ------------------------------------- |
-| Track ingestion    | Manual `history.json`        | Automatic via `meta/registry.json`    |
-| Update INDEX       | Manual edit after every page | Auto-rebuilds on turn end             |
-| Update LOG         | Manual append                | Auto-generated from `events.jsonl`    |
-| Find orphans       | Shell `grep` scans           | Instant from `backlinks.json`         |
-| Block raw edits    | Skill says "don't"           | Extension **enforces** immutability   |
-| Create source page | 8 tool calls                 | `wiki_capture_source` + LLM synthesis |
+| Task                        | Before (skill-only)          | Now (extension-backed)                |
+| --------------------------- | ---------------------------- | ------------------------------------- |
+| Track ingestion             | Manual `history.json`        | Automatic via `meta/registry.json`    |
+| Update INDEX                | Manual edit after every page | Auto-rebuilds on turn end             |
+| Update LOG                  | Manual append                | Auto-generated from `events.jsonl`    |
+| Find orphans                | Shell `grep` scans           | Instant from `backlinks.json`         |
+| Block raw edits             | Skill says "don't"           | Extension **enforces** immutability   |
+| Create source page          | 8 tool calls                 | `wiki_capture_source` + LLM synthesis |
+| **Recall wiki knowledge**   | Never happens                | **Auto-search before every turn**     |
+| **Save task insights**      | Manual capture               | `wiki_retro` — one tool call          |
+
+## 🔄 Auto-Recall (New)
+
+**The extension now automatically searches the wiki before every user turn.**
+
+When you send a prompt, the extension:
+1. Extracts key terms from your request
+2. Searches the wiki registry for matching pages
+3. Injects matching page titles + summaries into context
+4. You see this as "Relevant Wiki Knowledge" in your system prompt
+
+**This means the wiki works as an automatic second brain.**
+You don't need to remember to search — relevant knowledge is surfaced automatically.
+
+### Manual recall for deeper searches
+
+If the auto-recall doesn't find enough context, call `wiki_recall` explicitly:
+
+```
+wiki_recall(query="specific terms...", max_results=10)
+```
+
+This gives you more control over the search terms and returns content previews.
 
 ## Available Tools
 
-Use these directly — they handle scaffolding and bookkeeping:
+Use these directly — they handle scaffolding, bookkeeping, recall, and capture:
 
 - `wiki_bootstrap` — Initialize a new vault
 - `wiki_capture_source` — Capture URL/file/text into immutable packet + skeleton page
+- `wiki_recall` — **Auto-called at turn start.** Search wiki for task-relevant pages
+- `wiki_retro` — Save an atomic insight from a completed task into the wiki
 - `wiki_ingest` — Get batch of uningested sources with extracted text
 - `wiki_ensure_page` — Create entity/concept/synthesis/analysis page from template
 - `wiki_search` — Search registry for existing pages
@@ -83,11 +110,19 @@ Use these directly — they handle scaffolding and bookkeeping:
 
 ### Query → Answer → File
 
-1. `wiki_search(query="...")` to find relevant pages
+1. **Auto-recall**: Extension surfaces relevant wiki pages automatically
 2. Read those pages
 3. Synthesize answer with `[[wikilink]]` citations
 4. If novel: create analysis page via `wiki_ensure_page(type="analysis")`
 5. Extension auto-updates metadata
+
+### Task → Capture → Retro
+
+1. Complete a meaningful task
+2. Call `wiki_retro` to save key insights
+3. The insight is captured as a source packet
+4. Extension auto-updates metadata
+5. Next time, auto-recall surfaces your saved insight
 
 ## Page Conventions
 

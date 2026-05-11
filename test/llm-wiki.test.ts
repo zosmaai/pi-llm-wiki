@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { buildRegistry, rebuildMetadataLight } from "../extensions/llm-wiki/lib/metadata.js";
+import { formatRecallContext, searchWiki } from "../extensions/llm-wiki/lib/recall.js";
 import { captureFile, captureText, captureUrl } from "../extensions/llm-wiki/lib/source-packet.js";
 import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
 
@@ -720,5 +722,163 @@ describe("configuration", () => {
     const content = JSON.parse(readFile(join(wikiDir, ".discoveries", "gaps.json")));
     expect(content.gaps).toHaveLength(1);
     expect(content.gaps[0].priority).toBe("high");
+  });
+});
+
+// ─── Wiki Recall Tests ─────────────────────────────────
+
+describe("wiki recall", () => {
+  let wikiDir: string;
+
+  beforeEach(() => {
+    tempDir = join(tmpdir(), `pi-llm-wiki-recall-${Date.now()}`);
+    mkdirSync(tempDir, { recursive: true });
+    wikiDir = createWikiRoot();
+    ensureVaultStructure(getVaultPaths(wikiDir));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  function createRegistryPage(
+    id: string,
+    type: string,
+    title: string,
+    content: string,
+    extra: Record<string, unknown> = {},
+  ) {
+    const folder = id.includes("/") ? id.split("/")[0] : "concepts";
+    const name = id.includes("/") ? id.split("/").pop()! : id;
+    const pagePath = join(wikiDir, "wiki", folder, `${name}.md`);
+    const relId = `${folder}/${name}`;
+
+    writeFileSync(
+      pagePath,
+      `---\ntype: ${type}\ntitle: "${title}"\ncreated: 2026-05-11\nupdated: 2026-05-11\nsources: []\n${Object.entries(
+        extra,
+      )
+        .map(([k, v]) => `${k}: ${v}`)
+        .join("\n")}\n---\n\n${content}`,
+      "utf-8",
+    );
+
+    return relId;
+  }
+
+  it("should return empty results when wiki has no pages", () => {
+    const paths = getVaultPaths(wikiDir);
+    const results = searchWiki(paths, "machine learning");
+    expect(results).toEqual([]);
+  });
+
+  it("should find pages matching by title", () => {
+    createRegistryPage(
+      "reinforcement-learning",
+      "concept",
+      "Reinforcement Learning",
+      "RL is a type of machine learning.",
+    );
+    const paths = getVaultPaths(wikiDir);
+    rebuildMetadataLight(paths);
+
+    const results = searchWiki(paths, "reinforcement learning");
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results[0].title).toContain("Reinforcement Learning");
+    expect(results[0].id).toContain("reinforcement-learning");
+    expect(results[0].type).toBe("concept");
+  });
+
+  it("should find pages matching by page ID", () => {
+    createRegistryPage(
+      "transformer-architecture",
+      "concept",
+      "Transformer",
+      "The Transformer model architecture.",
+    );
+    const paths = getVaultPaths(wikiDir);
+    rebuildMetadataLight(paths);
+
+    const results = searchWiki(paths, "transformer-architecture");
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results[0].id).toContain("transformer-architecture");
+  });
+
+  it("should find pages matching by type", () => {
+    createRegistryPage("gpt-4", "entity", "GPT-4", "OpenAI language model.", {
+      category: "tool",
+    });
+    createRegistryPage("rag", "concept", "RAG", "Retrieval augmented generation.");
+    const paths = getVaultPaths(wikiDir);
+    rebuildMetadataLight(paths);
+
+    const results = searchWiki(paths, "entity");
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    expect(results.some((r) => r.type === "entity")).toBe(true);
+  });
+
+  it("should return pages with content preview", () => {
+    createRegistryPage(
+      "attention-is-all-you-need",
+      "source",
+      "Attention Is All You Need",
+      "This paper introduced the Transformer architecture.",
+    );
+    const paths = getVaultPaths(wikiDir);
+    rebuildMetadataLight(paths);
+
+    const results = searchWiki(paths, "attention");
+    expect(results.length).toBeGreaterThanOrEqual(1);
+    // Preview should contain content (the body after frontmatter)
+    expect(results[0].preview).toBeTruthy();
+    expect(results[0].preview).toContain("Transformer");
+  });
+
+  it("should respect maxResults parameter", () => {
+    for (let i = 1; i <= 5; i++) {
+      createRegistryPage(
+        `concept-${i}`,
+        "concept",
+        `Concept ${i}`,
+        `This is concept ${i} about stuff.`,
+      );
+    }
+    const paths = getVaultPaths(wikiDir);
+    rebuildMetadataLight(paths);
+
+    const results = searchWiki(paths, "concept", 3);
+    expect(results.length).toBeLessThanOrEqual(3);
+  });
+
+  it("should format recall results as system context", () => {
+    const results = [
+      {
+        id: "concepts/rag",
+        title: "RAG",
+        type: "concept",
+        preview: "Retrieval augmented generation is a technique.",
+        path: "/tmp/wiki/concepts/rag.md",
+      },
+      {
+        id: "entities/openai",
+        title: "OpenAI",
+        type: "entity",
+        preview: "OpenAI is an AI research organization.",
+        path: "/tmp/wiki/entities/openai.md",
+      },
+    ];
+
+    const context = formatRecallContext(results);
+    expect(context).toContain("Relevant Wiki Knowledge");
+    expect(context).toContain("[[concepts/rag]]");
+    expect(context).toContain("[[entities/openai]]");
+    expect(context).toContain("RAG");
+    expect(context).toContain("OpenAI");
+    expect(context).toContain("2 page(s)");
+    expect(context).toContain("wiki_ensure_page or wiki_retro");
+  });
+
+  it("should return empty string for empty results", () => {
+    expect(formatRecallContext([])).toBe("");
   });
 });
