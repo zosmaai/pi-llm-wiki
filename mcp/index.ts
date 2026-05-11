@@ -62,10 +62,6 @@ function readJson<T>(path: string, defaultVal: T): T {
   }
 }
 
-function fmtDate(d = new Date()): string {
-  return d.toISOString().split("T")[0];
-}
-
 // ─── MCP Server ─────────────────────────────────────────
 
 const server = new McpServer({
