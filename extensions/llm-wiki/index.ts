@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { installGuardrails } from "./lib/guardrails.js";
 import { formatRecallContext, registerWikiRecall, searchWiki } from "./lib/recall.js";
+import { registerWikiRetro } from "./lib/retro.js";
 import {
   registerWikiBootstrap,
   registerWikiCaptureSource,
@@ -45,6 +46,7 @@ export default function (pi: ExtensionAPI) {
   registerWikiLogEvent(pi);
   registerWikiWatch(pi);
   registerWikiRecall(pi);
+  registerWikiRetro(pi);
 
   installGuardrails(pi);
 
