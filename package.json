@@ -37,6 +37,7 @@
     "extensions",
     "skills",
     "prompts",
+    "mcp",
     "docs",
     "assets",
     "README.md",
@@ -62,7 +63,10 @@
     "extensions": ["./extensions"],
     "skills": ["./skills"],
     "prompts": ["./prompts"],
-    "image": "https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/main/assets/screenshot.png"
+    "image": "https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/main/assets/screenshot.png",
+    "mcpservers": {
+      "llm-wiki": "node ./mcp/index.js"
+    }
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
@@ -70,6 +74,9 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0-alpha.2"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
