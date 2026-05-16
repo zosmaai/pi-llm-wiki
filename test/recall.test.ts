@@ -1,10 +1,9 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { rebuildMetadataLight } from "../extensions/llm-wiki/lib/metadata.js";
 import { formatRecallContext, searchWiki } from "../extensions/llm-wiki/lib/recall.js";
 import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
-import { readFile } from "./helpers.js";
 
 describe("wiki recall", () => {
   let wikiDir: string;
