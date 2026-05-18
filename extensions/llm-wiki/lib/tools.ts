@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
@@ -57,17 +56,9 @@ export function registerWikiBootstrap(pi: ExtensionAPI): void {
       root: Type.Optional(
         Type.String({ description: "Root directory (default: current directory)" }),
       ),
-      global: Type.Optional(
-        Type.Boolean({ description: "Create a global wiki at ~/.llm-wiki-root instead of project-local .llm-wiki/" }),
-      ),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      let root: string;
-      if (params.global) {
-        root = join(homedir(), ".llm-wiki-root");
-      } else {
-        root = params.root ? params.root : (ctx.cwd ?? process.cwd());
-      }
+      const root = params.root ?? ctx.cwd ?? process.cwd();
       const mode = params.mode || "personal";
       const paths = getVaultPaths(root);
 
@@ -130,7 +121,7 @@ export function registerWikiBootstrap(pi: ExtensionAPI): void {
             type: "text",
             text: [
               `✅ Wiki bootstrapped at \`${paths.root}\``,
-              params.global ? "**Scope:** global (available across all projects)" : "**Scope:** project-local",
+              "**Scope:** project-local",
               "",
               "**Structure:**",
               "- .llm-wiki/raw/sources/ — immutable source packets",
@@ -143,7 +134,7 @@ export function registerWikiBootstrap(pi: ExtensionAPI): void {
             ].join("\n"),
           },
         ],
-        details: { root, mode, topic: params.topic, global: params.global } as Record<string, unknown>,
+        details: { root, mode, topic: params.topic } as Record<string, unknown>,
       };
     },
   });

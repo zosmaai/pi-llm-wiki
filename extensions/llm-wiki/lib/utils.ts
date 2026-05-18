@@ -1,5 +1,4 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
@@ -33,11 +32,6 @@ export function detectVaultFormat(dir: string): VaultFormat {
   return "none";
 }
 
-/** Get the global wiki root path (~/.llm-wiki-root). */
-export function globalWikiRoot(): string {
-  return join(homedir(), ".llm-wiki-root");
-}
-
 /** Resolve vault root from cwd or find nearest wiki root. */
 export function resolveVaultRoot(cwd: string): string {
   // Check for any vault format at cwd
@@ -49,10 +43,6 @@ export function resolveVaultRoot(cwd: string): string {
     dir = dirname(dir);
     if (detectVaultFormat(dir) !== "none") return dir;
   }
-
-  // Check for global wiki at ~/.llm-wiki-root
-  const globalRoot = globalWikiRoot();
-  if (existsSync(join(globalRoot, ".llm-wiki", "config.json"))) return globalRoot;
 
   // Fallback: cwd itself
   return cwd;

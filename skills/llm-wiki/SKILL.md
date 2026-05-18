@@ -1,6 +1,7 @@
 ---
 name: llm-wiki
 description: Build and maintain a persistent, interlinked Obsidian-compatible markdown wiki using Karpathy's LLM Wiki pattern. Extension-backed with auto-generated metadata, guardrails, and 12 custom tools.
+whenToUse: At the START of every task, the extension auto-recalls relevant wiki pages — no manual action needed. After completing any meaningful task, call wiki_retro to save insights for future sessions. Invoke proactively — do not wait for the user to ask.
 ---
 
 # LLM Wiki for Pi
@@ -58,9 +59,11 @@ WIKI_ROOT/
 | **Recall wiki knowledge**   | Never happens                | **Auto-search before every turn**     |
 | **Save task insights**      | Manual capture               | `wiki_retro` — one tool call          |
 
-## 🔄 Auto-Recall (New)
+## 🔄 Proactive Wiki Usage
 
-**The extension now automatically searches the wiki before every user turn.**
+### At Task Start — Auto-Recall (Automatic)
+
+**The extension automatically searches the wiki before every user turn.**
 
 When you send a prompt, the extension:
 1. Extracts key terms from your request
@@ -71,7 +74,20 @@ When you send a prompt, the extension:
 **This means the wiki works as an automatic second brain.**
 You don't need to remember to search — relevant knowledge is surfaced automatically.
 
-### Manual recall for deeper searches
+### At Task End — Save Insights (Proactive)
+
+After completing any meaningful task, call `wiki_retro` to save key insights:
+- Non-obvious bug fixes or workarounds
+- Architectural decisions and their rationale
+- Tool/library gotchas you discovered
+- Patterns worth remembering for future sessions
+
+**Do not wait for the user to ask.** Save insights proactively — one atomic insight per call.
+
+```wiki_retro(slug="kebab-case-slug", title="Brief descriptive title", body="Insight in your own words with [[wikilinks]]")
+```
+
+### Manual Recall for Deeper Searches
 
 If the auto-recall doesn't find enough context, call `wiki_recall` explicitly:
 
@@ -81,23 +97,16 @@ wiki_recall(query="specific terms...", max_results=10)
 
 This gives you more control over the search terms and returns content previews.
 
-### No Wiki Yet
+### Auto-Bootstrap (New)
 
-If the extension injects a "No LLM Wiki found" hint, use `ask_user` to offer creating one:
+**The extension now creates the wiki vault automatically on startup — no user prompt needed.**
 
-> "No LLM Wiki found in this directory. Would you like to create one? It gives you a linked knowledge base with automatic recall."
+When you start in a directory without a wiki, the extension silently creates `.llm-wiki/` with placeholder config. On your first turn, it injects a directive asking you to:
+1. Analyze the user's prompt and project context
+2. Infer a topic (e.g. "React app", "startup finances")
+3. Call `wiki_bootstrap(topic="...", mode="personal|company")` to finalize setup
 
-If the user agrees, call `wiki_bootstrap(topic="...", mode="personal")`. Suggest only once per session.
-
-### Global Wiki
-
-For a wiki that spans all projects (not tied to a specific directory), use:
-
-```
-wiki_bootstrap(topic="...", global=true)
-```
-
-This creates the vault at `~/.llm-wiki-root` which is automatically discovered by all tools regardless of working directory.
+This is a one-time step — after bootstrap, normal auto-recall takes over.
 
 ## Available Tools
 
