@@ -31,7 +31,13 @@ export interface RecallResult {
   score: number;
 }
 
-type Scored = { id: string; entry: Registry["pages"][string]; score: number; pagePath: string };
+type Scored = {
+  id: string;
+  entry: Registry["pages"][string];
+  score: number;
+  pagePath: string;
+  bestChunkPreview: string;
+};
 
 /**
  * Normalize text for recall matching.
@@ -118,9 +124,78 @@ function scoreField(value: unknown, terms: string[], weight: number): number {
   return score;
 }
 
+// ─── Chunk-Level Indexing ────────────────────────────
+
+interface PageChunk {
+  /** The heading line (e.g. "## Configuration") or empty for the intro section */
+  heading: string;
+  /** Content of this chunk */
+  content: string;
+  /** Heading level (0 for intro, 1 for #, 2 for ##, etc.) */
+  level: number;
+}
+
+/**
+ * Split a page's body into chunks by headings.
+ * Each heading and its following content become one chunk.
+ * Content before the first heading becomes the intro chunk.
+ */
+function chunkPage(body: string): PageChunk[] {
+  if (!body.trim()) return [];
+
+  const chunks: PageChunk[] = [];
+  const lines = body.split("\n");
+
+  let currentHeading = "";
+  let currentLevel = 0;
+  let currentContent: string[] = [];
+
+  for (const line of lines) {
+    const headingMatch = line.trim().match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      // Save previous chunk
+      if (currentContent.length > 0 || currentHeading) {
+        chunks.push({
+          heading: currentHeading,
+          content: currentContent.join("\n").trim(),
+          level: currentLevel,
+        });
+      }
+      currentHeading = headingMatch[2].trim();
+      currentLevel = headingMatch[1].length;
+      currentContent = [];
+    } else {
+      currentContent.push(line);
+    }
+  }
+
+  // Save last chunk
+  if (currentContent.length > 0 || currentHeading) {
+    chunks.push({
+      heading: currentHeading,
+      content: currentContent.join("\n").trim(),
+      level: currentLevel,
+    });
+  }
+
+  return chunks;
+}
+
 function pagePreview(content: string): string {
   const { body } = parseFrontmatter(content);
   return body.trim().slice(0, 200).replace(/\n/g, " ");
+}
+
+/**
+ * Get a preview of the best-matching chunk, or fall back to the page intro.
+ * Shows the heading (if any) and the first ~200 chars of content.
+ */
+function chunkPreview(heading: string, content: string): string {
+  const trimmed = content.slice(0, 180).replace(/\n/g, " ");
+  if (heading) {
+    return `#${heading} — ${trimmed}`;
+  }
+  return trimmed;
 }
 
 /**
@@ -177,26 +252,51 @@ export function searchWiki(
     score += scoreField(frontmatter.category, terms, 2);
     score += scoreField(frontmatter.domain, terms, 2);
 
-    // Body search makes the wiki useful even when registry metadata is sparse.
-    // Headings get a stronger boost because they are human-authored labels.
-    const headings = body
-      .split("\n")
-      .filter((line) => line.trim().startsWith("#"))
-      .join(" ");
-    score += scoreField(headings, terms, 4);
-    score += scoreField(body, terms, 1);
+    // Body search: use chunk-level indexing for more precise matching.
+    // Each section of the page is scored independently, so a query about
+    // "Postgres" matches only the Postgres section, not the whole page.
+    let bestChunkScore = 0;
+    let bestChunkHeading = "";
+    let bestChunkContent = "";
+
+    if (body.trim()) {
+      const chunks = chunkPage(body);
+      for (const chunk of chunks) {
+        let chunkScore = 0;
+        // Heading gets a strong boost
+        chunkScore += scoreField(chunk.heading, terms, 4);
+        // Chunk body content
+        chunkScore += scoreField(chunk.content, terms, 1);
+
+        if (chunkScore > bestChunkScore) {
+          bestChunkScore = chunkScore;
+          bestChunkHeading = chunk.heading;
+          bestChunkContent = chunk.content;
+        }
+      }
+    }
+
+    // Add best chunk score to total page score
+    score += bestChunkScore;
 
     if (score > 0) {
-      scored.push({ id, entry, score, pagePath });
+      scored.push({
+        id,
+        entry,
+        score,
+        pagePath,
+        bestChunkPreview: bestChunkContent ? chunkPreview(bestChunkHeading, bestChunkContent) : "",
+      });
     }
   }
 
   scored.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
   const top = scored.filter((s) => s.score >= minScore).slice(0, maxResults);
 
-  return top.map(({ id, entry, pagePath, score }) => {
-    let preview = "";
-    if (existsSync(pagePath)) {
+  return top.map(({ id, entry, pagePath, score, bestChunkPreview }) => {
+    let preview = bestChunkPreview;
+    if (!preview && existsSync(pagePath)) {
+      // Fallback: no chunk matched, show page intro
       preview = pagePreview(readFileSync(pagePath, "utf-8"));
     }
 
