@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { installGuardrails } from "./lib/guardrails.js";
+import { registerObservationReminder, registerWikiObserve } from "./lib/observation.js";
 import { formatRecallContext, registerWikiRecall, searchWikiLayered } from "./lib/recall.js";
 import { registerWikiRetro } from "./lib/retro.js";
 import {
@@ -55,6 +56,8 @@ export default function (pi: ExtensionAPI) {
   registerWikiWatch(pi);
   registerWikiRecall(pi);
   registerWikiRetro(pi);
+  registerWikiObserve(pi);
+  registerObservationReminder(pi);
 
   installGuardrails(pi);
 
@@ -97,7 +100,7 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    ctx.ui.setStatus("llm-wiki", "🧠 LLM Wiki (12 tools, layered recall active)");
+    ctx.ui.setStatus("llm-wiki", "🧠 LLM Wiki (13 tools, observe + recall active)");
   });
 
   // ─── Layered recall + topic inference hook ──────────
@@ -169,7 +172,7 @@ Then call wiki_bootstrap with the inferred topic and mode to finalize the setup.
     // Always inject a visible wiki status footer, even when empty
     // This ensures the model knows the wiki is active and can use it
     injectedContext +=
-      "\n\n<wiki_status>LLM Wiki active — use wiki_recall for deeper search, wiki_retro to save new knowledge.</wiki_status>";
+      "\n\n<wiki_status>LLM Wiki active — use wiki_recall for deeper search, wiki_observe to record observations, wiki_retro to save insights.</wiki_status>";
 
     if (injectedContext === event.systemPrompt) return;
     return { systemPrompt: injectedContext };
