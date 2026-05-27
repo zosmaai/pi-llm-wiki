@@ -361,4 +361,110 @@ describe("wiki recall", () => {
       } catch {}
     });
   });
+
+  describe("chunk-level indexing", () => {
+    it("should match a query against a specific section, not the whole page", () => {
+      // Page with multiple sections - only one about the query topic
+      createRegistryPage(
+        "server-setup",
+        "concept",
+        "Server Setup",
+        [
+          "This page covers server setup basics.",
+          "",
+          "## Postgres",
+          "",
+          "PostgreSQL is configured with SSL and connection pooling via PgBouncer.",
+          "Connection string uses the DATABASE_URL env var.",
+          "",
+          "## Redis",
+          "",
+          "Redis is used for caching session data and rate limiting.",
+          "",
+          "## Nginx",
+          "",
+          "Nginx reverse proxies API requests and serves static assets.",
+        ].join("\n"),
+      );
+
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+
+      // Query for Postgres - should match the Postgres section specifically
+      const results = searchWiki(paths, "PostgreSQL connection pooling");
+      expect(results.length).toBeGreaterThanOrEqual(1);
+
+      // The preview should show the Postgres section content, not the intro
+      const result = results[0];
+      expect(result.id).toBe("concepts/server-setup");
+      expect(result.preview).toContain("Postgres");
+      expect(result.preview).toContain("PgBouncer");
+      // Should not show the intro which mentions "server setup basics"
+      expect(result.preview).not.toContain("basics");
+    });
+
+    it("should match a query against the intro section", () => {
+      createRegistryPage(
+        "introduction",
+        "concept",
+        "Getting Started",
+        "Welcome to the framework. This is where you begin learning about routing and middleware.",
+      );
+
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+
+      const results = searchWiki(paths, "Getting Started routing");
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results[0].preview).toContain("routing");
+    });
+
+    it("should match a deeply nested section heading", () => {
+      createRegistryPage(
+        "deep-page",
+        "synthesis",
+        "Deep Analysis",
+        [
+          "## Background",
+          "",
+          "General background.",
+          "",
+          "### Deep Dive",
+          "",
+          "The specific mechanism involves token-level processing.",
+          "",
+          "## Results",
+          "",
+          "All tests pass.",
+        ].join("\n"),
+      );
+
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+
+      const results = searchWiki(paths, "token-level processing");
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      const result = results[0];
+      expect(result.preview).toContain("token-level");
+      expect(result.preview).toContain("Deep Dive");
+    });
+
+    it("should still find pages via metadata even when body has no match", () => {
+      createRegistryPage(
+        "api-reference",
+        "concept",
+        "API Reference",
+        "Detailed API documentation with examples.",
+        { aliases: "api-docs rest-api" },
+      );
+
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+
+      // Match on alias, not body
+      const results = searchWiki(paths, "rest-api");
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results[0].id).toBe("concepts/api-reference");
+    });
+  });
 });
