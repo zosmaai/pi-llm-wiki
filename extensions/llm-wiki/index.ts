@@ -147,9 +147,17 @@ ${projectHints}
 Then call wiki_bootstrap with the inferred topic and mode to finalize the setup. This is a one-time step.`;
     }
 
-    // Layered recall: search personal + project vaults for relevant pages
+    // Auto-injection recall: search ONLY the project vault with a relevance
+    // threshold. Low-confidence matches are discarded to avoid context pollution.
+    // Personal vault is excluded — it contains cross-project pages that
+    // produce noise in unrelated sessions. Users can call wiki_recall
+    // explicitly for personal-vault searches.
     if (prompt.trim()) {
-      const results = searchWikiLayered(paths, prompt);
+      // minScore=5: requires at least a title/heading/alias/trigger match,
+      // or multiple body matches. This eliminates accidental body-only
+      // substring matches (e.g. a Tally page matching on common words).
+      // includePersonal=false: personal vault is excluded from auto-injection.
+      const results = searchWikiLayered(paths, prompt, 3, 5, false);
       if (results.length > 0) {
         const recallContext = formatRecallContext(results);
         if (recallContext) {

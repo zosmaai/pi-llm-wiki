@@ -27,6 +27,8 @@ export interface RecallResult {
   path: string;
   /** Vault source label for dual-vault results */
   vaultLabel?: string;
+  /** Relevance score (higher = better match). Used for filtering auto-injected results. */
+  score: number;
 }
 
 type Scored = { id: string; entry: Registry["pages"][string]; score: number; pagePath: string };
@@ -124,8 +126,14 @@ function pagePreview(content: string): string {
 /**
  * Search a single vault's registry for pages matching a query.
  * Returns up to `maxResults` matches, each with a content preview.
+ * Results below `minScore` are excluded (default 0 = no filtering).
  */
-export function searchWiki(paths: VaultPaths, query: string, maxResults = 5): RecallResult[] {
+export function searchWiki(
+  paths: VaultPaths,
+  query: string,
+  maxResults = 5,
+  minScore = 0,
+): RecallResult[] {
   const registry = readJson<Registry>(join(paths.meta, "registry.json"), {
     version: "1.0",
     last_updated: "",
@@ -184,9 +192,9 @@ export function searchWiki(paths: VaultPaths, query: string, maxResults = 5): Re
   }
 
   scored.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
-  const top = scored.slice(0, maxResults);
+  const top = scored.filter((s) => s.score >= minScore).slice(0, maxResults);
 
-  return top.map(({ id, entry, pagePath }) => {
+  return top.map(({ id, entry, pagePath, score }) => {
     let preview = "";
     if (existsSync(pagePath)) {
       preview = pagePreview(readFileSync(pagePath, "utf-8"));
@@ -198,6 +206,7 @@ export function searchWiki(paths: VaultPaths, query: string, maxResults = 5): Re
       type: String(entry.type || "page"),
       preview,
       path: pagePath,
+      score,
     };
   });
 }
@@ -205,23 +214,32 @@ export function searchWiki(paths: VaultPaths, query: string, maxResults = 5): Re
 /**
  * Search both project/primary vault and personal vault, merging results.
  * Personal results are appended after primary results, deduplicated by page ID.
+ *
+ * @param minScore - Minimum relevance score (default 0 = no filter).
+ * @param includePersonal - Whether to search the personal vault (default true).
+ *   Auto-injection should pass false to avoid personal-vault contamination.
  */
 export function searchWikiLayered(
   primaryPaths: VaultPaths,
   query: string,
   maxResults = 5,
+  minScore = 0,
+  includePersonal = true,
 ): RecallResult[] {
   // Search primary vault
-  const primaryResults = searchWiki(primaryPaths, query, maxResults);
+  const primaryResults = searchWiki(primaryPaths, query, maxResults, minScore);
 
   // If primary is already the personal vault, no layered search needed
   if (isPersonalVault(primaryPaths)) return primaryResults;
 
-  // Search personal vault as secondary layer
-  const personalPaths = getPersonalWikiPaths();
-  if (!existsSync(join(personalPaths.dotWiki, "config.json"))) return primaryResults;
-
-  const personalResults = searchWiki(personalPaths, query, maxResults);
+  // Search personal vault as secondary layer (only when explicitly requested)
+  let personalResults: RecallResult[] = [];
+  if (includePersonal) {
+    const personalPaths = getPersonalWikiPaths();
+    if (existsSync(join(personalPaths.dotWiki, "config.json"))) {
+      personalResults = searchWiki(personalPaths, query, maxResults, minScore);
+    }
+  }
 
   // Merge: personal results first (they're the user's accumulated knowledge),
   // then primary results (project-specific). Deduplicate by page ID.

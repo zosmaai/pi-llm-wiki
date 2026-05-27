@@ -251,6 +251,7 @@ describe("wiki recall", () => {
         type: "concept",
         preview: "Retrieval augmented generation is a technique.",
         path: "/tmp/wiki/concepts/rag.md",
+        score: 5,
       },
       {
         id: "entities/openai",
@@ -258,6 +259,7 @@ describe("wiki recall", () => {
         type: "entity",
         preview: "OpenAI is an AI research organization.",
         path: "/tmp/wiki/entities/openai.md",
+        score: 3,
       },
     ];
     const context = formatRecallContext(results);
