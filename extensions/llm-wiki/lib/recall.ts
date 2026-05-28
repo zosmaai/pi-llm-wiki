@@ -124,6 +124,62 @@ function scoreField(value: unknown, terms: string[], weight: number): number {
   return score;
 }
 
+// ─── Common English stopwords ─────────────────────────
+
+const STOPWORDS = new Set([
+  "the",
+  "this",
+  "that",
+  "with",
+  "from",
+  "have",
+  "been",
+  "were",
+  "they",
+  "their",
+  "them",
+  "will",
+  "would",
+  "could",
+  "should",
+  "about",
+  "there",
+  "which",
+  "what",
+  "when",
+  "where",
+  "than",
+  "then",
+  "also",
+  "just",
+  "more",
+  "some",
+  "such",
+  "only",
+  "other",
+  "into",
+  "over",
+  "very",
+  "after",
+  "before",
+  "because",
+  "between",
+  "through",
+  "during",
+  "without",
+  "within",
+  "along",
+  "these",
+  "those",
+  "page",
+  "section",
+  "note",
+  "info",
+  "type",
+  "used",
+  "using",
+]);
+
 // ─── Chunk-Level Indexing ────────────────────────────
 
 interface PageChunk {
@@ -196,6 +252,56 @@ function chunkPreview(heading: string, content: string): string {
     return `#${heading} — ${trimmed}`;
   }
   return trimmed;
+}
+
+/**
+ * Extract distinctive terms from the top search results for query expansion.
+ * Pseudo-relevance feedback: terms from top-matching pages that aren't in
+ * the original query become expansion candidates.
+ */
+function extractExpansionTerms(
+  scored: Scored[],
+  originalQuery: string,
+  paths: VaultPaths,
+  maxTerms = 6,
+): string[] {
+  const topResults = scored.slice(0, Math.min(3, scored.length));
+  if (topResults.length === 0) return [];
+
+  const originalNorm = normalizeText(originalQuery);
+  const termFreq = new Map<string, number>();
+
+  for (const { pagePath, entry } of topResults) {
+    // Collect text from registry metadata + file content
+    const metaText = normalizeText(
+      [entry.title, entry.aliases, entry.tags, entry.summary, entry.description]
+        .filter(Boolean)
+        .join(" "),
+    );
+    for (const w of metaText.split(/\s+/)) {
+      if (w.length >= 4 && !originalNorm.includes(w) && !STOPWORDS.has(w)) {
+        termFreq.set(w, (termFreq.get(w) || 0) + 1);
+      }
+    }
+
+    // Also extract from file body
+    if (existsSync(pagePath)) {
+      const content = readFileSync(pagePath, "utf-8");
+      const { body } = parseFrontmatter(content);
+      const bodyNorm = normalizeText(body);
+      for (const w of bodyNorm.split(/\s+/)) {
+        if (w.length >= 4 && !originalNorm.includes(w) && !STOPWORDS.has(w)) {
+          termFreq.set(w, (termFreq.get(w) || 0) + 1);
+        }
+      }
+    }
+  }
+
+  // Sort by frequency descending, take top N
+  return Array.from(termFreq.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, maxTerms)
+    .map(([term]) => term);
 }
 
 /**
@@ -290,6 +396,38 @@ export function searchWiki(
     }
   }
 
+  scored.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
+
+  // ── Pseudo-Relevance Feedback (PRF) ─────────────────
+  // Extract distinctive terms from the top 3 results and use them to
+  // boost semantically related pages. This gives "semantic" expansion
+  // without external dependencies: if an "Authentication" page mentions
+  // JWT, OAuth, and sessions, those terms boost other pages that discuss
+  // related concepts.
+  const expansionTerms = extractExpansionTerms(scored, query, paths, 6);
+  if (expansionTerms.length > 0) {
+    const expTermList = queryTerms(expansionTerms.join(" "));
+    // Apply expansion scoring to the top 25 results (cheap re-read)
+    const expansionCandidates = scored.slice(0, Math.min(25, scored.length));
+    for (const item of expansionCandidates) {
+      const content = existsSync(item.pagePath) ? readFileSync(item.pagePath, "utf-8") : "";
+      const { body } = parseFrontmatter(content);
+      let expChunkScore = 0;
+      if (body.trim()) {
+        const chunks = chunkPage(body);
+        for (const chunk of chunks) {
+          let cs = 0;
+          cs += scoreField(chunk.heading, expTermList, 2); // half weight
+          cs += scoreField(chunk.content, expTermList, 0.5);
+          if (cs > expChunkScore) expChunkScore = cs;
+        }
+      }
+      // Dampened addition — expansion contributes at most 40%
+      item.score += expChunkScore * 0.4;
+    }
+  }
+
+  // Re-sort after expansion scoring
   scored.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
   const top = scored.filter((s) => s.score >= minScore).slice(0, maxResults);
 

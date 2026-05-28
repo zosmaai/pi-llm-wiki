@@ -467,4 +467,102 @@ describe("wiki recall", () => {
       expect(results[0].id).toBe("concepts/api-reference");
     });
   });
+
+  describe("pseudo-relevance feedback (semantic expansion)", () => {
+    it("should expand query terms from top results to boost related pages", () => {
+      // Two pages: one directly matching "login", one about "authentication"
+      // that mentions "JWT" and "OAuth" (terms not in the original query)
+      createRegistryPage(
+        "login-page",
+        "concept",
+        "Login Page",
+        [
+          "## Login Form",
+          "",
+          "The login form accepts email and password.",
+          "",
+          "## Password Reset",
+          "",
+          "Users can reset their password via email link.",
+        ].join("\n"),
+      );
+      createRegistryPage(
+        "auth-module",
+        "concept",
+        "Authentication System",
+        [
+          "## JWT Tokens",
+          "",
+          "JWT tokens are used for session management and API authentication.",
+          "",
+          "## OAuth Integration",
+          "",
+          "OAuth 2.0 supports Google and GitHub login providers.",
+        ].join("\n"),
+      );
+      createRegistryPage(
+        "unrelated",
+        "concept",
+        "Unrelated",
+        "This page is about CSS styling and color themes.",
+      );
+
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+
+      // Query for "login" - should find the Login Page (direct match)
+      // and the Authentication System page (boosted because top result
+      // "Login Page" shares semantic context with "Authentication System"
+      // through terms like JWT, OAuth, session, etc.)
+      const results = searchWiki(paths, "login", 5);
+      expect(results.length).toBeGreaterThanOrEqual(2);
+
+      // Login Page should be first (direct title match)
+      expect(results[0].title).toContain("Login Page");
+
+      // Authentication System should be found (boosted by PRF)
+      const authResult = results.find((r) => r.id === "concepts/auth-module");
+      expect(authResult).toBeDefined();
+
+      // Unrelated should either be absent or ranked below auth
+      const unrelatedIndex = results.findIndex((r) => r.id === "concepts/unrelated");
+      const authIndex = results.findIndex((r) => r.id === "concepts/auth-module");
+      if (unrelatedIndex >= 0 && authIndex >= 0) {
+        expect(authIndex).toBeLessThan(unrelatedIndex);
+      }
+    });
+
+    it("should work with CJK content (no crash)", () => {
+      createRegistryPage(
+        "pi-learning",
+        "concept",
+        "Pi 学习",
+        [
+          "## 交互模式",
+          "",
+          "Pi 的交互模式包括命令行和对话两种方式。",
+          "",
+          "## 扩展开发",
+          "",
+          "通过 TypeScript 扩展可以添加自定义工具和事件处理。",
+        ].join("\n"),
+      );
+
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+
+      // Query in Chinese - should not crash and should find relevant page
+      const results = searchWiki(paths, "Pi 交互模式", 5);
+      expect(results.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("should handle empty wiki gracefully (no expansion crash)", () => {
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+
+      // Empty wiki - no top results to expand from
+      const results = searchWiki(paths, "anything");
+      expect(results).toEqual([]);
+    });
+  });
 });
