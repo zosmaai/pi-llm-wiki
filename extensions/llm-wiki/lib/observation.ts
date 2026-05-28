@@ -115,6 +115,21 @@ export function saveObservation(paths: VaultPaths, input: ObservationInput): Obs
   return { slug, pagePath };
 }
 
+// ─── Shared Reminder State ────────────────────────────
+
+/**
+ * Mutable state shared between wiki_observe tool and the turn-end reminder.
+ * When the model calls wiki_observe, the tool sets observeDoneThisSession
+ * so the reminder stops nagging.
+ */
+export interface ReminderState {
+  observeDoneThisSession: boolean;
+}
+
+export function createReminderState(): ReminderState {
+  return { observeDoneThisSession: false };
+}
+
 // ─── Tool Registration ─────────────────────────────────
 
 /**
@@ -122,7 +137,7 @@ export function saveObservation(paths: VaultPaths, input: ObservationInput): Obs
  * The model calls this to record observations during a session.
  * Observations are saved to the wiki and become searchable.
  */
-export function registerWikiObserve(pi: ExtensionAPI): void {
+export function registerWikiObserve(pi: ExtensionAPI, reminderState?: ReminderState): void {
   pi.registerTool({
     name: "wiki_observe",
     label: "Wiki Observe",
@@ -207,6 +222,11 @@ export function registerWikiObserve(pi: ExtensionAPI): void {
         source_context: params.source_context,
       });
 
+      // Signal the reminder to stop nagging this session
+      if (reminderState) {
+        reminderState.observeDoneThisSession = true;
+      }
+
       const relevanceEmoji = RELEVANCE_EMOJIS[params.relevance] ?? "📝";
 
       return {
@@ -247,27 +267,27 @@ export function registerWikiObserve(pi: ExtensionAPI): void {
  */
 export function registerObservationReminder(
   pi: ExtensionAPI,
+  reminderState: ReminderState,
   options?: { turnsBetweenReminders?: number },
 ): void {
   const REMINDER_INTERVAL = options?.turnsBetweenReminders ?? 5;
   let turnsSinceLastReminder = 0;
-  let observeDoneThisSession = false;
 
   pi.on("session_start", async () => {
     turnsSinceLastReminder = 0;
-    observeDoneThisSession = false;
+    reminderState.observeDoneThisSession = false;
   });
 
   // After compaction, reset the reminder state so reminders resume
   pi.on("session_compact", async () => {
     turnsSinceLastReminder = 0;
-    observeDoneThisSession = false;
+    reminderState.observeDoneThisSession = false;
   });
 
   pi.on("agent_end", async (_event, _ctx) => {
     turnsSinceLastReminder++;
     if (turnsSinceLastReminder < REMINDER_INTERVAL) return;
-    if (observeDoneThisSession) return;
+    if (reminderState.observeDoneThisSession) return;
 
     pi.sendMessage(
       {

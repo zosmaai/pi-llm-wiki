@@ -2,7 +2,11 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { installGuardrails } from "./lib/guardrails.js";
-import { registerObservationReminder, registerWikiObserve } from "./lib/observation.js";
+import {
+  createReminderState,
+  registerObservationReminder,
+  registerWikiObserve,
+} from "./lib/observation.js";
 import { formatRecallContext, registerWikiRecall, searchWikiLayered } from "./lib/recall.js";
 import { registerWikiRetro } from "./lib/retro.js";
 import {
@@ -56,8 +60,9 @@ export default function (pi: ExtensionAPI) {
   registerWikiWatch(pi);
   registerWikiRecall(pi);
   registerWikiRetro(pi);
-  registerWikiObserve(pi);
-  registerObservationReminder(pi);
+  const reminderState = createReminderState();
+  registerWikiObserve(pi, reminderState);
+  registerObservationReminder(pi, reminderState);
 
   installGuardrails(pi);
 
