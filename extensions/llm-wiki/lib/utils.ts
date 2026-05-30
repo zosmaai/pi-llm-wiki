@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmdirSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -33,16 +42,77 @@ export function detectVaultFormat(dir: string): VaultFormat {
   return "none";
 }
 
-/** Get the personal wiki root directory (~/.llm-wiki/). */
+/**
+ * Get the personal wiki root directory.
+ *
+ * The "root" follows the same contract as project wikis: it is the directory
+ * that *contains* the `.llm-wiki/` dot-dir, NOT the dot-dir itself.
+ * So the personal vault lives at `<root>/.llm-wiki/`.
+ *
+ * Default root: `homedir()` → personal vault at `~/.llm-wiki/`.
+ * Override:     `WIKI_HOME` env var → personal vault at `$WIKI_HOME/.llm-wiki/`.
+ *
+ * NOTE: Previously this returned `~/.llm-wiki` (the dot-dir itself), which
+ * caused `getVaultPaths()` to compose paths like `~/.llm-wiki/.llm-wiki/raw`.
+ * See `migrateDoubledPersonalVault()` for the one-shot recovery.
+ */
 export function getPersonalWikiRoot(): string {
   const envWiki = process.env.WIKI_HOME;
   if (envWiki) return envWiki;
-  return join(homedir(), ".llm-wiki");
+  return homedir();
 }
 
 /** Get VaultPaths for the personal wiki. */
 export function getPersonalWikiPaths(): VaultPaths {
   return getVaultPaths(getPersonalWikiRoot());
+}
+
+/**
+ * One-shot, idempotent migration for vaults that were created with the broken
+ * `getPersonalWikiRoot()` (returned the dot-dir itself, so `getVaultPaths()`
+ * composed `<root>/.llm-wiki/.llm-wiki/...`).
+ *
+ * Detects a doubled layout at `<root>/.llm-wiki/.llm-wiki/config.json` and
+ * flattens it up by one level. Safe to call on every session start: if the
+ * doubled sentinel is absent, this is a no-op.
+ *
+ * Returns a description of the action taken (or `null` if no migration was
+ * needed) so callers can surface a one-line status message.
+ */
+export function migrateDoubledPersonalVault(
+  parentRoot: string = getPersonalWikiRoot(),
+): { moved: string[]; from: string; to: string; skipped: string[] } | null {
+  const outerDotWiki = join(parentRoot, ".llm-wiki");
+  const innerDotWiki = join(outerDotWiki, ".llm-wiki");
+  const innerSentinel = join(innerDotWiki, "config.json");
+
+  if (!existsSync(innerSentinel)) return null;
+
+  const moved: string[] = [];
+  const skipped: string[] = [];
+
+  for (const entry of readdirSync(innerDotWiki)) {
+    const src = join(innerDotWiki, entry);
+    const dest = join(outerDotWiki, entry);
+    if (existsSync(dest)) {
+      // Collision — leave the inner copy in place rather than clobber.
+      skipped.push(entry);
+      continue;
+    }
+    renameSync(src, dest);
+    moved.push(entry);
+  }
+
+  // Only remove the inner dir if it is fully drained.
+  if (skipped.length === 0) {
+    try {
+      rmdirSync(innerDotWiki);
+    } catch {
+      // Leave behind if something raced us; harmless.
+    }
+  }
+
+  return { moved, from: innerDotWiki, to: outerDotWiki, skipped };
 }
 
 /**

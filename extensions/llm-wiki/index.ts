@@ -25,6 +25,7 @@ import {
   ensureVaultStructure,
   fmtDate,
   getVaultPaths,
+  migrateDoubledPersonalVault,
   resolveVaultPaths,
   writeJson,
 } from "./lib/utils.js";
@@ -70,6 +71,22 @@ export default function (pi: ExtensionAPI) {
   let needsTopicInference = false;
 
   pi.on("session_start", async (_event, ctx) => {
+    // One-shot recovery for vaults created with the broken personal-root
+    // (~/.llm-wiki/.llm-wiki/… doubled layout). Runs on every session start
+    // because it is a cheap existence-check no-op when the layout is correct.
+    try {
+      const migration = migrateDoubledPersonalVault();
+      if (migration && migration.moved.length > 0) {
+        ctx.ui.setStatus(
+          "llm-wiki",
+          `🧠 Personal wiki layout fixed: flattened ${migration.moved.length} entries out of ${migration.from} (see CHANGELOG)`,
+        );
+      }
+    } catch (err) {
+      // Never let migration crash session start.
+      console.warn(`[llm-wiki] doubled-dotdir migration skipped: ${(err as Error).message}`);
+    }
+
     const paths = resolveVaultPaths(process.cwd());
     if (!existsSync(join(paths.dotWiki, "config.json"))) {
       // Silently create the wiki vault — no UI prompts

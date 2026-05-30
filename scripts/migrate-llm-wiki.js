@@ -3,23 +3,37 @@
 /**
  * migrate-llm-wiki.js
  *
- * One-time migration script: moves an old-style wiki vault (.wiki/ sentinel)
- * to the new .llm-wiki/ layout.
+ * One-time migration script for wiki vault layouts.
+ *
+ * Two migrations are supported:
+ *
+ * 1. LEGACY → NEW (default): moves an old-style vault (`.wiki/` sentinel)
+ *    to the new `.llm-wiki/` layout.
+ *
+ * 2. DOUBLED → FLATTENED (`--fix-doubled`): flattens a vault that was
+ *    accidentally created at `<root>/.llm-wiki/.llm-wiki/…` due to a bug in
+ *    `getPersonalWikiRoot()` (fixed in 0.6.4). The extension auto-runs this
+ *    migration on `session_start`, but the script is provided for manual
+ *    recovery on arbitrary roots.
  *
  * Usage:
- *   node scripts/migrate-llm-wiki.js              # Run in wiki root directory
- *   node scripts/migrate-llm-wiki.js ~/my-wiki     # Run at specific path
+ *   node scripts/migrate-llm-wiki.js              # Legacy migration in cwd
+ *   node scripts/migrate-llm-wiki.js ~/my-wiki     # Legacy migration at path
  *   node scripts/migrate-llm-wiki.js --dry-run     # Preview without changes
- *   node scripts/migrate-llm-wiki.js --force        # Skip confirmation prompt
+ *   node scripts/migrate-llm-wiki.js --force       # Skip confirmation prompt
+ *   node scripts/migrate-llm-wiki.js --fix-doubled # Flatten doubled .llm-wiki/.llm-wiki
+ *   node scripts/migrate-llm-wiki.js --fix-doubled ~/  # …at a specific root
  */
 
-import { existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, renameSync, rmdirSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 // ─── Helpers ────────────────────────────────────────────
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const FORCE = process.argv.includes("--force");
+const FIX_DOUBLED = process.argv.includes("--fix-doubled");
 
 function log(action, ...args) {
   const prefix = DRY_RUN ? "[DRY-RUN]" : "[MIGRATE]";
@@ -44,7 +58,108 @@ function moveDir(src, dest, name) {
 
 // ─── Main ───────────────────────────────────────────────
 
+async function fixDoubled() {
+  // Determine parent root: first positional arg if present, else homedir().
+  // This is the directory that CONTAINS the outer .llm-wiki/.
+  const positional = process.argv.find(
+    (a, i) => i >= 2 && !a.startsWith("--"),
+  );
+  const parentRoot = positional
+    ? positional.startsWith("/")
+      ? positional
+      : join(process.cwd(), positional)
+    : homedir();
+
+  const outer = join(parentRoot, ".llm-wiki");
+  const inner = join(outer, ".llm-wiki");
+  const innerSentinel = join(inner, "config.json");
+
+  console.log(`\n🔍 Scanning for doubled vault at: ${inner}\n`);
+
+  if (!existsSync(innerSentinel)) {
+    console.log("✅ No doubled vault detected (no inner .llm-wiki/config.json).");
+    console.log(`   Outer: ${outer}`);
+    console.log(`   Inner: ${inner}`);
+    console.log("   Nothing to do.");
+    process.exit(0);
+  }
+
+  const entries = readdirSync(inner);
+  const plan = entries.map((entry) => {
+    const src = join(inner, entry);
+    const dest = join(outer, entry);
+    return { src, dest, entry, collision: existsSync(dest) };
+  });
+
+  console.log("📋 Flatten plan:");
+  console.log(`   ${inner}/  →  ${outer}/`);
+  console.log("   ─────────────────────────────");
+  for (const p of plan) {
+    const status = p.collision ? "⚠️  COLLISION (skip)" : "✓ move";
+    console.log(`   ${status}  ${p.entry}`);
+  }
+
+  if (plan.every((p) => p.collision)) {
+    console.log(
+      "\n❌ Every inner entry collides with the outer vault. Resolve manually.",
+    );
+    process.exit(1);
+  }
+
+  if (!FORCE && !DRY_RUN) {
+    console.log("\n❓ Proceed with flatten? (y/N)");
+    process.stdin.setRawMode?.(false);
+    const answer = await new Promise((resolve) => {
+      process.stdin.once("data", (data) => resolve(data.toString().trim().toLowerCase()));
+    });
+    if (answer !== "y" && answer !== "yes") {
+      console.log("Migration cancelled.");
+      process.exit(0);
+    }
+  }
+
+  console.log("");
+  let moved = 0;
+  let skipped = 0;
+  for (const p of plan) {
+    if (p.collision) {
+      log(`SKIP ${p.entry} — destination already exists`);
+      skipped++;
+      continue;
+    }
+    log(`MOVE ${p.entry}: ${p.src} → ${p.dest}`);
+    if (!DRY_RUN) renameSync(p.src, p.dest);
+    moved++;
+  }
+
+  if (skipped === 0 && !DRY_RUN) {
+    try {
+      rmdirSync(inner);
+      log(`RMDIR ${inner}`);
+    } catch (err) {
+      log(`RMDIR ${inner} failed: ${err.message} (left in place)`);
+    }
+  }
+
+  console.log("");
+  if (DRY_RUN) {
+    console.log(`✅ Dry-run complete. Would move ${moved}, skip ${skipped}.`);
+  } else {
+    console.log(`✅ Flatten complete. Moved ${moved}, skipped ${skipped}.`);
+    if (skipped > 0) {
+      console.log(
+        `   ${skipped} entry(ies) left in ${inner} due to collisions. Resolve manually.`,
+      );
+    }
+  }
+}
+
 async function main() {
+  if (FIX_DOUBLED) {
+    await fixDoubled();
+    return;
+  }
+
   // Determine root directory
   const root = process.argv[2] ? join(process.cwd(), process.argv[2]) : process.cwd();
 

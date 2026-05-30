@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Personal wiki created at doubled path `~/.llm-wiki/.llm-wiki/…`**: `getPersonalWikiRoot()` returned the dot-dir itself (`~/.llm-wiki`) while `getVaultPaths()` then appended another `.llm-wiki/` segment, so the personal vault was written to `~/.llm-wiki/.llm-wiki/wiki/…`. Fixed by aligning `getPersonalWikiRoot()` with the same "root = parent of `.llm-wiki/`" contract used by project vaults. `WIKI_HOME` continues to override the parent.
+
+### Added
+- **`migrateDoubledPersonalVault()`** helper (`extensions/llm-wiki/lib/utils.ts`): Idempotent, in-place flatten of any vault that was already written to the broken doubled layout. Moves entries from `<root>/.llm-wiki/.llm-wiki/*` up to `<root>/.llm-wiki/*`, preserves outer entries on collision, removes the inner dir only when fully drained. Returns `null` when the layout is already correct, so it is safe to call on every session start.
+- **Auto-migration on `session_start`**: The extension now runs `migrateDoubledPersonalVault()` on the personal wiki at every session start. Existing broken vaults are flattened the next time the user opens or reloads pi — no manual step required. A one-line status message is shown when a flatten actually happens; otherwise the check is silent.
+- **`scripts/migrate-llm-wiki.js --fix-doubled`** flag: Manual recovery for arbitrary roots (`--fix-doubled ~/`, `--fix-doubled /some/project`). Supports `--dry-run` and `--force`.
+- **9 regression tests** (`test/personal-wiki-paths.test.ts`): pin `getPersonalWikiRoot()` to the parent-of-dotdir contract, exercise `WIKI_HOME`, and verify the migration helper across no-op, idempotent, and collision paths.
+
 ## [0.7.0] - 2026-05-13
 
 ### Added
