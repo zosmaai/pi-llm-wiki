@@ -61,9 +61,7 @@ function moveDir(src, dest, name) {
 async function fixDoubled() {
   // Determine parent root: first positional arg if present, else homedir().
   // This is the directory that CONTAINS the outer .llm-wiki/.
-  const positional = process.argv.find(
-    (a, i) => i >= 2 && !a.startsWith("--"),
-  );
+  const positional = process.argv.find((a, i) => i >= 2 && !a.startsWith("--"));
   const parentRoot = positional
     ? positional.startsWith("/")
       ? positional
@@ -100,9 +98,7 @@ async function fixDoubled() {
   }
 
   if (plan.every((p) => p.collision)) {
-    console.log(
-      "\n❌ Every inner entry collides with the outer vault. Resolve manually.",
-    );
+    console.log("\n❌ Every inner entry collides with the outer vault. Resolve manually.");
     process.exit(1);
   }
 
@@ -147,9 +143,7 @@ async function fixDoubled() {
   } else {
     console.log(`✅ Flatten complete. Moved ${moved}, skipped ${skipped}.`);
     if (skipped > 0) {
-      console.log(
-        `   ${skipped} entry(ies) left in ${inner} due to collisions. Resolve manually.`,
-      );
+      console.log(`   ${skipped} entry(ies) left in ${inner} due to collisions. Resolve manually.`);
     }
   }
 }

@@ -28,11 +28,15 @@ describe("getPersonalWikiRoot / getPersonalWikiPaths", () => {
 
   beforeEach(() => {
     savedWikiHome = process.env.WIKI_HOME;
-    delete process.env.WIKI_HOME;
+    // Use Reflect.deleteProperty rather than `delete` to satisfy biome's
+    // performance/noDelete rule. Plain assignment to undefined is wrong here:
+    // Node coerces it to the string "undefined" and treats the var as SET,
+    // which would defeat the "no env override" precondition this test needs.
+    Reflect.deleteProperty(process.env, "WIKI_HOME");
   });
 
   afterEach(() => {
-    if (savedWikiHome === undefined) delete process.env.WIKI_HOME;
+    if (savedWikiHome === undefined) Reflect.deleteProperty(process.env, "WIKI_HOME");
     else process.env.WIKI_HOME = savedWikiHome;
   });
 
@@ -136,20 +140,14 @@ describe("migrateDoubledPersonalVault", () => {
     const result = migrateDoubledPersonalVault(scratch);
     expect(result?.skipped).toContain("config.json");
     // Outer config preserved untouched.
-    expect(readFileSync(join(scratch, ".llm-wiki", "config.json"), "utf-8")).toBe(
-      '{"outer":true}',
-    );
+    expect(readFileSync(join(scratch, ".llm-wiki", "config.json"), "utf-8")).toBe('{"outer":true}');
     // Inner dir kept because not fully drained.
     expect(existsSync(join(scratch, ".llm-wiki", ".llm-wiki"))).toBe(true);
     // Collided inner copy is preserved for the user to resolve.
-    expect(
-      existsSync(join(scratch, ".llm-wiki", ".llm-wiki", "config.json")),
-    ).toBe(true);
+    expect(existsSync(join(scratch, ".llm-wiki", ".llm-wiki", "config.json"))).toBe(true);
     // Non-colliding entries still moved up.
     expect(existsSync(join(scratch, ".llm-wiki", "wiki", "sources", "note.md"))).toBe(true);
-    expect(
-      existsSync(join(scratch, ".llm-wiki", ".llm-wiki", "wiki")),
-    ).toBe(false);
+    expect(existsSync(join(scratch, ".llm-wiki", ".llm-wiki", "wiki"))).toBe(false);
   });
 
   it("composes a path that getVaultPaths can consume without double-prefixing", () => {
