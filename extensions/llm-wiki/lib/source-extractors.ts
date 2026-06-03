@@ -111,7 +111,11 @@ export function pdfExtractionFailureMessage(source: string): string {
   return `_PDF content could not be converted to markdown from ${source}. Try increasing WIKI_MARKITDOWN_TIMEOUT_MS._\n`;
 }
 
-function textFileExtractor(format: string, extensions: string[], contentType?: string): FileExtractor {
+function textFileExtractor(
+  format: string,
+  extensions: string[],
+  contentType?: string,
+): FileExtractor {
   return {
     format,
     shouldReadText: true,
@@ -139,7 +143,11 @@ export function docxExtractionFailureMessage(source: string): string {
   return `_DOCX content could not be converted to markdown from ${source}. Ensure uvx and markitdown are installed._\n`;
 }
 
-async function extractDocx(pi: ExtensionAPI, source: string, signal?: AbortSignal): Promise<string> {
+async function extractDocx(
+  pi: ExtensionAPI,
+  source: string,
+  signal?: AbortSignal,
+): Promise<string> {
   const extracted = await extractWithMarkItDown(pi, source, signal);
   return extracted || docxExtractionFailureMessage(source);
 }
