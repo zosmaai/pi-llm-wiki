@@ -106,9 +106,16 @@ function fileCaptureSource(
     fallbackText: "",
     preserveOriginal: (packetPath) =>
       preserveFileOriginal(pi, packetPath, filePath, fileName, content, signal),
-    extract: async () => ({
-      extracted: await extractor.extract({ pi, filePath, content, signal }),
-    }),
+    extract: async () => {
+      const extractedStr = await extractor.extract({ pi, filePath, content, signal });
+      const failed = extractedStr.includes("could not be converted");
+      return {
+        extracted: extractedStr,
+        extractor: extractor.extractorName ?? "passthrough",
+        extraction_status: (failed ? "failed" : "success") as "failed" | "success",
+        ...(extractor.content_type ? { content_type: extractor.content_type } : {}),
+      };
+    },
     manifest: () => ({
       title: fileName,
       file_path: filePath,
@@ -152,6 +159,9 @@ function finalizeCapture(
     captured: fmtDate(),
     packet_version: "1.0",
     ...source.manifest({ ...content, extracted }),
+    extractor: content.extractor ?? "passthrough",
+    extraction_status: content.extraction_status ?? "success",
+    ...(content.content_type ? { content_type: content.content_type } : {}),
   };
 
   writeFileSync(join(packet.packetPath, "extracted.md"), extracted, "utf-8");

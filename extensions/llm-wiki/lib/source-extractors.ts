@@ -1,14 +1,21 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { exec } from "./utils.js";
 
+export type ExtractionStatus = "success" | "failed" | "unsupported";
+
 export interface ExtractedContent {
   extracted: string;
   title?: string;
+  extractor?: string;
+  extraction_status?: ExtractionStatus;
+  content_type?: string;
 }
 
 export interface FileExtractor {
   format: string;
   shouldReadText: boolean;
+  extractorName?: string;
+  content_type?: string;
   matches(filePath: string): boolean;
   extract(args: FileExtractArgs): Promise<string> | string;
 }
@@ -38,25 +45,38 @@ const FILE_EXTRACTORS: FileExtractor[] = [
   {
     format: "pdf",
     shouldReadText: false,
+    extractorName: "markitdown",
+    content_type: "application/pdf",
     matches: hasExtension(".pdf"),
     extract: ({ pi, filePath, signal }) => extractPdf(pi, filePath, signal),
   },
-  textFileExtractor("markdown", [".md"]),
-  textFileExtractor("text", [".txt"]),
-  textFileExtractor("html", [".html", ".htm"]),
+  textFileExtractor("markdown", [".md"], "text/markdown"),
+  textFileExtractor("text", [".txt"], "text/plain"),
+  textFileExtractor("html", [".html", ".htm"], "text/html"),
   {
     format: "xml",
     shouldReadText: true,
+    extractorName: "xmlToMarkdown",
+    content_type: "application/xml",
     matches: hasExtension(".xml"),
     extract: ({ content }) => xmlToMarkdown(content),
   },
   {
     format: "json",
     shouldReadText: true,
+    extractorName: "jsonToMarkdown",
+    content_type: "application/json",
     matches: hasExtension(".json"),
     extract: ({ content }) => jsonToMarkdown(content),
   },
-  textFileExtractor("docx", [".docx"]),
+  {
+    format: "docx",
+    shouldReadText: false,
+    extractorName: "markitdown",
+    content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    matches: hasExtension(".docx"),
+    extract: ({ pi, filePath, signal }) => extractDocx(pi, filePath, signal),
+  },
   textFileExtractor("file", []),
 ];
 
@@ -91,10 +111,12 @@ export function pdfExtractionFailureMessage(source: string): string {
   return `_PDF content could not be converted to markdown from ${source}. Try increasing WIKI_MARKITDOWN_TIMEOUT_MS._\n`;
 }
 
-function textFileExtractor(format: string, extensions: string[]): FileExtractor {
+function textFileExtractor(format: string, extensions: string[], contentType?: string): FileExtractor {
   return {
     format,
     shouldReadText: true,
+    extractorName: "passthrough",
+    content_type: contentType,
     matches: extensions.length ? hasAnyExtension(extensions) : () => true,
     extract: ({ content }) => content,
   };
@@ -113,13 +135,29 @@ async function extractPdf(pi: ExtensionAPI, source: string, signal?: AbortSignal
   return extracted || pdfExtractionFailureMessage(source);
 }
 
+export function docxExtractionFailureMessage(source: string): string {
+  return `_DOCX content could not be converted to markdown from ${source}. Ensure uvx and markitdown are installed._\n`;
+}
+
+async function extractDocx(pi: ExtensionAPI, source: string, signal?: AbortSignal): Promise<string> {
+  const extracted = await extractWithMarkItDown(pi, source, signal);
+  return extracted || docxExtractionFailureMessage(source);
+}
+
 async function extractPdfUrl(
   pi: ExtensionAPI,
   url: string,
   signal?: AbortSignal,
 ): Promise<ExtractedContent> {
   const extracted = await extractPdf(pi, url, signal);
-  return { extracted, title: titleFromMarkdown(extracted) };
+  const failed = extracted.includes("could not be converted");
+  return {
+    extracted,
+    title: titleFromMarkdown(extracted),
+    extractor: "markitdown",
+    extraction_status: failed ? "failed" : "success",
+    content_type: "application/pdf",
+  };
 }
 
 async function extractTextUrl(
@@ -129,13 +167,30 @@ async function extractTextUrl(
 ): Promise<ExtractedContent> {
   const markitdownExtracted = await extractWithMarkItDown(pi, url, signal);
   if (markitdownExtracted) {
-    return { extracted: markitdownExtracted, title: titleFromMarkdown(markitdownExtracted) };
+    return {
+      extracted: markitdownExtracted,
+      title: titleFromMarkdown(markitdownExtracted),
+      extractor: "markitdown",
+      extraction_status: "success",
+    };
   }
 
   const curlExtracted = await fetchTextUrl(pi, url, signal);
-  if (!curlExtracted) return { extracted: "" };
-  if (looksLikePdf(curlExtracted)) return { extracted: pdfExtractionFailureMessage(url) };
-  return { extracted: curlExtracted, title: titleFromHtml(curlExtracted) };
+  if (!curlExtracted) return { extracted: "", extractor: "none", extraction_status: "failed" };
+  if (looksLikePdf(curlExtracted)) {
+    return {
+      extracted: pdfExtractionFailureMessage(url),
+      extractor: "curl",
+      extraction_status: "failed",
+      content_type: "application/pdf",
+    };
+  }
+  return {
+    extracted: curlExtracted,
+    title: titleFromHtml(curlExtracted),
+    extractor: "curl",
+    extraction_status: "success",
+  };
 }
 
 async function extractWithMarkItDown(

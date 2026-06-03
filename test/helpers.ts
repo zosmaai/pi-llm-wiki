@@ -66,6 +66,20 @@ export function createWikiPage(dir: string, subdir: string | "", name: string, c
   writeFileSync(target, content);
 }
 
+export function mockPiWithMarkItDown(markdownOutput: string) {
+  return {
+    exec: async (command: string, args: string[]) => {
+      if (command === "sh") {
+        const cmd = args[1] ?? "";
+        if (cmd.includes("which uvx")) return { stdout: "yes\n", stderr: "", code: 0 };
+        if (cmd.includes("markitdown")) return { stdout: markdownOutput, stderr: "", code: 0 };
+      }
+      if (command === "cp") return { stdout: "", stderr: "", code: 0 };
+      throw new Error(`Unexpected command: ${command}`);
+    },
+  };
+}
+
 export function mockPi(stdout?: string, writeOriginal = true) {
   const html = "<html><head><title>Example Page</title></head><body>Hello</body></html>";
   return {

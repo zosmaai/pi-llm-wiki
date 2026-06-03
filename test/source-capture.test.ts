@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { captureFile, captureText, captureUrl } from "../extensions/llm-wiki/lib/source-packet.js";
 import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
-import { mockPi, readFile } from "./helpers.js";
+import { mockPi, mockPiWithMarkItDown, readFile } from "./helpers.js";
 
 describe("source packet capture", () => {
   const html = "<html><head><title>Example Page</title></head><body>Hello</body></html>";
@@ -236,5 +236,70 @@ describe("source packet capture", () => {
 
     const extracted = readFile(join(result.packetPath, "extracted.md"));
     expect(extracted).toBe(jsonContent);
+  });
+
+  it("should write a failure message for .docx files when MarkItDown is unavailable", async () => {
+    const paths = makePaths();
+    const docxPath = join(tmpDir, "report.docx");
+    writeFileSync(docxPath, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]));
+
+    const pi = mockPi();
+    const result = await captureFile(pi as never, paths, docxPath);
+
+    const extracted = readFile(join(result.packetPath, "extracted.md"));
+    expect(extracted).not.toContain("PK");
+    expect(extracted).toContain("DOCX content could not be converted");
+    expect(extracted).toContain("report.docx");
+
+    const manifest = JSON.parse(readFile(join(result.packetPath, "manifest.json")));
+    expect(manifest.format).toBe("docx");
+    expect(manifest.extraction_status).toBe("failed");
+    expect(manifest.extractor).toBe("markitdown");
+  });
+
+  it("should convert .docx content to markdown via MarkItDown when available", async () => {
+    const paths = makePaths();
+    const docxPath = join(tmpDir, "proposal.docx");
+    writeFileSync(docxPath, Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+
+    const pi = mockPiWithMarkItDown("# Proposal\n\nThis is the extracted content.");
+    const result = await captureFile(pi as never, paths, docxPath);
+
+    const extracted = readFile(join(result.packetPath, "extracted.md"));
+    expect(extracted).toContain("# Proposal");
+    expect(extracted).toContain("extracted content");
+
+    const manifest = JSON.parse(readFile(join(result.packetPath, "manifest.json")));
+    expect(manifest.format).toBe("docx");
+    expect(manifest.extraction_status).toBe("success");
+    expect(manifest.extractor).toBe("markitdown");
+  });
+
+  it("should record extractor and extraction_status in manifest for XML captures", async () => {
+    const paths = makePaths();
+    const xmlPath = join(tmpDir, "data.xml");
+    writeFileSync(xmlPath, "<root><title>Test</title><body>Content here.</body></root>", "utf-8");
+
+    const pi = mockPi();
+    const result = await captureFile(pi as never, paths, xmlPath);
+
+    const manifest = JSON.parse(readFile(join(result.packetPath, "manifest.json")));
+    expect(manifest.extractor).toBe("xmlToMarkdown");
+    expect(manifest.extraction_status).toBe("success");
+    expect(manifest.content_type).toBe("application/xml");
+  });
+
+  it("should record extractor and extraction_status in manifest for JSON captures", async () => {
+    const paths = makePaths();
+    const jsonPath = join(tmpDir, "data.json");
+    writeFileSync(jsonPath, JSON.stringify({ title: "Test", value: 42 }), "utf-8");
+
+    const pi = mockPi();
+    const result = await captureFile(pi as never, paths, jsonPath);
+
+    const manifest = JSON.parse(readFile(join(result.packetPath, "manifest.json")));
+    expect(manifest.extractor).toBe("jsonToMarkdown");
+    expect(manifest.extraction_status).toBe("success");
+    expect(manifest.content_type).toBe("application/json");
   });
 });
