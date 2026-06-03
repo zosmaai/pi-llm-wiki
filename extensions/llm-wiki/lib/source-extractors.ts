@@ -212,7 +212,7 @@ async function extractWithMarkItDown(
     const mdResult = await exec(
       pi,
       "sh",
-      ["-c", `uvx --from 'markitdown[pdf]' markitdown "${source}" 2>/dev/null || echo ""`],
+      ["-c", `uvx --from 'markitdown[docx,pdf]' markitdown "${source}" 2>/dev/null || echo ""`],
       { signal, timeout: markitdownTimeoutMs() },
     );
     return mdResult.stdout.trim() ? mdResult.stdout : "";
