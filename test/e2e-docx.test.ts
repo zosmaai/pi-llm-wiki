@@ -145,7 +145,10 @@ beforeAll(async () => {
     child.on("close", () => resolve());
     child.on("error", () => resolve());
     // Cap at 90 s — plenty for a first-time download.
-    setTimeout(() => { child.kill(); resolve(); }, 90_000);
+    setTimeout(() => {
+      child.kill();
+      resolve();
+    }, 90_000);
   });
 }, 120_000);
 
@@ -206,9 +209,7 @@ describe("E2E — PR #52: DOCX extraction & manifest metadata", () => {
   // -------------------------------------------------------------------------
   // 3.3  Real DOCX — MarkItDown via uvx (success path)
   // -------------------------------------------------------------------------
-  it(
-    "3.3 real DOCX: extracts readable markdown via markitdown (uvx)",
-    async () => {
+  it("3.3 real DOCX: extracts readable markdown via markitdown (uvx)", async () => {
     const paths = makePaths();
 
     // Build a spec-valid DOCX from scratch using Python's zipfile
@@ -240,26 +241,22 @@ describe("E2E — PR #52: DOCX extraction & manifest metadata", () => {
       expect(extracted, "extracted text should be readable markdown, not binary").not.toContain(
         "PK",
       );
-      expect(
-        extracted,
-        "extracted text should NOT say could not be converted",
-      ).not.toContain("could not be converted");
-      expect(extracted, "extracted text should contain the document body").toContain(
-        "PI LLM Wiki",
+      expect(extracted, "extracted text should NOT say could not be converted").not.toContain(
+        "could not be converted",
       );
+      expect(extracted, "extracted text should contain the document body").toContain("PI LLM Wiki");
       console.log("✅ 3.3 PASS — markitdown extracted text successfully\n");
     } else {
       // uvx is present but markitdown itself isn't installed yet — acceptable fallback
-      expect(extracted, "failure message should be present if markitdown is not installed").toContain(
-        "DOCX content could not be converted",
-      );
+      expect(
+        extracted,
+        "failure message should be present if markitdown is not installed",
+      ).toContain("DOCX content could not be converted");
       console.log(
         "⚠️  3.3 PARTIAL — uvx found but markitdown not yet installed; failure message written correctly\n",
       );
     }
-  },
-  60_000, // markitdown[docx,pdf] may need a moment even with warm cache
-  );
+  }, 60_000); // markitdown[docx,pdf] may need a moment even with warm cache
 
   // -------------------------------------------------------------------------
   // 3.4  XML — manifest metadata fields
