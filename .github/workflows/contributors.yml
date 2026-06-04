@@ -1,0 +1,45 @@
+name: Update Contributors
+
+# Materializes the contributor list directly into README.md so the displayed
+# avatars stay in sync with the actual contributors graph. Replaces the
+# contrib.rocks <img> approach, which only refreshed when external CDN +
+# GitHub camo caches rolled over (hours to weeks). See #60.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      # avoid loops: the action commits back to README.md
+      - "README.md"
+  schedule:
+    # weekly safety net in case a push run is skipped (e.g. paths-ignore filter)
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refresh contributors block in README.md
+        # Pinned to v2.3.11 → 83ea0b4f1ac928fbfe88b9e8460a932a528eb79f
+        uses: akhilmhdh/contributors-readme-action@v2.3.11
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          image_size: 64
+          columns_per_row: 8
+          collaborators: direct
+          commit_message: "chore: update contributors list"
+          committer_username: "github-actions[bot]"
+          committer_email: "41898282+github-actions[bot]@users.noreply.github.com"
+          auto_detect_branch_protection: true

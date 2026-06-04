@@ -399,9 +399,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, test patterns, and
 
 ## Contributors
 
-<a href="https://github.com/zosmaai/pi-llm-wiki/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=zosmaai/pi-llm-wiki" alt="Contributors" />
-</a>
+Thanks to everyone who has contributed! This list is regenerated automatically by [`.github/workflows/contributors.yml`](.github/workflows/contributors.yml) — see [#60](https://github.com/zosmaai/pi-llm-wiki/issues/60) for the rationale.
+
+<!-- readme: contributors -start -->
+<!-- readme: contributors -end -->
+
+<sub>Full history: [contributors graph](https://github.com/zosmaai/pi-llm-wiki/graphs/contributors).</sub>
 
 ---
 
