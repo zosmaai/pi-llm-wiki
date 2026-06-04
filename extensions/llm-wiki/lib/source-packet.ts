@@ -2,7 +2,13 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { appendEvent } from "./metadata.js";
-import { type ExtractedContent, extractUrlContent, fileExtractorFor } from "./source-extractors.js";
+import {
+  type ExtractedContent,
+  binaryExtractionFailureMessage,
+  detectBinaryMagicBytes,
+  extractUrlContent,
+  fileExtractorFor,
+} from "./source-extractors.js";
 import { type VaultPaths, exec, fmtDate, nextSourceId, readText, writeJson } from "./utils.js";
 
 /**
@@ -107,6 +113,18 @@ function fileCaptureSource(
     preserveOriginal: (packetPath) =>
       preserveFileOriginal(pi, packetPath, filePath, fileName, content, signal),
     extract: async () => {
+      // Guard: if we hit the generic catch-all extractor, check for binary magic bytes first
+      if (extractor.format === "file") {
+        const binaryFormat = await detectBinaryMagicBytes(filePath);
+        if (binaryFormat) {
+          return {
+            extracted: binaryExtractionFailureMessage(binaryFormat),
+            extractor: "magicBytes",
+            extraction_status: "unsupported" as const,
+          };
+        }
+      }
+
       const extractedStr = await extractor.extract({ pi, filePath, content, signal });
       const failed = extractedStr.includes("could not be converted");
       return {

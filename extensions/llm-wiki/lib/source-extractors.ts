@@ -1,3 +1,4 @@
+import { open } from "node:fs/promises";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { exec } from "./utils.js";
 
@@ -37,6 +38,67 @@ interface UrlExtractArgs {
   url: string;
   signal?: AbortSignal;
 }
+
+// ---------------------------------------------------------------------------
+// Binary magic byte detection
+// ---------------------------------------------------------------------------
+
+const BINARY_SIGNATURES: Array<{ bytes: number[]; format: string }> = [
+  // Archives & documents
+  { bytes: [0x50, 0x4b, 0x03, 0x04], format: "zip" }, // ZIP / DOCX / XLSX / PPTX / JAR
+  { bytes: [0x25, 0x50, 0x44, 0x46], format: "pdf" }, // %PDF
+  { bytes: [0x37, 0x7a, 0xbc, 0xaf], format: "7z" }, // 7-Zip
+  { bytes: [0x1f, 0x8b], format: "gzip" }, // gzip / .tar.gz
+  // Images
+  { bytes: [0x89, 0x50, 0x4e, 0x47], format: "png" }, // PNG
+  { bytes: [0xff, 0xd8, 0xff], format: "jpeg" }, // JPEG
+  { bytes: [0x47, 0x49, 0x46, 0x38], format: "gif" }, // GIF8
+  { bytes: [0x42, 0x4d], format: "bmp" }, // BMP
+  { bytes: [0x49, 0x49, 0x2a, 0x00], format: "tiff" }, // TIFF (little-endian)
+  { bytes: [0x4d, 0x4d, 0x00, 0x2a], format: "tiff" }, // TIFF (big-endian)
+  { bytes: [0x52, 0x49, 0x46, 0x46], format: "riff" }, // RIFF (WAV / AVI / WebP)
+  // Executables & binaries
+  { bytes: [0x4d, 0x5a], format: "exe" }, // Windows PE (EXE / DLL)
+  { bytes: [0xcf, 0xfa, 0xed, 0xfe], format: "macho" }, // Mach-O 64-bit LE
+  { bytes: [0xce, 0xfa, 0xed, 0xfe], format: "macho" }, // Mach-O 32-bit LE
+  { bytes: [0xfe, 0xed, 0xfa, 0xcf], format: "macho" }, // Mach-O 64-bit BE
+  { bytes: [0xfe, 0xed, 0xfa, 0xce], format: "macho" }, // Mach-O 32-bit BE
+  { bytes: [0xca, 0xfe, 0xba, 0xbe], format: "class" }, // Java .class / Mach-O FAT
+  { bytes: [0x7f, 0x45, 0x4c, 0x46], format: "elf" }, // ELF binary
+  { bytes: [0x00, 0x61, 0x73, 0x6d], format: "wasm" }, // WebAssembly
+  // Data & media
+  { bytes: [0x53, 0x51, 0x4c, 0x69], format: "sqlite" }, // SQLite
+  { bytes: [0x49, 0x44, 0x33], format: "mp3" }, // MP3 (ID3 tag)
+];
+
+/**
+ * Reads the first 8 bytes of `filePath` and checks them against known binary
+ * magic byte signatures. Returns the detected format name or `null` for text.
+ */
+export async function detectBinaryMagicBytes(filePath: string): Promise<string | null> {
+  let handle: import("node:fs/promises").FileHandle | undefined;
+  try {
+    handle = await open(filePath, "r");
+    const buf = Buffer.alloc(8);
+    const { bytesRead } = await handle.read(buf, 0, 8, 0);
+    const header = buf.subarray(0, bytesRead);
+
+    for (const { bytes, format } of BINARY_SIGNATURES) {
+      if (bytes.every((b, i) => header[i] === b)) return format;
+    }
+    return null;
+  } catch {
+    return null; // Unreadable file — let the extractor deal with it
+  } finally {
+    await handle?.close();
+  }
+}
+
+export function binaryExtractionFailureMessage(format: string): string {
+  return `_Binary file could not be converted to markdown (detected format: ${format}).\nCapture a text-based version or a URL pointing to readable content instead._\n`;
+}
+
+// ---------------------------------------------------------------------------
 
 const DEFAULT_MARKITDOWN_TIMEOUT_MS = 180_000;
 const DEFAULT_CURL_TIMEOUT_SECONDS = 30;
