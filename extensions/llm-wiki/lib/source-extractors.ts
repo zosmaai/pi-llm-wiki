@@ -343,7 +343,11 @@ export function htmlToMarkdown(input: string): string {
 
   // 2. Strip <head> and noise blocks that node-html-markdown won't remove
   let html = input.replace(/<head[\s\S]*?<\/head>/gi, "");
-  html = html.replace(/<(script|style|nav|header|footer|noscript)[\s\S]*?<\/\1>/gi, "");
+  let previousHtml = "";
+  while (previousHtml !== html) {
+    previousHtml = html;
+    html = html.replace(/<(script|style|nav|header|footer|noscript)[\s\S]*?<\/\1>/gi, "");
+  }
 
   // 3. Delegate to node-html-markdown for full semantic conversion
   const converted = NodeHtmlMarkdown.translate(html).trim();
