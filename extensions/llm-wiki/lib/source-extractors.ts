@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { NodeHtmlMarkdown } from "node-html-markdown";
 import { exec } from "./utils.js";
 
 export type ExtractionStatus = "success" | "failed" | "unsupported";
@@ -193,10 +194,11 @@ async function extractTextUrl(
       content_type: "application/pdf",
     };
   }
+  const normalized = htmlToMarkdown(curlExtracted);
   return {
-    extracted: curlExtracted,
-    title: titleFromHtml(curlExtracted),
-    extractor: "curl",
+    extracted: normalized,
+    title: titleFromMarkdown(normalized) ?? titleFromHtml(curlExtracted),
+    extractor: "htmlToMarkdown",
     extraction_status: "success",
   };
 }
@@ -279,6 +281,23 @@ function titleFromHtml(html: string): string | undefined {
   return html.match(/<title>([^<]*)<\/title>/i)?.[1]?.trim();
 }
 
+/** Decode common HTML/XML entities. Shared by xmlToMarkdown and htmlToMarkdown. */
+function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(?:amp|lt|gt|quot|apos|#\d+);/gi, (entity) => {
+    const map: Record<string, string> = {
+      "&amp;": "&",
+      "&lt;": "<",
+      "&gt;": ">",
+      "&quot;": '"',
+      "&apos;": "'",
+    };
+    const lower = entity.toLowerCase();
+    if (map[lower]) return map[lower];
+    if (lower.startsWith("&#")) return String.fromCodePoint(Number.parseInt(entity.slice(2, -1)));
+    return entity;
+  });
+}
+
 /** Basic XML to markdown conversion: strip tags while preserving text structure. */
 function xmlToMarkdown(xml: string): string {
   let title = "";
@@ -297,14 +316,7 @@ function xmlToMarkdown(xml: string): string {
   }
   text = text.replace(/</g, "");
 
-  text = text.replace(/&(?:amp|lt|gt|quot|#\d+);/gi, (entity) => {
-    const map: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"' };
-    const lower = entity.toLowerCase();
-    if (map[lower]) return map[lower];
-    if (lower.startsWith("&#")) return String.fromCodePoint(Number.parseInt(entity.slice(2, -1)));
-    return entity;
-  });
-
+  text = decodeHtmlEntities(text);
   text = text.replace(/\n{3,}/g, "\n\n").trim();
   if (!text) return xml;
 
@@ -312,6 +324,37 @@ function xmlToMarkdown(xml: string): string {
   if (title) lines.push(`# ${title}\n`);
   lines.push(text);
   return lines.join("\n\n");
+}
+
+/**
+ * Lightweight HTML-to-markdown normalizer for the curl fallback path.
+ *
+ * Pre-strips page chrome (nav, header, footer, script, style) that
+ * node-html-markdown does not remove, then delegates full conversion —
+ * bold, italic, code blocks, tables, ordered lists, image alt text — to
+ * node-html-markdown. Prepends the <title> as a # heading when the body
+ * has no <h1> of its own.
+ *
+ * Falls back to the original HTML if conversion yields an empty string.
+ */
+export function htmlToMarkdown(input: string): string {
+  // 1. Extract <title> from original before stripping head
+  const title = input.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim() ?? "";
+
+  // 2. Strip <head> and noise blocks that node-html-markdown won't remove
+  let html = input.replace(/<head[\s\S]*?<\/head>/gi, "");
+  html = html.replace(/<(script|style|nav|header|footer|noscript)[\s\S]*?<\/\1>/gi, "");
+
+  // 3. Delegate to node-html-markdown for full semantic conversion
+  const converted = NodeHtmlMarkdown.translate(html).trim();
+  if (!converted) return input;
+
+  // 4. Prepend <title> as # heading only if body has no <h1> of its own
+  const hasBodyH1 = /<h1[^>]*>[\s\S]*?<\/h1>/i.test(html);
+  const lines: string[] = [];
+  if (title && !hasBodyH1) lines.push(`# ${title}\n`);
+  lines.push(converted);
+  return lines.join("\n");
 }
 
 function jsonToMarkdown(json: string): string {

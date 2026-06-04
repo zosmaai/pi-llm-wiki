@@ -35,8 +35,17 @@ describe("source packet capture", () => {
     const result = await captureUrl(pi as never, paths, url);
 
     expect(existsSync(join(result.packetPath, "original", "source.html"))).toBe(true);
+    // original artifact is preserved as-is
     expect(readFile(join(result.packetPath, "original", "source.html"))).toBe(html);
-    expect(readFile(join(result.packetPath, "extracted.md"))).toBe(html);
+    // extracted.md is normalized markdown, not raw HTML
+    const extracted = readFile(join(result.packetPath, "extracted.md"));
+    expect(extracted).toContain("Example Page");
+    expect(extracted).toContain("Hello");
+    expect(extracted).not.toContain("<html>");
+    expect(extracted).not.toContain("<body>");
+
+    const manifest = JSON.parse(readFile(join(result.packetPath, "manifest.json")));
+    expect(manifest.extractor).toBe("htmlToMarkdown");
 
     const sourcePage = readFile(result.sourcePagePath);
     expect(sourcePage).toContain(`> _Original: [${url}](${url})_`);

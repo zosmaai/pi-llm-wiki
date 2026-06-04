@@ -76,7 +76,8 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@modelcontextprotocol/server": "^2.0.0-alpha.2"
+    "@modelcontextprotocol/server": "^2.0.0-alpha.2",
+    "node-html-markdown": "^2.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
