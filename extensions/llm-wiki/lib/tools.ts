@@ -44,6 +44,55 @@ function requireVault(paths: VaultPaths): { ok: true } | { ok: false; reason: st
   return { ok: true };
 }
 
+type WikiToolResult = {
+  content: { type: "text"; text: string }[];
+  details: Record<string, unknown>;
+  isError?: boolean;
+};
+
+type ToolCtx = {
+  cwd?: string;
+  hasUI: boolean;
+  ui?: { notify: (message: string, type?: string) => void };
+};
+
+/**
+ * Dispatch a heavy mutating action to the background runtime and report its
+ * result (issue #77). The agent turn is never blocked: `work` runs off-thread
+ * and the returned one-line summary is surfaced to the user via
+ * `runtime.report()`. Returns an immediate, non-blocking tool result.
+ *
+ * When no runtime is available (unit tests / degraded mode), `work` runs
+ * synchronously and its summary is returned inline, preserving prior behavior.
+ * Retrieval tools (search/read/recall/status) never use this — the model needs
+ * their output inline.
+ */
+async function dispatchReported(
+  runtime: Runtime | undefined,
+  ctx: ToolCtx,
+  opts: {
+    label: string;
+    /** Immediate, non-blocking acknowledgement shown while work runs. */
+    started: string;
+    /** Off-thread work; resolves to the human-readable completion summary. */
+    work: () => Promise<string>;
+    details?: Record<string, unknown>;
+  },
+): Promise<WikiToolResult> {
+  if (!runtime) {
+    const summary = await opts.work();
+    return {
+      content: [{ type: "text", text: summary }],
+      details: { background: false, ...opts.details },
+    };
+  }
+  runtime.launchReported({ hasUI: ctx.hasUI, ui: ctx.ui }, opts.label, opts.work);
+  return {
+    content: [{ type: "text", text: opts.started }],
+    details: { background: true, ...opts.details },
+  };
+}
+
 // ─── 1. wiki_bootstrap ──────────────────────────────────
 
 export function registerWikiBootstrap(pi: ExtensionAPI): void {
@@ -381,14 +430,15 @@ export function registerWikiIngest(pi: ExtensionAPI, runtime?: Runtime): void {
                 ];
                 launchEmbedPages(runtime, launchCtx, paths, pageIds, `embed:ingest:${s.id}`);
               }
+              const summary = committed
+                ? `LLM Wiki: ingested ${s.id} → ${committed.entitiesCreated.length} entit${committed.entitiesCreated.length === 1 ? "y" : "ies"}, ${committed.conceptsCreated.length} concept${committed.conceptsCreated.length === 1 ? "" : "s"}`
+                : `LLM Wiki: ${s.id} produced no synthesis`;
               if (ctx.hasUI) {
-                ctx.ui.notify(
-                  committed
-                    ? `LLM Wiki: ingested ${s.id} → ${committed.entitiesCreated.length} entit${committed.entitiesCreated.length === 1 ? "y" : "ies"}, ${committed.conceptsCreated.length} concept${committed.conceptsCreated.length === 1 ? "" : "s"}`
-                    : `LLM Wiki: ${s.id} produced no synthesis`,
-                  committed ? "info" : "warning",
-                );
+                ctx.ui.notify(summary, committed ? "info" : "warning");
               }
+              // Persistent, user-visible completion report (issue #77) in
+              // addition to the transient toast above. Notices-gated.
+              runtime.report(committed ? `✅ ${summary}` : `⚠️ ${summary}`);
             });
           }
           return {
@@ -672,7 +722,7 @@ export function registerWikiSearch(pi: ExtensionAPI): void {
 
 // ─── 6. wiki_lint ───────────────────────────────────────
 
-export function registerWikiLint(pi: ExtensionAPI): void {
+export function registerWikiLint(pi: ExtensionAPI, runtime?: Runtime): void {
   pi.registerTool({
     name: "wiki_lint",
     label: "Wiki Lint",
@@ -699,138 +749,138 @@ export function registerWikiLint(pi: ExtensionAPI): void {
         };
       }
 
-      const pages = findWikiPages(paths.wiki);
-      const registry = buildRegistry(paths);
-      buildBacklinks(paths, registry); // ensures backlinks.json is current
-
-      const findings: string[] = [];
-      let orphans = 0;
-      let missingPages = 0;
-      let contradictions = 0;
-      const gaps: Array<{ topic: string; mentionedBy: string[] }> = [];
-
-      const allPageIds = new Set(pages.map((p) => p.relative));
-      const linkCounts: Record<string, number> = {};
-
-      for (const page of pages) {
-        const links = extractWikilinks(page.content);
-        for (const link of links) {
-          if (!allPageIds.has(link)) {
-            missingPages++;
-            findings.push(`Missing page: [[${link}]] (in [[${page.relative}]])`);
-            const existing = gaps.find((g) => g.topic === link);
-            if (existing) {
-              if (!existing.mentionedBy.includes(page.relative))
-                existing.mentionedBy.push(page.relative);
-            } else {
-              gaps.push({ topic: link, mentionedBy: [page.relative] });
-            }
-          } else {
-            linkCounts[link] = (linkCounts[link] || 0) + 1;
-          }
-        }
-      }
-
-      for (const page of pages) {
-        if (!linkCounts[page.relative] || linkCounts[page.relative] === 0) {
-          orphans++;
-          findings.push(`Orphan: [[${page.relative}]] has no inbound links`);
-        }
-      }
-
-      for (const page of pages) {
-        if (page.content.includes("⚠️ **Contradiction")) {
-          contradictions++;
-          findings.push(`Contradiction flagged in [[${page.relative}]]`);
-        }
-      }
-
-      let fixesApplied = 0;
-      if (params.auto_fix) {
-        for (const gap of gaps) {
-          if (gap.mentionedBy.length >= 2) {
-            const folder = gap.topic.includes("/") ? gap.topic.split("/")[0] : "concepts";
-            const name = gap.topic.includes("/") ? gap.topic.split("/").pop()! : gap.topic;
-            const pagePath = join(paths.wiki, folder, `${name}.md`);
-            if (!existsSync(pagePath)) {
-              mkdirSync(join(paths.wiki, folder), { recursive: true });
-              writeFileSync(
-                pagePath,
-                `---\ntype: concept\ncreated: ${fmtDate()}\nupdated: ${fmtDate()}\nsources: []\nstatus: stub\n---\n\n# ${name.replace(/-/g, " ")}\n\n_Stub auto-created by lint. Expand with content from: ${gap.mentionedBy.map((r) => `[[${r}]]`).join(", ")}_\n`,
-                "utf-8",
-              );
-              fixesApplied++;
-            }
-          }
-        }
-      }
-
-      writeJson(join(paths.discoveries, "gaps.json"), {
-        gaps,
-        generated: new Date().toISOString(),
+      // Full-vault scan (+ optional auto-fix writes + reindex) is O(pages):
+      // run it in the background and report the health summary (issue #77).
+      return dispatchReported(runtime, ctx as ToolCtx, {
+        label: `lint:${paths.root}`,
+        started:
+          "\u{1F9F9} LLM Wiki: lint started in the background — the health report will be posted when it completes.",
+        work: async () => runWikiLint(paths, params.auto_fix === true),
       });
-
-      const reportLines = [
-        "# Wiki Lint Report",
-        `Generated: ${fmtDate()}`,
-        "",
-        "## Summary",
-        `- Total pages: ${pages.length}`,
-        `- Orphans: ${orphans}`,
-        `- Missing pages: ${missingPages}`,
-        `- Contradictions: ${contradictions}`,
-        params.auto_fix ? `- Fixes applied: ${fixesApplied}` : "",
-        "",
-        "## Findings",
-        findings.length > 0 ? findings.map((f) => `- ${f}`).join("\n") : "✅ No issues found!",
-        "",
-      ].filter(Boolean);
-
-      const reportPath = join(paths.outputs, `lint-${fmtDate()}.md`);
-      mkdirSync(paths.outputs, { recursive: true });
-      writeFileSync(reportPath, `${reportLines.join("\n")}\n`, "utf-8");
-
-      appendEvent(paths, {
-        kind: "lint",
-        orphans,
-        missing_pages: missingPages,
-        contradictions,
-        auto_fix: params.auto_fix ?? false,
-      });
-
-      rebuildMetadataLight(paths);
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: [
-              "🧹 **Lint complete**",
-              "",
-              `- Pages: ${pages.length}`,
-              `- Orphans: ${orphans}`,
-              `- Missing: ${missingPages}`,
-              `- Contradictions: ${contradictions}`,
-              params.auto_fix ? `- Auto-fixes: ${fixesApplied}` : "",
-              "",
-              `📄 Report: \`${reportPath}\``,
-              gaps.length > 0 ? `💡 ${gaps.length} knowledge gap(s) tracked` : "",
-            ]
-              .filter(Boolean)
-              .join("\n"),
-          },
-        ],
-        details: {
-          pages: pages.length,
-          orphans,
-          missingPages,
-          contradictions,
-          reportPath,
-          gaps: gaps.length,
-        } as Record<string, unknown>,
-      };
     },
   });
+}
+
+/**
+ * Run the wiki health scan (issue #77 extracted it from the tool body so it can
+ * run off-thread via `dispatchReported`). Returns the human-readable summary.
+ */
+function runWikiLint(paths: VaultPaths, autoFix: boolean): string {
+  const pages = findWikiPages(paths.wiki);
+  const registry = buildRegistry(paths);
+  buildBacklinks(paths, registry); // ensures backlinks.json is current
+
+  const findings: string[] = [];
+  let orphans = 0;
+  let missingPages = 0;
+  let contradictions = 0;
+  const gaps: Array<{ topic: string; mentionedBy: string[] }> = [];
+
+  const allPageIds = new Set(pages.map((p) => p.relative));
+  const linkCounts: Record<string, number> = {};
+
+  for (const page of pages) {
+    const links = extractWikilinks(page.content);
+    for (const link of links) {
+      if (!allPageIds.has(link)) {
+        missingPages++;
+        findings.push(`Missing page: [[${link}]] (in [[${page.relative}]])`);
+        const existing = gaps.find((g) => g.topic === link);
+        if (existing) {
+          if (!existing.mentionedBy.includes(page.relative))
+            existing.mentionedBy.push(page.relative);
+        } else {
+          gaps.push({ topic: link, mentionedBy: [page.relative] });
+        }
+      } else {
+        linkCounts[link] = (linkCounts[link] || 0) + 1;
+      }
+    }
+  }
+
+  for (const page of pages) {
+    if (!linkCounts[page.relative] || linkCounts[page.relative] === 0) {
+      orphans++;
+      findings.push(`Orphan: [[${page.relative}]] has no inbound links`);
+    }
+  }
+
+  for (const page of pages) {
+    if (page.content.includes("⚠️ **Contradiction")) {
+      contradictions++;
+      findings.push(`Contradiction flagged in [[${page.relative}]]`);
+    }
+  }
+
+  let fixesApplied = 0;
+  if (autoFix) {
+    for (const gap of gaps) {
+      if (gap.mentionedBy.length >= 2) {
+        const folder = gap.topic.includes("/") ? gap.topic.split("/")[0] : "concepts";
+        const name = gap.topic.includes("/") ? gap.topic.split("/").pop()! : gap.topic;
+        const pagePath = join(paths.wiki, folder, `${name}.md`);
+        if (!existsSync(pagePath)) {
+          mkdirSync(join(paths.wiki, folder), { recursive: true });
+          writeFileSync(
+            pagePath,
+            `---\ntype: concept\ncreated: ${fmtDate()}\nupdated: ${fmtDate()}\nsources: []\nstatus: stub\n---\n\n# ${name.replace(/-/g, " ")}\n\n_Stub auto-created by lint. Expand with content from: ${gap.mentionedBy.map((r) => `[[${r}]]`).join(", ")}_\n`,
+            "utf-8",
+          );
+          fixesApplied++;
+        }
+      }
+    }
+  }
+
+  writeJson(join(paths.discoveries, "gaps.json"), {
+    gaps,
+    generated: new Date().toISOString(),
+  });
+
+  const reportLines = [
+    "# Wiki Lint Report",
+    `Generated: ${fmtDate()}`,
+    "",
+    "## Summary",
+    `- Total pages: ${pages.length}`,
+    `- Orphans: ${orphans}`,
+    `- Missing pages: ${missingPages}`,
+    `- Contradictions: ${contradictions}`,
+    autoFix ? `- Fixes applied: ${fixesApplied}` : "",
+    "",
+    "## Findings",
+    findings.length > 0 ? findings.map((f) => `- ${f}`).join("\n") : "✅ No issues found!",
+    "",
+  ].filter(Boolean);
+
+  const reportPath = join(paths.outputs, `lint-${fmtDate()}.md`);
+  mkdirSync(paths.outputs, { recursive: true });
+  writeFileSync(reportPath, `${reportLines.join("\n")}\n`, "utf-8");
+
+  appendEvent(paths, {
+    kind: "lint",
+    orphans,
+    missing_pages: missingPages,
+    contradictions,
+    auto_fix: autoFix,
+  });
+
+  rebuildMetadataLight(paths);
+
+  return [
+    "🧹 **LLM Wiki lint complete**",
+    "",
+    `- Pages: ${pages.length}`,
+    `- Orphans: ${orphans}`,
+    `- Missing: ${missingPages}`,
+    `- Contradictions: ${contradictions}`,
+    autoFix ? `- Auto-fixes: ${fixesApplied}` : "",
+    "",
+    `📄 Report: \`${reportPath}\``,
+    gaps.length > 0 ? `💡 ${gaps.length} knowledge gap(s) tracked` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 // ─── 7. wiki_status ─────────────────────────────────────
@@ -912,7 +962,7 @@ export function registerWikiStatus(pi: ExtensionAPI): void {
 
 // ─── 8. wiki_rebuild_meta ───────────────────────────────
 
-export function registerWikiRebuildMeta(pi: ExtensionAPI): void {
+export function registerWikiRebuildMeta(pi: ExtensionAPI, runtime?: Runtime): void {
   pi.registerTool({
     name: "wiki_rebuild_meta",
     label: "Wiki Rebuild Meta",
@@ -931,24 +981,23 @@ export function registerWikiRebuildMeta(pi: ExtensionAPI): void {
         };
       }
 
-      rebuildMetadata(paths);
-      appendEvent(paths, { kind: "rebuild_meta" });
-
-      const registry = readJson<Registry>(join(paths.meta, "registry.json"), {
-        version: "1.0",
-        last_updated: "",
-        pages: {},
+      // Heavy O(pages) rebuild — dispatch off the agent's critical path and
+      // report on completion (issue #77).
+      return dispatchReported(runtime, ctx as ToolCtx, {
+        label: `rebuild_meta:${paths.root}`,
+        started:
+          "\u{1F9E0} LLM Wiki: metadata rebuild started in the background — the result will be reported when it completes.",
+        work: async () => {
+          rebuildMetadata(paths);
+          appendEvent(paths, { kind: "rebuild_meta" });
+          const registry = readJson<Registry>(join(paths.meta, "registry.json"), {
+            version: "1.0",
+            last_updated: "",
+            pages: {},
+          });
+          return `✅ LLM Wiki: metadata rebuilt — ${Object.keys(registry.pages).length} pages indexed.`;
+        },
       });
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `✅ Metadata rebuilt. ${Object.keys(registry.pages).length} pages indexed.`,
-          },
-        ],
-        details: { pageCount: Object.keys(registry.pages).length } as Record<string, unknown>,
-      };
     },
   });
 }
@@ -998,28 +1047,24 @@ export function registerWikiReindexEmbeddings(pi: ExtensionAPI, runtime?: Runtim
         };
       }
 
-      const stats = await reindexEmbeddings(paths, embedder, { force: params.force === true });
-      appendEvent(paths, {
-        kind: "reindex_embeddings",
-        embedded: stats.embedded,
-        skipped: stats.skipped,
-        pruned: stats.pruned,
-        model: embedder.model,
+      // Embedding is network-bound and O(pages) — run it in the background and
+      // report the stats on completion (issue #77).
+      return dispatchReported(runtime, ctx as ToolCtx, {
+        label: `reindex_embeddings:${paths.root}`,
+        started: `\u{1F9E0} LLM Wiki: embedding reindex started in the background (${embedder.model}) — stats will be reported when it completes.`,
+        details: { enabled: true, model: embedder.model },
+        work: async () => {
+          const stats = await reindexEmbeddings(paths, embedder, { force: params.force === true });
+          appendEvent(paths, {
+            kind: "reindex_embeddings",
+            embedded: stats.embedded,
+            skipped: stats.skipped,
+            pruned: stats.pruned,
+            model: embedder.model,
+          });
+          return `✅ LLM Wiki: embeddings reindexed (${embedder.model}) — ${stats.embedded} embedded, ${stats.skipped} fresh, ${stats.pruned} pruned.`;
+        },
       });
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `✅ Embeddings reindexed (${embedder.model}): ${stats.embedded} embedded, ${stats.skipped} fresh, ${stats.pruned} pruned.`,
-          },
-        ],
-        details: {
-          enabled: true,
-          ...stats,
-          model: embedder.model,
-        } as Record<string, unknown>,
-      };
     },
   });
 }

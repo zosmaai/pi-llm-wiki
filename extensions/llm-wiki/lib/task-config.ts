@@ -69,9 +69,27 @@ export interface TaskConfig {
    * previews inline. Clamped to a non-negative integer.
    */
   recallLinksThreshold?: number;
+
+  /**
+   * Surface wiki activity in the UI (issue #77). When enabled (the default),
+   * the status line reflects recall hits and the periodic observe/retro
+   * reminder is shown to the user (`display: true`) instead of being injected
+   * silently. Set to `false` to restore the previous quiet behavior — a static
+   * status line and a hidden (`display: false`) reminder — for users who do
+   * not want any chat-level wiki notices.
+   */
+  notices?: boolean;
 }
 
 export const TASK_DEFAULTS: TaskConfig = {};
+
+/**
+ * Resolve whether user-facing wiki notices are enabled (issue #77). Defaults
+ * to `true`; only an explicit `notices: false` disables them.
+ */
+export function noticesEnabled(config: TaskConfig | undefined): boolean {
+  return config?.notices !== false;
+}
 
 const SETTINGS_KEY = "llm-wiki";
 
@@ -114,6 +132,10 @@ function readNamespacedConfig(path: string): Partial<TaskConfig> {
     const threshold = section.recallLinksThreshold;
     if (typeof threshold === "number" && Number.isFinite(threshold)) {
       out.recallLinksThreshold = Math.max(0, Math.floor(threshold));
+    }
+
+    if (typeof section.notices === "boolean") {
+      out.notices = section.notices;
     }
     return out;
   } catch {

@@ -8,6 +8,7 @@ import {
   registerWikiModelCommand,
 } from "./lib/model-command.js";
 import {
+  buildSessionNotice,
   createReminderState,
   registerObservationReminder,
   registerWikiObserve,
@@ -21,6 +22,7 @@ import {
 } from "./lib/recall.js";
 import { registerWikiRetro } from "./lib/retro.js";
 import { registerBackgroundRuntime } from "./lib/runtime.js";
+import { noticesEnabled } from "./lib/task-config.js";
 import {
   registerWikiBootstrap,
   registerWikiCaptureSource,
@@ -71,9 +73,9 @@ export default function (pi: ExtensionAPI) {
   registerWikiIngest(pi, runtime);
   registerWikiEnsurePage(pi, runtime);
   registerWikiSearch(pi);
-  registerWikiLint(pi);
+  registerWikiLint(pi, runtime);
   registerWikiStatus(pi);
-  registerWikiRebuildMeta(pi);
+  registerWikiRebuildMeta(pi, runtime);
   registerWikiReindexEmbeddings(pi, runtime);
   registerWikiLogEvent(pi);
   registerWikiWatch(pi);
@@ -85,7 +87,12 @@ export default function (pi: ExtensionAPI) {
   registerWikiModelCommand(pi, runtime);
   const reminderState = createReminderState();
   registerWikiObserve(pi, runtime, reminderState);
-  registerObservationReminder(pi, reminderState);
+  // Visible observe/retro reminder by default (issue #77); silenced when the
+  // user sets `llm-wiki.notices: false`. Resolver reads the live config so the
+  // setting takes effect without a restart.
+  registerObservationReminder(pi, reminderState, {
+    display: () => noticesEnabled(runtime.config),
+  });
 
   installGuardrails(pi, runtime);
 
@@ -151,6 +158,17 @@ export default function (pi: ExtensionAPI) {
     runtime.ensureConfig(process.cwd());
     const modelLabel = formatActiveModelLabel(runtime.config, (ctx.model as { id?: string })?.id);
     ctx.ui.setStatus(MODEL_STATUS_KEY, `🧠 wiki model: ${modelLabel}`);
+
+    // One-time, user-visible session notice announcing the full wiki loop
+    // (issue #77). Without this, recall/observe/retro are invisible — they
+    // live only in the system prompt. Queued for the first prompt so it never
+    // interrupts; silenced when `llm-wiki.notices: false`.
+    if (noticesEnabled(runtime.config)) {
+      pi.sendMessage(
+        { customType: "wiki-session-notice", content: buildSessionNotice(), display: true },
+        { deliverAs: "nextTurn" },
+      );
+    }
   });
 
   // ─── Layered recall + topic inference hook ──────────
@@ -158,7 +176,7 @@ export default function (pi: ExtensionAPI) {
   // 1. If wiki was just auto-created, inject a directive to infer topic/mode
   //    from the user's first prompt and update config via wiki_bootstrap.
   // 2. Search both personal + project vaults for relevant pages.
-  pi.on("before_agent_start", async (event, _ctx) => {
+  pi.on("before_agent_start", async (event, ctx) => {
     const paths = resolveVaultPaths(process.cwd());
     if (!existsSync(join(paths.dotWiki, "config.json"))) {
       return;
@@ -226,6 +244,16 @@ Then call wiki_bootstrap with the inferred topic and mode to finalize the setup.
         const recallContext = formatRecallContext(results, { linksOnly });
         if (recallContext) {
           injectedContext += `\n\n${recallContext}`;
+        }
+        // Recall-aware status line (issue #77): make it visible that recall
+        // actually fired and how many pages matched. Purely a UI signal — no
+        // added model context. Honors the `notices` opt-out.
+        if (ctx?.hasUI && noticesEnabled(runtime.config)) {
+          const n = results.length;
+          ctx.ui.setStatus(
+            "llm-wiki",
+            `\u{1F9E0} LLM Wiki — recalled ${n} page${n === 1 ? "" : "s"} for this task`,
+          );
         }
       }
     }
