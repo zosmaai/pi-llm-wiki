@@ -50,9 +50,13 @@ import {
  */
 
 export default function (pi: ExtensionAPI) {
+  // Background-task lane (issues #64, #65): shared runtime for off-thread LLM
+  // work. Created first so tools (e.g. wiki_ingest) can dispatch to it.
+  const runtime = registerBackgroundRuntime(pi);
+
   registerWikiBootstrap(pi);
   registerWikiCaptureSource(pi);
-  registerWikiIngest(pi);
+  registerWikiIngest(pi, runtime);
   registerWikiEnsurePage(pi);
   registerWikiSearch(pi);
   registerWikiLint(pi);
@@ -65,11 +69,6 @@ export default function (pi: ExtensionAPI) {
   const reminderState = createReminderState();
   registerWikiObserve(pi, reminderState);
   registerObservationReminder(pi, reminderState);
-
-  // Background-task lane (issue #64): shared runtime for off-thread LLM work.
-  // No tasks are launched yet — concrete workers land in #65 (ingest) and
-  // #66 (embeddings). Wiring it here drains in-flight work at compaction/exit.
-  registerBackgroundRuntime(pi);
 
   installGuardrails(pi);
 
