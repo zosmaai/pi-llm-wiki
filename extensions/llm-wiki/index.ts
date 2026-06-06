@@ -67,7 +67,7 @@ export default function (pi: ExtensionAPI) {
   const runtime = registerBackgroundRuntime(pi);
 
   registerWikiBootstrap(pi);
-  registerWikiCaptureSource(pi);
+  registerWikiCaptureSource(pi, runtime);
   registerWikiIngest(pi, runtime);
   registerWikiEnsurePage(pi, runtime);
   registerWikiSearch(pi);
@@ -78,13 +78,13 @@ export default function (pi: ExtensionAPI) {
   registerWikiLogEvent(pi);
   registerWikiWatch(pi);
   registerWikiRecall(pi, runtime);
-  registerWikiRetro(pi);
+  registerWikiRetro(pi, runtime);
   // Model selection surface (issue #69): /wiki-model command to view/set the
   // background task model. The taskModel config field + resolveModel already
   // exist; this exposes them to the user (default stays the session model).
   registerWikiModelCommand(pi, runtime);
   const reminderState = createReminderState();
-  registerWikiObserve(pi, reminderState);
+  registerWikiObserve(pi, runtime, reminderState);
   registerObservationReminder(pi, reminderState);
 
   installGuardrails(pi, runtime);

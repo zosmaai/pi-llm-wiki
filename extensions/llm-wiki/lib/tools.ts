@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 import { launchEmbedPages, reindexEmbeddings, resolveEmbedder } from "./embeddings.js";
+import { scheduleReindex } from "./indexing.js";
 import { runIngestSynthesis } from "./ingest-worker.js";
 import {
   type Registry,
@@ -146,7 +147,7 @@ export function registerWikiBootstrap(pi: ExtensionAPI): void {
 
 // ─── 2. wiki_capture_source ─────────────────────────────
 
-export function registerWikiCaptureSource(pi: ExtensionAPI): void {
+export function registerWikiCaptureSource(pi: ExtensionAPI, runtime?: Runtime): void {
   pi.registerTool({
     name: "wiki_capture_source",
     label: "Wiki Capture Source",
@@ -195,7 +196,11 @@ export function registerWikiCaptureSource(pi: ExtensionAPI): void {
         };
       }
 
-      rebuildMetadataLight(paths);
+      if (runtime) {
+        scheduleReindex(runtime, { hasUI: ctx.hasUI, ui: ctx.ui }, paths);
+      } else {
+        rebuildMetadataLight(paths);
+      }
 
       return {
         content: [
@@ -513,17 +518,13 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
         path: `${folder}/${slug}`,
       });
 
-      // Register the new page so retrieval + embeddings can see it, then embed
-      // it in the background (#66). Both are no-ops when unconfigured.
-      rebuildMetadataLight(paths);
+      // Register the new page so retrieval + embeddings can see it. When a
+      // background runtime is available, the rebuild + embeddings run off the
+      // tool's critical path; otherwise fall back to a synchronous rebuild.
       if (runtime) {
-        launchEmbedPages(
-          runtime,
-          { hasUI: ctx.hasUI, ui: ctx.ui },
-          paths,
-          [`${folder}/${slug}`],
-          `embed:page:${folder}/${slug}`,
-        );
+        scheduleReindex(runtime, { hasUI: ctx.hasUI, ui: ctx.ui }, paths);
+      } else {
+        rebuildMetadataLight(paths);
       }
 
       return {

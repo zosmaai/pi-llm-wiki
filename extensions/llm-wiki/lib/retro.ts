@@ -2,7 +2,9 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
+import { scheduleReindex } from "./indexing.js";
 import { appendEvent, rebuildMetadataLight } from "./metadata.js";
+import type { Runtime } from "./runtime.js";
 import { type VaultPaths, fmtDate, resolveVaultPaths } from "./utils.js";
 
 // ─── Public API ────────────────────────────────────────
@@ -28,6 +30,7 @@ export function saveInsight(
   title: string,
   body: string,
   category?: string,
+  opts?: { rebuild?: boolean },
 ): RetroResult {
   const today = fmtDate();
 
@@ -73,8 +76,9 @@ export function saveInsight(
     category: category || "uncategorized",
   });
 
-  // Rebuild metadata so the insight is immediately searchable
-  rebuildMetadataLight(paths);
+  // Rebuild metadata so the insight is immediately searchable. The wiki_retro
+  // tool passes { rebuild: false } and schedules a non-blocking reindex instead.
+  if (opts?.rebuild !== false) rebuildMetadataLight(paths);
 
   return { slug, sourcePagePath };
 }
@@ -86,7 +90,7 @@ export function saveInsight(
  * The model calls this to save an atomic insight from a completed task.
  * Inspired by the memex_retro pattern.
  */
-export function registerWikiRetro(pi: ExtensionAPI): void {
+export function registerWikiRetro(pi: ExtensionAPI, runtime?: Runtime): void {
   pi.registerTool({
     name: "wiki_retro",
     label: "Wiki Retro",
@@ -134,7 +138,12 @@ export function registerWikiRetro(pi: ExtensionAPI): void {
         };
       }
 
-      const result = saveInsight(paths, params.slug, params.title, params.body, params.category);
+      const result = saveInsight(paths, params.slug, params.title, params.body, params.category, {
+        rebuild: !runtime,
+      });
+      if (runtime) {
+        scheduleReindex(runtime, { hasUI: ctx.hasUI, ui: ctx.ui }, paths);
+      }
 
       return {
         content: [
