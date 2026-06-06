@@ -1,6 +1,8 @@
 import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { launchReindex } from "./embeddings.js";
 import { rebuildMetadataLight } from "./metadata.js";
+import type { Runtime } from "./runtime.js";
 import { isProtectedPath, resolveVaultPaths } from "./utils.js";
 
 /**
@@ -10,7 +12,7 @@ import { isProtectedPath, resolveVaultPaths } from "./utils.js";
 let pendingRebuild = false;
 
 /** Install guardrails on the extension API. */
-export function installGuardrails(pi: ExtensionAPI): void {
+export function installGuardrails(pi: ExtensionAPI, runtime?: Runtime): void {
   // Block direct edits to raw/ and meta/
   pi.on("tool_call", async (event) => {
     if (isToolCallEventType("write", event)) {
@@ -44,13 +46,19 @@ export function installGuardrails(pi: ExtensionAPI): void {
     }
   });
 
-  // Rebuild metadata at end of turn if wiki was modified
-  pi.on("turn_end", async (_event) => {
+  // Rebuild metadata at end of turn if wiki was modified, then refresh
+  // semantic embeddings in the background (#66) so manual page edits get
+  // re-embedded. Both are best-effort no-ops when nothing is configured.
+  pi.on("turn_end", async (_event, ctx) => {
     if (pendingRebuild) {
       pendingRebuild = false;
       try {
         const paths = resolveVaultPaths(process.cwd());
         rebuildMetadataLight(paths);
+        if (runtime) {
+          const launchCtx = ctx ? { hasUI: ctx.hasUI, ui: ctx.ui } : { hasUI: false as const };
+          launchReindex(runtime, launchCtx, paths);
+        }
       } catch {
         // Silently fail — metadata rebuild is best-effort
       }

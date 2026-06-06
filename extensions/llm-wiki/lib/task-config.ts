@@ -25,6 +25,25 @@ export interface TaskConfig {
    * override) is built in issue #69; this module only reads it.
    */
   taskModel?: { provider: string; id: string };
+
+  /**
+   * Embedding provider for background write-time embeddings (issue #66).
+   * Only "openai" / "openai-compatible" are supported. When undefined,
+   * embeddings are disabled entirely (silent no-op) — this is the default,
+   * so the feature is strictly opt-in.
+   */
+  embeddingProvider?: string;
+  /** Embedding model id (default: text-embedding-3-small). */
+  embeddingModel?: string;
+  /** OpenAI-compatible base URL (default: https://api.openai.com or OPENAI_BASE_URL). */
+  embeddingBaseUrl?: string;
+  /**
+   * Embedding API key. Prefer `embeddingApiKeyEnv` to avoid storing secrets in
+   * settings files; this direct field exists for parity but is discouraged.
+   */
+  embeddingApiKey?: string;
+  /** Env var name to read the embedding API key from (default: OPENAI_API_KEY). */
+  embeddingApiKeyEnv?: string;
 }
 
 export const TASK_DEFAULTS: TaskConfig = {};
@@ -50,6 +69,17 @@ function readNamespacedConfig(path: string): Partial<TaskConfig> {
     const out: Partial<TaskConfig> = {};
     const taskModel = readModelSpec(section.taskModel);
     if (taskModel) out.taskModel = taskModel;
+
+    for (const key of [
+      "embeddingProvider",
+      "embeddingModel",
+      "embeddingBaseUrl",
+      "embeddingApiKey",
+      "embeddingApiKeyEnv",
+    ] as const) {
+      const value = section[key];
+      if (typeof value === "string" && value.trim()) out[key] = value.trim();
+    }
     return out;
   } catch {
     return {};

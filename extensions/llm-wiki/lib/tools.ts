@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
+import { launchEmbedPages, reindexEmbeddings, resolveEmbedder } from "./embeddings.js";
 import { runIngestSynthesis } from "./ingest-worker.js";
 import {
   type Registry,
@@ -340,8 +341,9 @@ export function registerWikiIngest(pi: ExtensionAPI, runtime?: Runtime): void {
         runtime.ensureConfig(ctx.cwd);
         const resolved = await runtime.resolveModel(ctx);
         if (resolved.ok) {
+          const launchCtx = { hasUI: ctx.hasUI, ui: ctx.ui };
           for (const s of sources) {
-            runtime.launchTask({ hasUI: ctx.hasUI, ui: ctx.ui }, `ingest:${s.id}`, async () => {
+            runtime.launchTask(launchCtx, `ingest:${s.id}`, async () => {
               const committed = await runIngestSynthesis({
                 model: resolved.model as Parameters<typeof runIngestSynthesis>[0]["model"],
                 apiKey: resolved.apiKey,
@@ -351,6 +353,18 @@ export function registerWikiIngest(pi: ExtensionAPI, runtime?: Runtime): void {
                 manifest: s.manifest,
                 extracted: s.extracted,
               });
+              if (committed) {
+                // Background semantic embeddings (#66): embed the pages this
+                // ingest just wrote, off-thread. No-op when unconfigured.
+                const pageIds = [
+                  `sources/${committed.sourceId}`,
+                  ...committed.entitiesCreated.map((e) => `entities/${e}`),
+                  ...committed.entitiesLinked.map((e) => `entities/${e}`),
+                  ...committed.conceptsCreated.map((c) => `concepts/${c}`),
+                  ...committed.conceptsLinked.map((c) => `concepts/${c}`),
+                ];
+                launchEmbedPages(runtime, launchCtx, paths, pageIds, `embed:ingest:${s.id}`);
+              }
               if (ctx.hasUI) {
                 ctx.ui.notify(
                   committed
@@ -421,7 +435,7 @@ export function registerWikiIngest(pi: ExtensionAPI, runtime?: Runtime): void {
 
 // ─── 4. wiki_ensure_page ────────────────────────────────
 
-export function registerWikiEnsurePage(pi: ExtensionAPI): void {
+export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): void {
   pi.registerTool({
     name: "wiki_ensure_page",
     label: "Wiki Ensure Page",
@@ -487,6 +501,19 @@ export function registerWikiEnsurePage(pi: ExtensionAPI): void {
         title: params.title,
         path: `${folder}/${slug}`,
       });
+
+      // Register the new page so retrieval + embeddings can see it, then embed
+      // it in the background (#66). Both are no-ops when unconfigured.
+      rebuildMetadataLight(paths);
+      if (runtime) {
+        launchEmbedPages(
+          runtime,
+          { hasUI: ctx.hasUI, ui: ctx.ui },
+          paths,
+          [`${folder}/${slug}`],
+          `embed:page:${folder}/${slug}`,
+        );
+      }
 
       return {
         content: [{ type: "text", text: `✅ Created ${type} page: \`${pagePath}\`` }],
@@ -915,6 +942,75 @@ export function registerWikiRebuildMeta(pi: ExtensionAPI): void {
 }
 
 // ─── 9. wiki_log_event ──────────────────────────────────
+
+export function registerWikiReindexEmbeddings(pi: ExtensionAPI, runtime?: Runtime): void {
+  pi.registerTool({
+    name: "wiki_reindex_embeddings",
+    label: "Wiki Reindex Embeddings",
+    description:
+      "Backfill / refresh semantic embeddings for the vault. Embeds pages that " +
+      "are new or stale (content changed); pass force to re-embed everything. " +
+      "No-op when no embedding provider is configured.",
+    promptSnippet: "Backfill semantic embeddings for the wiki",
+    promptGuidelines: [
+      "Use wiki_reindex_embeddings to embed an existing vault or refresh stale embeddings.",
+      "Embeddings are optional: this no-ops cleanly when no embedding provider is configured.",
+    ],
+    parameters: Type.Object({
+      force: Type.Optional(
+        Type.Boolean({ description: "Re-embed every page, ignoring staleness (default: false)" }),
+      ),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const paths = getPaths(ctx.cwd);
+      const vaultCheck = requireVault(paths);
+      if (!vaultCheck.ok) {
+        return {
+          content: [{ type: "text", text: vaultCheck.reason }],
+          details: { error: vaultCheck.reason } as Record<string, unknown>,
+          isError: true,
+        };
+      }
+
+      if (runtime) runtime.ensureConfig(ctx.cwd ?? paths.root);
+      const embedder = runtime ? resolveEmbedder(runtime.config) : undefined;
+      if (!embedder) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: 'ℹ️ No embedding provider configured — semantic embeddings are disabled. Set `llm-wiki.embeddingProvider` (e.g. "openai") in settings to enable.',
+            },
+          ],
+          details: { enabled: false } as Record<string, unknown>,
+        };
+      }
+
+      const stats = await reindexEmbeddings(paths, embedder, { force: params.force === true });
+      appendEvent(paths, {
+        kind: "reindex_embeddings",
+        embedded: stats.embedded,
+        skipped: stats.skipped,
+        pruned: stats.pruned,
+        model: embedder.model,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `✅ Embeddings reindexed (${embedder.model}): ${stats.embedded} embedded, ${stats.skipped} fresh, ${stats.pruned} pruned.`,
+          },
+        ],
+        details: {
+          enabled: true,
+          ...stats,
+          model: embedder.model,
+        } as Record<string, unknown>,
+      };
+    },
+  });
+}
 
 export function registerWikiLogEvent(pi: ExtensionAPI): void {
   pi.registerTool({

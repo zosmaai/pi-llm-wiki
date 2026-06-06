@@ -86,6 +86,31 @@ describe("loadTaskConfig", () => {
     expect(() => loadTaskConfig(tmpDir)).not.toThrow();
     expect(loadTaskConfig(tmpDir).taskModel).toBeUndefined();
   });
+
+  it("reads embedding fields from the llm-wiki settings namespace", () => {
+    writeFileSync(
+      join(tmpDir, ".pi", "settings.json"),
+      JSON.stringify({
+        "llm-wiki": {
+          embeddingProvider: "openai",
+          embeddingModel: "text-embedding-3-small",
+          embeddingBaseUrl: "https://api.example.com",
+          embeddingApiKeyEnv: "MY_KEY",
+        },
+      }),
+    );
+    const cfg = loadTaskConfig(tmpDir);
+    expect(cfg.embeddingProvider).toBe("openai");
+    expect(cfg.embeddingModel).toBe("text-embedding-3-small");
+    expect(cfg.embeddingBaseUrl).toBe("https://api.example.com");
+    expect(cfg.embeddingApiKeyEnv).toBe("MY_KEY");
+  });
+
+  it("leaves embedding fields undefined when unset (opt-in default)", () => {
+    const cfg = loadTaskConfig(tmpDir);
+    expect(cfg.embeddingProvider).toBeUndefined();
+    expect(cfg.embeddingModel).toBeUndefined();
+  });
 });
 
 // ── Runtime.resolveModel ──────────────────────────────────

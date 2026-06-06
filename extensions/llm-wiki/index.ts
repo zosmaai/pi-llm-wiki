@@ -18,6 +18,7 @@ import {
   registerWikiLint,
   registerWikiLogEvent,
   registerWikiRebuildMeta,
+  registerWikiReindexEmbeddings,
   registerWikiSearch,
   registerWikiStatus,
   registerWikiWatch,
@@ -57,11 +58,12 @@ export default function (pi: ExtensionAPI) {
   registerWikiBootstrap(pi);
   registerWikiCaptureSource(pi);
   registerWikiIngest(pi, runtime);
-  registerWikiEnsurePage(pi);
+  registerWikiEnsurePage(pi, runtime);
   registerWikiSearch(pi);
   registerWikiLint(pi);
   registerWikiStatus(pi);
   registerWikiRebuildMeta(pi);
+  registerWikiReindexEmbeddings(pi, runtime);
   registerWikiLogEvent(pi);
   registerWikiWatch(pi);
   registerWikiRecall(pi);
@@ -70,7 +72,7 @@ export default function (pi: ExtensionAPI) {
   registerWikiObserve(pi, reminderState);
   registerObservationReminder(pi, reminderState);
 
-  installGuardrails(pi);
+  installGuardrails(pi, runtime);
 
   // Track if wiki was just auto-created and needs topic inference
   let needsTopicInference = false;
