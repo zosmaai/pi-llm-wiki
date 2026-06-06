@@ -2,7 +2,9 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
+import { scheduleReindex } from "./indexing.js";
 import { appendEvent, rebuildMetadataLight } from "./metadata.js";
+import type { Runtime } from "./runtime.js";
 import { type VaultPaths, fmtDate, resolveVaultPaths } from "./utils.js";
 
 // ─── Types ─────────────────────────────────────────────
@@ -44,7 +46,11 @@ const RELEVANCE_EMOJIS: Record<string, string> = {
  * Observations are stored in wiki/sources/ with type: source and
  * status: observation. They are searchable via wiki_recail.
  */
-export function saveObservation(paths: VaultPaths, input: ObservationInput): ObservationResult {
+export function saveObservation(
+  paths: VaultPaths,
+  input: ObservationInput,
+  opts?: { rebuild?: boolean },
+): ObservationResult {
   const today = fmtDate();
   const timestamp = new Date().toISOString();
 
@@ -109,8 +115,10 @@ export function saveObservation(paths: VaultPaths, input: ObservationInput): Obs
     relevance: input.relevance,
   });
 
-  // Rebuild metadata so the observation is immediately searchable
-  rebuildMetadataLight(paths);
+  // Rebuild metadata so the observation is immediately searchable. Callers that
+  // background this (the wiki_observe tool) pass { rebuild: false } and schedule
+  // a non-blocking reindex instead.
+  if (opts?.rebuild !== false) rebuildMetadataLight(paths);
 
   return { slug, pagePath };
 }
@@ -137,7 +145,11 @@ export function createReminderState(): ReminderState {
  * The model calls this to record observations during a session.
  * Observations are saved to the wiki and become searchable.
  */
-export function registerWikiObserve(pi: ExtensionAPI, reminderState?: ReminderState): void {
+export function registerWikiObserve(
+  pi: ExtensionAPI,
+  runtime?: Runtime,
+  reminderState?: ReminderState,
+): void {
   pi.registerTool({
     name: "wiki_observe",
     label: "Wiki Observe",
@@ -214,13 +226,24 @@ export function registerWikiObserve(pi: ExtensionAPI, reminderState?: ReminderSt
         };
       }
 
-      const result = saveObservation(paths, {
-        title: params.title,
-        content: params.content,
-        relevance: params.relevance,
-        tags: params.tags,
-        source_context: params.source_context,
-      });
+      const result = saveObservation(
+        paths,
+        {
+          title: params.title,
+          content: params.content,
+          relevance: params.relevance,
+          tags: params.tags,
+          source_context: params.source_context,
+        },
+        // When a background runtime is available, write the page synchronously
+        // but defer the O(pages) metadata rebuild + embeddings off the tool's
+        // critical path. Without a runtime, fall back to the inline rebuild.
+        { rebuild: !runtime },
+      );
+      if (runtime) {
+        const launchCtx = { hasUI: ctx.hasUI, ui: ctx.ui };
+        scheduleReindex(runtime, launchCtx, paths);
+      }
 
       // Signal the reminder to stop nagging this session
       if (reminderState) {

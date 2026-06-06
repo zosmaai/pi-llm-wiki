@@ -1,6 +1,6 @@
 import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { launchReindex } from "./embeddings.js";
+import { scheduleReindex } from "./indexing.js";
 import { rebuildMetadataLight } from "./metadata.js";
 import type { Runtime } from "./runtime.js";
 import { isProtectedPath, resolveVaultPaths } from "./utils.js";
@@ -54,10 +54,13 @@ export function installGuardrails(pi: ExtensionAPI, runtime?: Runtime): void {
       pendingRebuild = false;
       try {
         const paths = resolveVaultPaths(process.cwd());
-        rebuildMetadataLight(paths);
+        // Manual page edits also rebuild off the critical path. Without a
+        // runtime (shouldn't happen in normal wiring) fall back to inline.
         if (runtime) {
           const launchCtx = ctx ? { hasUI: ctx.hasUI, ui: ctx.ui } : { hasUI: false as const };
-          launchReindex(runtime, launchCtx, paths);
+          scheduleReindex(runtime, launchCtx, paths);
+        } else {
+          rebuildMetadataLight(paths);
         }
       } catch {
         // Silently fail — metadata rebuild is best-effort
