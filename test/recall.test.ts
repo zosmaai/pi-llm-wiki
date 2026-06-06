@@ -8,6 +8,7 @@ import {
 } from "../extensions/llm-wiki/lib/embeddings.js";
 import { rebuildMetadataLight } from "../extensions/llm-wiki/lib/metadata.js";
 import {
+  DEFAULT_RECALL_LINKS_THRESHOLD,
   DEFAULT_SEMANTIC_WEIGHT,
   SEMANTIC_SCALE,
   type SemanticContext,
@@ -17,6 +18,8 @@ import {
   searchWiki,
   searchWikiHybrid,
   searchWikiLayered,
+  shouldUseLinksFirst,
+  vaultPageCount,
 } from "../extensions/llm-wiki/lib/recall.js";
 import {
   ensureVaultStructure,
@@ -385,6 +388,154 @@ describe("wiki recall", () => {
       try {
         rmSync(personalPaths.dotWiki, { recursive: true, force: true });
       } catch {}
+    });
+  });
+
+  // ── Two-stage (links-first) recall gated by vault size (issue #68) ──
+  describe("two-stage recall (links-first gated by vault size)", () => {
+    const sampleResults = () => [
+      {
+        id: "concepts/rag",
+        title: "RAG",
+        type: "concept",
+        preview:
+          "Retrieval augmented generation is a technique for grounding LLMs in external knowledge sources.",
+        path: "/tmp/wiki/concepts/rag.md",
+        score: 12.5,
+      },
+      {
+        id: "entities/openai",
+        title: "OpenAI",
+        type: "entity",
+        preview: "OpenAI is an AI research organization.",
+        path: "/tmp/wiki/entities/openai.md",
+        score: 3,
+        vaultLabel: "\uD83D\uDCD3 personal",
+      },
+    ];
+
+    it("vaultPageCount counts only the primary registry when includePersonal=false", () => {
+      createRegistryPage("a", "concept", "A", "Body a.");
+      createRegistryPage("b", "concept", "B", "Body b.");
+      createRegistryPage("c", "concept", "C", "Body c.");
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+      expect(vaultPageCount(paths, false)).toBe(3);
+    });
+
+    it("shouldUseLinksFirst gates strictly-greater-than the threshold (both directions)", () => {
+      // Default threshold.
+      expect(shouldUseLinksFirst(DEFAULT_RECALL_LINKS_THRESHOLD)).toBe(false);
+      expect(shouldUseLinksFirst(DEFAULT_RECALL_LINKS_THRESHOLD + 1)).toBe(true);
+      // Custom threshold via config.
+      expect(shouldUseLinksFirst(2, { recallLinksThreshold: 2 })).toBe(false);
+      expect(shouldUseLinksFirst(3, { recallLinksThreshold: 2 })).toBe(true);
+      // Threshold 0 → links-first for any non-empty vault, still off for empty.
+      expect(shouldUseLinksFirst(0, { recallLinksThreshold: 0 })).toBe(false);
+      expect(shouldUseLinksFirst(1, { recallLinksThreshold: 0 })).toBe(true);
+    });
+
+    it("small vault (default opts) renders previews inline, no scores (regression)", () => {
+      const out = formatRecallContext(sampleResults());
+      // Byte-for-byte identical to the explicit linksOnly=false path.
+      expect(out).toBe(formatRecallContext(sampleResults(), { linksOnly: false }));
+      // Preview content is present; no score / two-stage directive leaks in.
+      expect(out).toContain("Retrieval augmented generation is a technique");
+      expect(out).toContain("## Relevant Wiki Knowledge\n");
+      expect(out).not.toContain("links-first");
+      expect(out).not.toContain("score ");
+      expect(out).toContain("Use `read` to view full pages.");
+    });
+
+    it("large vault (linksOnly) renders ranked links: id/title/type/score/snippet, no full preview", () => {
+      const out = formatRecallContext(sampleResults(), { linksOnly: true });
+      expect(out).toContain("## Relevant Wiki Knowledge (links-first)");
+      // id, title, type, score for each link.
+      expect(out).toContain("1. **[[concepts/rag]]** — *concept* — score 12.5");
+      expect(out).toContain("2. **[[entities/openai]]** — *entity* — score 3.0");
+      expect(out).toContain("RAG");
+      expect(out).toContain("OpenAI");
+      // Personal vault label preserved.
+      expect(out).toContain("\uD83D\uDCD3 personal");
+      // Snippet is truncated to one short line — the full preview must NOT appear.
+      expect(out).not.toContain("external knowledge sources");
+      expect(out).toContain("…");
+      // Two-stage contract is spelled out.
+      expect(out).toContain("Call `read`");
+      expect(out).not.toContain("\n  Retrieval augmented");
+    });
+
+    it("links-first snippet flattens newlines onto a single line and truncates", () => {
+      const out = formatRecallContext(
+        [
+          {
+            id: "concepts/multi",
+            title: "Multi",
+            type: "concept",
+            preview:
+              "line one\nline two\nline three with lots of extra words to overflow the snippet budget here for sure",
+            path: "/tmp/x.md",
+            score: 7,
+          },
+        ],
+        { linksOnly: true },
+      );
+      const linkLine = out.split("\n").find((l) => l.startsWith("1."));
+      expect(linkLine).toBeDefined();
+      // The multi-line preview becomes one physical line (newlines → spaces).
+      expect(linkLine).toContain("line one line two line three");
+      // ...and it is truncated to the snippet budget with an ellipsis.
+      expect(linkLine).toContain("…");
+      expect(linkLine).not.toContain("for sure");
+    });
+
+    it("config parsing clamps recallLinksThreshold to a non-negative integer", async () => {
+      const { loadTaskConfig } = await import("../extensions/llm-wiki/lib/task-config.js");
+      const projectDir = join(tmpDir, "cfg-threshold");
+      mkdirSync(join(projectDir, ".pi"), { recursive: true });
+      writeFileSync(
+        join(projectDir, ".pi", "settings.json"),
+        JSON.stringify({ "llm-wiki": { recallLinksThreshold: 12.9 } }),
+        "utf-8",
+      );
+      expect(loadTaskConfig(projectDir).recallLinksThreshold).toBe(12);
+
+      writeFileSync(
+        join(projectDir, ".pi", "settings.json"),
+        JSON.stringify({ "llm-wiki": { recallLinksThreshold: -5 } }),
+        "utf-8",
+      );
+      expect(loadTaskConfig(projectDir).recallLinksThreshold).toBe(0);
+
+      writeFileSync(
+        join(projectDir, ".pi", "settings.json"),
+        JSON.stringify({ "llm-wiki": { recallLinksThreshold: "nope" } }),
+        "utf-8",
+      );
+      expect(loadTaskConfig(projectDir).recallLinksThreshold).toBeUndefined();
+    });
+
+    it("end-to-end gating: same results below vs above a custom threshold", () => {
+      createRegistryPage("alpha", "concept", "Alpha", "Body about caching alpha.");
+      createRegistryPage("beta", "concept", "Beta", "Body about caching beta.");
+      createRegistryPage("gamma", "concept", "Gamma", "Body about caching gamma.");
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+      const count = vaultPageCount(paths, false);
+      expect(count).toBe(3);
+
+      // threshold 5 ≥ 3 → previews inline.
+      expect(shouldUseLinksFirst(count, { recallLinksThreshold: 5 })).toBe(false);
+      // threshold 2 < 3 → links-first.
+      expect(shouldUseLinksFirst(count, { recallLinksThreshold: 2 })).toBe(true);
+
+      const results = searchWiki(paths, "caching", 5);
+      const inline = formatRecallContext(results, { linksOnly: false });
+      const links = formatRecallContext(results, { linksOnly: true });
+      expect(inline).toContain("## Relevant Wiki Knowledge\n");
+      expect(inline).not.toContain("links-first");
+      expect(links).toContain("links-first");
+      expect(links).toContain("score ");
     });
   });
 

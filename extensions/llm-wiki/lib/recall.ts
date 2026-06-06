@@ -689,13 +689,105 @@ export async function searchWikiHybrid(
 }
 
 /**
- * Format recall results as a compact system-prompt section.
+ * Default page-count gate for two-stage (links-first) recall (issue #68).
+ * When a vault's registered page count exceeds this, recall returns ranked
+ * links (expand on demand via `read`) instead of inline content previews.
  */
-export function formatRecallContext(results: RecallResult[]): string {
+export const DEFAULT_RECALL_LINKS_THRESHOLD = 50;
+
+/** Max characters of the 1-line snippet shown beside a link in links-first mode. */
+const LINKS_SNIPPET_MAX = 80;
+
+/** Count the registered pages of a single vault (O(1), no page-body I/O). */
+function registryPageCount(paths: VaultPaths): number {
+  const registry = readJson<Registry>(join(paths.meta, "registry.json"), {
+    version: "1.0",
+    last_updated: "",
+    pages: {},
+  });
+  return Object.keys(registry.pages).length;
+}
+
+/**
+ * Total registered page count across the vault(s) recall will actually search.
+ * Mirrors `searchWikiLayered`'s vault selection so the two-stage gate is keyed
+ * to the same corpus the agent sees. Reads only `registry.json` — never a page
+ * body — so the gate stays cheap as the vault grows.
+ */
+export function vaultPageCount(primaryPaths: VaultPaths, includePersonal = true): number {
+  let count = registryPageCount(primaryPaths);
+  if (includePersonal && !isPersonalVault(primaryPaths)) {
+    const personalPaths = getPersonalWikiPaths();
+    if (existsSync(join(personalPaths.dotWiki, "config.json"))) {
+      count += registryPageCount(personalPaths);
+    }
+  }
+  return count;
+}
+
+/**
+ * Decide whether recall should use links-first (stage 1) rendering: true when
+ * the vault page count is STRICTLY GREATER THAN the configured threshold.
+ * Threshold 0 forces links-first for any non-empty vault; a very large value
+ * keeps previews inline always. Default `DEFAULT_RECALL_LINKS_THRESHOLD`.
+ */
+export function shouldUseLinksFirst(pageCount: number, config?: TaskConfig): boolean {
+  const threshold = config?.recallLinksThreshold ?? DEFAULT_RECALL_LINKS_THRESHOLD;
+  return pageCount > threshold;
+}
+
+/** One-line snippet for links-first rendering, derived from the chunk preview. */
+function linkSnippet(preview: string): string {
+  const oneLine = preview.replace(/\s+/g, " ").trim();
+  if (!oneLine) return "";
+  return oneLine.length > LINKS_SNIPPET_MAX ? `${oneLine.slice(0, LINKS_SNIPPET_MAX)}…` : oneLine;
+}
+
+/**
+ * Format recall results as a compact system-prompt section.
+ *
+ * Two render modes (issue #68):
+ * - Default / `linksOnly: false` — preview-inline (unchanged for small vaults).
+ * - `linksOnly: true` — stage-1 "links-first": a ranked list of links carrying
+ *   id, title, type, score, and a single short snippet. The agent expands the
+ *   links it wants on demand via `read` (stage 2). Used above the vault-size
+ *   threshold to keep large vaults from flooding context.
+ */
+export function formatRecallContext(
+  results: RecallResult[],
+  opts: { linksOnly?: boolean } = {},
+): string {
   if (results.length === 0) return "";
 
   const hasLayered = results.some((r) => r.vaultLabel);
   const label = hasLayered ? " (personal + project)" : "";
+
+  if (opts.linksOnly) {
+    const lines: string[] = [
+      "## Relevant Wiki Knowledge (links-first)",
+      "",
+      `_${results.length} page(s) matched your query${label}, ranked. Two-stage recall: links only — open the ones you need to read their full content._`,
+      "",
+    ];
+
+    results.forEach((r, i) => {
+      const vaultTag = r.vaultLabel ? ` ${r.vaultLabel}` : "";
+      const snippet = linkSnippet(r.preview);
+      const tail = snippet ? ` — ${snippet}` : "";
+      lines.push(
+        `${i + 1}. **[[${r.id}]]** — *${r.type}* — score ${r.score.toFixed(1)}${vaultTag} — ${r.title}${tail}`,
+      );
+    });
+
+    lines.push(
+      "",
+      "Call `read` (or `wiki_read`) on the links you need to pull full content." +
+        " Add new findings via wiki_ensure_page or wiki_retro.",
+      "",
+    );
+
+    return lines.join("\n");
+  }
 
   const lines: string[] = [
     "## Relevant Wiki Knowledge",
@@ -736,7 +828,8 @@ export function registerWikiRecall(pi: ExtensionAPI, runtime?: Runtime): void {
     label: "Wiki Recall",
     description:
       "Search the wiki for pages relevant to a query. " +
-      "Returns matching page IDs, titles, types, and content previews. " +
+      "Returns matching page IDs, titles, types, and content previews (small vaults) " +
+      "or a ranked list of links to expand with `read` (large vaults, two-stage recall). " +
       "Called automatically at session start — use explicitly to dig deeper.",
     promptSnippet: "Recall wiki knowledge relevant to the current task",
     promptGuidelines: [
@@ -791,6 +884,36 @@ export function registerWikiRecall(pi: ExtensionAPI, runtime?: Runtime): void {
       const hasPersonal = results.some((r) => r.vaultLabel);
       const layerTag = hasPersonal ? " (personal + project)" : "";
 
+      // Two-stage gate (issue #68): large vaults return ranked LINKS only;
+      // the agent expands chosen links on demand via `read`. Small vaults keep
+      // the inline-preview behavior. Page count is read from the registry only.
+      const linksFirst = shouldUseLinksFirst(vaultPageCount(paths, true), runtime?.config);
+
+      if (linksFirst) {
+        const linkLines = results
+          .map((r, i) => {
+            const vault = r.vaultLabel ? ` ${r.vaultLabel}` : "";
+            const snippet = linkSnippet(r.preview);
+            const tail = snippet ? ` — ${snippet}` : "";
+            return `${i + 1}. [[${r.id}]] — ${r.title} (${r.type}, score ${r.score.toFixed(1)})${vault}\n   Path: ${r.path}${tail}`;
+          })
+          .join("\n");
+        const text = [
+          `Found ${results.length} wiki page(s) matching "${params.query}"${layerTag} (two-stage recall — ranked links, expand on demand):`,
+          "",
+          linkLines,
+          "",
+          "Call `read` on the path(s) you need to pull full content.",
+        ].join("\n");
+        return {
+          content: [{ type: "text", text }],
+          details: { query: params.query, mode: "links", matches: results } as Record<
+            string,
+            unknown
+          >,
+        };
+      }
+
       return {
         content: [
           {
@@ -803,7 +926,10 @@ export function registerWikiRecall(pi: ExtensionAPI, runtime?: Runtime): void {
               .join("\n\n---\n\n")}`,
           },
         ],
-        details: { query: params.query, matches: results } as Record<string, unknown>,
+        details: { query: params.query, mode: "preview", matches: results } as Record<
+          string,
+          unknown
+        >,
       };
     },
   });

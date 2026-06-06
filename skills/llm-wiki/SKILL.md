@@ -73,6 +73,20 @@ This searches both your **personal wiki** (`~/.llm-wiki/`) and the **project wik
 
 The extension also briefly searches automatically, but explicit calls with task-specific terms get better results.
 
+#### Two-Stage Recall (links-first for large vaults)
+
+Recall scales with vault size via **two-stage retrieval** (memex-style):
+
+- **Small vaults** (page count ≤ threshold): recall returns inline **content previews** — read them directly, no extra step.
+- **Large vaults** (page count > threshold): recall returns a **ranked list of links** only — `id`, `title`, `type`, `score`, and a 1-line snippet. **No full previews are injected**, to protect your context window.
+
+**The two-step contract for large vaults:**
+
+1. **Stage 1 — scan the links.** `wiki_recall` (and the auto-injected "Relevant Wiki Knowledge (links-first)" section) gives you ranked `[[id]]` links with scores and short snippets. Use the scores and snippets to pick the few pages that actually matter.
+2. **Stage 2 — expand on demand.** Call `read` (or `wiki_read`) on the chosen link **paths** to pull their full content. Do **not** assume the snippet is the whole page — open the link before relying on its content.
+
+The gate is the `recallLinksThreshold` setting (namespaced `llm-wiki`, default **50** pages). Page count is read from `meta/registry.json` (O(1), no page-body I/O). Set it to `0` to force links-first always, or a large number to always keep previews inline.
+
 ### At End — Save Insights with wiki_retro
 
 After completing any meaningful task, call `wiki_retro` to save key insights:

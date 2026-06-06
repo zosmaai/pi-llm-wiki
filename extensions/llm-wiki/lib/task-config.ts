@@ -52,6 +52,23 @@ export interface TaskConfig {
    * configured; otherwise recall stays 100% lexical.
    */
   semanticWeight?: number;
+
+  /**
+   * Two-stage recall gate (issue #68). When the vault's registered page count
+   * is STRICTLY GREATER THAN this threshold, recall switches to "links-first"
+   * mode: it returns a ranked list of links (id, title, type, score, 1-line
+   * snippet) instead of inline content previews, and the agent expands chosen
+   * links on demand via `read`. At or below the threshold, the current
+   * preview-inline behavior is preserved (no regression for small vaults).
+   *
+   * Page-count (not token-budget) was chosen deliberately: it is derived from
+   * `meta/registry.json` in O(1) with zero extra file I/O, so the gate itself
+   * never reads page bodies — token estimation would require touching every
+   * page, defeating the "cheap recall" goal. Default 50. Set to 0 to force
+   * links-first for any non-empty vault, or a very large number to always keep
+   * previews inline. Clamped to a non-negative integer.
+   */
+  recallLinksThreshold?: number;
 }
 
 export const TASK_DEFAULTS: TaskConfig = {};
@@ -92,6 +109,11 @@ function readNamespacedConfig(path: string): Partial<TaskConfig> {
     const weight = section.semanticWeight;
     if (typeof weight === "number" && Number.isFinite(weight)) {
       out.semanticWeight = Math.min(1, Math.max(0, weight));
+    }
+
+    const threshold = section.recallLinksThreshold;
+    if (typeof threshold === "number" && Number.isFinite(threshold)) {
+      out.recallLinksThreshold = Math.max(0, Math.floor(threshold));
     }
     return out;
   } catch {

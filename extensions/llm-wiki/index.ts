@@ -7,7 +7,13 @@ import {
   registerObservationReminder,
   registerWikiObserve,
 } from "./lib/observation.js";
-import { formatRecallContext, registerWikiRecall, searchWikiHybrid } from "./lib/recall.js";
+import {
+  formatRecallContext,
+  registerWikiRecall,
+  searchWikiHybrid,
+  shouldUseLinksFirst,
+  vaultPageCount,
+} from "./lib/recall.js";
 import { registerWikiRetro } from "./lib/retro.js";
 import { registerBackgroundRuntime } from "./lib/runtime.js";
 import {
@@ -197,7 +203,12 @@ Then call wiki_bootstrap with the inferred topic and mode to finalize the setup.
         config: runtime.config,
       });
       if (results.length > 0) {
-        const recallContext = formatRecallContext(results);
+        // Two-stage gate (issue #68): above the vault-size threshold, inject
+        // ranked LINKS only (the agent expands them on demand via `read`) so a
+        // large vault never floods the system prompt with inline previews.
+        // includePersonal=false here mirrors the auto-injection search scope.
+        const linksOnly = shouldUseLinksFirst(vaultPageCount(paths, false), runtime.config);
+        const recallContext = formatRecallContext(results, { linksOnly });
         if (recallContext) {
           injectedContext += `\n\n${recallContext}`;
         }
