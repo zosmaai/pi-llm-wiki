@@ -9,6 +9,7 @@ import {
 } from "./lib/observation.js";
 import { formatRecallContext, registerWikiRecall, searchWikiLayered } from "./lib/recall.js";
 import { registerWikiRetro } from "./lib/retro.js";
+import { registerBackgroundRuntime } from "./lib/runtime.js";
 import {
   registerWikiBootstrap,
   registerWikiCaptureSource,
@@ -64,6 +65,11 @@ export default function (pi: ExtensionAPI) {
   const reminderState = createReminderState();
   registerWikiObserve(pi, reminderState);
   registerObservationReminder(pi, reminderState);
+
+  // Background-task lane (issue #64): shared runtime for off-thread LLM work.
+  // No tasks are launched yet — concrete workers land in #65 (ingest) and
+  // #66 (embeddings). Wiring it here drains in-flight work at compaction/exit.
+  registerBackgroundRuntime(pi);
 
   installGuardrails(pi);
 

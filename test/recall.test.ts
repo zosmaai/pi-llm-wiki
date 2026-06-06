@@ -16,10 +16,22 @@ import {
 describe("wiki recall", () => {
   let wikiDir: string;
   let tmpDir: string;
+  let prevWikiHome: string | undefined;
 
   beforeEach(() => {
-    tmpDir = join(import.meta.dirname, "..", "tmp", `recall-${Date.now()}`);
+    tmpDir = join(
+      import.meta.dirname,
+      "..",
+      "tmp",
+      `recall-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
     mkdirSync(tmpDir, { recursive: true });
+    // Sandbox the personal vault: point WIKI_HOME at a clean temp dir so tests
+    // never read the developer's real ~/.llm-wiki (which would make the
+    // "no personal wiki" cases flaky depending on the machine).
+    prevWikiHome = process.env.WIKI_HOME;
+    process.env.WIKI_HOME = join(tmpDir, "home");
+    mkdirSync(process.env.WIKI_HOME, { recursive: true });
     wikiDir = (() => {
       const dir = join(tmpDir, `wiki-${Math.random().toString(36).slice(2)}`);
       mkdirSync(dir, { recursive: true });
@@ -45,6 +57,9 @@ describe("wiki recall", () => {
   });
 
   afterEach(() => {
+    // biome-ignore lint/performance/noDelete: delete truly unsets the env var (assigning undefined coerces to "undefined")
+    if (prevWikiHome === undefined) delete process.env.WIKI_HOME;
+    else process.env.WIKI_HOME = prevWikiHome;
     try {
       rmSync(tmpDir, { recursive: true, force: true });
     } catch {}
