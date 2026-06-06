@@ -2,7 +2,17 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
+import {
+  type Embedder,
+  type EmbeddingStore,
+  cosineSimilarity,
+  normalizeVector,
+  readEmbeddingStore,
+  resolveEmbedder,
+} from "./embeddings.js";
 import type { Registry } from "./metadata.js";
+import type { Runtime } from "./runtime.js";
+import type { TaskConfig } from "./task-config.js";
 import {
   type VaultPaths,
   getPersonalWikiPaths,
@@ -37,7 +47,56 @@ type Scored = {
   score: number;
   pagePath: string;
   bestChunkPreview: string;
+  /** Cosine similarity to the query vector (0 when no semantic context). */
+  semCos: number;
 };
+
+// ─── Hybrid (lexical + semantic) ranking ─────────────────
+
+/**
+ * Semantic re-ranking context for a single search (issue #67, epic #63).
+ *
+ * The query vector is computed ONCE per query (a single, cached embedding
+ * lookup) in the async wrapper; the per-vault page vectors are read from the
+ * precomputed `meta/embeddings.json` sidecar (written at #66 write-time). The
+ * actual ranking is pure vector math — there is NO embedding/LLM call in
+ * `searchWiki` itself, so the lexical hot path stays synchronous and offline.
+ */
+export interface SemanticContext {
+  /** L2-normalized embedding of the query string. */
+  queryVector: number[];
+  /** Blend weight for the semantic signal (0 = lexical only, 1 = max boost). */
+  weight: number;
+}
+
+/** Default blend weight when none is configured. */
+export const DEFAULT_SEMANTIC_WEIGHT = 0.5;
+
+/**
+ * Lexical points a perfect (cosine = 1) semantic match is worth at full
+ * weight. Chosen so a strong paraphrase match (cosine ≳ 0.84) at the default
+ * weight (0.5) clears the auto-injection threshold (minScore = 5) on its own,
+ * while weak/incidental similarity stays below it.
+ */
+export const SEMANTIC_SCALE = 12;
+
+/**
+ * Minimum cosine for a page with NO lexical match to even be considered a
+ * semantic candidate. Keeps the candidate set bounded (near-orthogonal pages
+ * are ignored) instead of pulling in the entire embedded vault.
+ */
+export const SEMANTIC_MIN_COSINE = 0.2;
+
+/**
+ * Blend a lexical score with a cosine similarity. The lexical score keeps its
+ * original absolute scale (so `minScore` semantics survive); the semantic
+ * signal is added as a bounded, weighted boost on a comparable scale. With no
+ * semantic signal (cosine ≤ 0) this is the identity on the lexical score, so
+ * the pure-lexical path is preserved exactly.
+ */
+export function fuseScores(lexical: number, cosine: number, weight: number): number {
+  return lexical + weight * SEMANTIC_SCALE * Math.max(cosine, 0);
+}
 
 /**
  * Normalize text for recall matching.
@@ -314,6 +373,7 @@ export function searchWiki(
   query: string,
   maxResults = 5,
   minScore = 0,
+  semantic?: SemanticContext,
 ): RecallResult[] {
   const registry = readJson<Registry>(join(paths.meta, "registry.json"), {
     version: "1.0",
@@ -323,6 +383,12 @@ export function searchWiki(
 
   const terms = queryTerms(query);
   if (terms.length === 0) return [];
+
+  // Read this vault's precomputed embedding sidecar (synchronous, offline).
+  // Missing/empty sidecar => no semantic signal => pure lexical, by construction.
+  const embeddingStore: EmbeddingStore | undefined = semantic
+    ? readEmbeddingStore(paths)
+    : undefined;
 
   const scored: Scored[] = [];
 
@@ -385,13 +451,26 @@ export function searchWiki(
     // Add best chunk score to total page score
     score += bestChunkScore;
 
-    if (score > 0) {
+    // Semantic candidacy: a page with no lexical match can still qualify if its
+    // precomputed vector is sufficiently close to the query vector. The boost
+    // itself is applied AFTER pseudo-relevance feedback so PRF stays lexical.
+    let semCos = 0;
+    if (semantic && embeddingStore) {
+      const vec = embeddingStore.entries[id]?.vector;
+      if (vec && vec.length === semantic.queryVector.length) {
+        semCos = cosineSimilarity(semantic.queryVector, vec);
+      }
+    }
+    const semEligible = semCos >= SEMANTIC_MIN_COSINE;
+
+    if (score > 0 || semEligible) {
       scored.push({
         id,
         entry,
         score,
         pagePath,
         bestChunkPreview: bestChunkContent ? chunkPreview(bestChunkHeading, bestChunkContent) : "",
+        semCos,
       });
     }
   }
@@ -427,7 +506,18 @@ export function searchWiki(
     }
   }
 
-  // Re-sort after expansion scoring
+  // ── Semantic fusion ─────────────────────────────────
+  // Blend the precomputed cosine similarity into the (lexical + PRF) score.
+  // Applied last so PRF expansion remains purely lexical and so a strongly
+  // paraphrase-relevant page that lexical missed can clear `minScore`. With no
+  // semantic context every boost is 0, leaving the lexical ranking untouched.
+  if (semantic) {
+    for (const item of scored) {
+      item.score = fuseScores(item.score, item.semCos, semantic.weight);
+    }
+  }
+
+  // Re-sort after expansion + semantic scoring
   scored.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
   const top = scored.filter((s) => s.score >= minScore).slice(0, maxResults);
 
@@ -463,9 +553,10 @@ export function searchWikiLayered(
   maxResults = 5,
   minScore = 0,
   includePersonal = true,
+  semantic?: SemanticContext,
 ): RecallResult[] {
   // Search primary vault
-  const primaryResults = searchWiki(primaryPaths, query, maxResults, minScore);
+  const primaryResults = searchWiki(primaryPaths, query, maxResults, minScore, semantic);
 
   // If primary is already the personal vault, no layered search needed
   if (isPersonalVault(primaryPaths)) return primaryResults;
@@ -475,7 +566,7 @@ export function searchWikiLayered(
   if (includePersonal) {
     const personalPaths = getPersonalWikiPaths();
     if (existsSync(join(personalPaths.dotWiki, "config.json"))) {
-      personalResults = searchWiki(personalPaths, query, maxResults, minScore);
+      personalResults = searchWiki(personalPaths, query, maxResults, minScore, semantic);
     }
   }
 
@@ -496,6 +587,105 @@ export function searchWikiLayered(
   }
 
   return merged.slice(0, maxResults);
+}
+
+// ─── Async hybrid entry point (the single, cached query embedding) ───
+
+/**
+ * Cache of query string → normalized embedding vector. The query embedding is
+ * the ONLY embedding call in the recall hot path; caching collapses repeated
+ * recalls of the same query within a session (e.g. auto-injection + an explicit
+ * wiki_recall) into a single network call, satisfying the #67 "single cached
+ * query-embedding lookup" bound.
+ */
+const queryEmbeddingCache = new Map<string, number[]>();
+const QUERY_CACHE_MAX = 256;
+
+function queryCacheKey(model: string, query: string): string {
+  return `${model}\u0000${normalizeText(query)}`;
+}
+
+/** Test-only: reset the module-level query-embedding cache. */
+export function __clearQueryEmbeddingCache(): void {
+  queryEmbeddingCache.clear();
+}
+
+/** True if a vault has at least one stored embedding vector. */
+function storeHasEntries(paths: VaultPaths): boolean {
+  return Object.keys(readEmbeddingStore(paths).entries).length > 0;
+}
+
+/**
+ * Embed the query string once (cached), returning a normalized vector, or
+ * `undefined` when no embedder is configured or the call yields nothing.
+ */
+async function embedQuery(embedder: Embedder, query: string): Promise<number[] | undefined> {
+  const key = queryCacheKey(embedder.model, query);
+  const cached = queryEmbeddingCache.get(key);
+  if (cached) return cached;
+
+  const [raw] = await embedder.embed([query]);
+  if (!raw || raw.length === 0) return undefined;
+  const vec = normalizeVector(raw);
+
+  if (queryEmbeddingCache.size >= QUERY_CACHE_MAX) {
+    const oldest = queryEmbeddingCache.keys().next().value;
+    if (oldest !== undefined) queryEmbeddingCache.delete(oldest);
+  }
+  queryEmbeddingCache.set(key, vec);
+  return vec;
+}
+
+/**
+ * Hybrid layered recall: lexical scoring blended with semantic cosine ranking.
+ *
+ * Design (issue #67): page vectors are precomputed at write time (#66); the
+ * ONLY per-query embedding work is a single, cached lookup of the (short) query
+ * string. If no vault has embeddings, the query embedding is skipped entirely
+ * and this degrades to exactly `searchWikiLayered` (pure lexical, zero network).
+ * Likewise when no embedder is configured. `opts.embedder` is an injection seam
+ * for tests (mirrors `embedPages`) so unit tests never touch the network.
+ */
+export async function searchWikiHybrid(
+  primaryPaths: VaultPaths,
+  query: string,
+  maxResults = 5,
+  minScore = 0,
+  includePersonal = true,
+  opts: { config?: TaskConfig; embedder?: Embedder } = {},
+): Promise<RecallResult[]> {
+  // Pure-lexical fast path: no semantic signal anywhere => no embedding call.
+  let anyEmbeddings = storeHasEntries(primaryPaths);
+  if (!anyEmbeddings && includePersonal && !isPersonalVault(primaryPaths)) {
+    const personalPaths = getPersonalWikiPaths();
+    if (existsSync(join(personalPaths.dotWiki, "config.json"))) {
+      anyEmbeddings = storeHasEntries(personalPaths);
+    }
+  }
+  if (!anyEmbeddings) {
+    return searchWikiLayered(primaryPaths, query, maxResults, minScore, includePersonal);
+  }
+
+  const embedder = opts.embedder ?? (opts.config ? resolveEmbedder(opts.config) : undefined);
+  if (!embedder) {
+    // Embeddings exist but no embedder configured to embed the query: fall back
+    // to pure lexical rather than guess. (Degrades gracefully.)
+    return searchWikiLayered(primaryPaths, query, maxResults, minScore, includePersonal);
+  }
+
+  let semantic: SemanticContext | undefined;
+  try {
+    const queryVector = await embedQuery(embedder, query);
+    if (queryVector) {
+      const weight = opts.config?.semanticWeight ?? DEFAULT_SEMANTIC_WEIGHT;
+      semantic = { queryVector, weight };
+    }
+  } catch {
+    // Network/embedding failure must never break recall — fall back to lexical.
+    semantic = undefined;
+  }
+
+  return searchWikiLayered(primaryPaths, query, maxResults, minScore, includePersonal, semantic);
 }
 
 /**
@@ -540,7 +730,7 @@ export function formatRecallContext(results: RecallResult[]): string {
  * The model can call this explicitly to search the wiki.
  * It is also called automatically via before_agent_start hook.
  */
-export function registerWikiRecall(pi: ExtensionAPI): void {
+export function registerWikiRecall(pi: ExtensionAPI, runtime?: Runtime): void {
   pi.registerTool({
     name: "wiki_recall",
     label: "Wiki Recall",
@@ -578,8 +768,13 @@ export function registerWikiRecall(pi: ExtensionAPI): void {
       }
 
       const maxResults = Math.min(params.max_results ?? 5, 10);
-      // Use layered search: personal vault + project vault
-      const results = searchWikiLayered(paths, params.query, maxResults);
+      // Use layered hybrid search: personal vault + project vault, blending
+      // lexical scoring with precomputed semantic embeddings when available.
+      // No embeddings / no embedder => pure lexical, no network call.
+      if (runtime) runtime.ensureConfig(ctx.cwd ?? paths.root);
+      const results = await searchWikiHybrid(paths, params.query, maxResults, 0, true, {
+        config: runtime?.config,
+      });
 
       if (results.length === 0) {
         return {

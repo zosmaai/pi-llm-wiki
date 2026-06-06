@@ -1,10 +1,21 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  type Embedder,
+  embeddingStorePath,
+  normalizeVector,
+} from "../extensions/llm-wiki/lib/embeddings.js";
 import { rebuildMetadataLight } from "../extensions/llm-wiki/lib/metadata.js";
 import {
+  DEFAULT_SEMANTIC_WEIGHT,
+  SEMANTIC_SCALE,
+  type SemanticContext,
+  __clearQueryEmbeddingCache,
   formatRecallContext,
+  fuseScores,
   searchWiki,
+  searchWikiHybrid,
   searchWikiLayered,
 } from "../extensions/llm-wiki/lib/recall.js";
 import {
@@ -578,6 +589,224 @@ describe("wiki recall", () => {
       // Empty wiki - no top results to expand from
       const results = searchWiki(paths, "anything");
       expect(results).toEqual([]);
+    });
+  });
+
+  // ── Hybrid lexical + semantic ranking (issue #67) ──────
+  describe("hybrid lexical + semantic ranking", () => {
+    beforeEach(() => __clearQueryEmbeddingCache());
+
+    /** Write a hand-built embeddings.json sidecar keyed by page id. */
+    function writeSidecar(
+      paths: ReturnType<typeof getVaultPaths>,
+      vectors: Record<string, number[]>,
+      model = "mock-embed",
+    ): void {
+      const entries: Record<string, unknown> = {};
+      for (const [id, raw] of Object.entries(vectors)) {
+        const vector = normalizeVector(raw);
+        entries[id] = { hash: "h", model, dim: vector.length, vector, updated: "t" };
+      }
+      writeFileSync(
+        embeddingStorePath(paths),
+        JSON.stringify({ version: "1.0", entries }),
+        "utf-8",
+      );
+    }
+
+    /** Mock embedder returning a fixed raw vector, recording call count. */
+    function makeFixedEmbedder(raw: number[], model = "mock-embed") {
+      const calls: string[][] = [];
+      const embedder: Embedder = {
+        model,
+        embed: async (texts) => {
+          calls.push(texts);
+          return texts.map(() => [...raw]);
+        },
+      };
+      return { embedder, calls };
+    }
+
+    it("fuseScores adds a bounded, weighted, non-negative semantic boost", () => {
+      // Identity on the lexical score when cosine ≤ 0 (pure-lexical preserved).
+      expect(fuseScores(5, 0, 0.5)).toBe(5);
+      expect(fuseScores(5, -0.9, 0.5)).toBe(5);
+      // lexical + weight * SCALE * cosine
+      expect(fuseScores(5, 1, 0.5)).toBeCloseTo(5 + 0.5 * SEMANTIC_SCALE * 1, 10);
+      expect(fuseScores(0, 1, 1)).toBeCloseTo(SEMANTIC_SCALE, 10);
+      expect(fuseScores(3, 0.5, DEFAULT_SEMANTIC_WEIGHT)).toBeCloseTo(
+        3 + DEFAULT_SEMANTIC_WEIGHT * SEMANTIC_SCALE * 0.5,
+        10,
+      );
+    });
+
+    it("surfaces a page pure lexical misses (paraphrase recall)", () => {
+      // Neither page contains the query tokens "fixing cars" → lexical = 0.
+      createRegistryPage(
+        "automobile-care",
+        "concept",
+        "Automobile Maintenance",
+        "Keeping your vehicle running smoothly over the years.",
+      );
+      createRegistryPage(
+        "css-themes",
+        "concept",
+        "Color Palettes",
+        "Styling guidance for light and dark visual themes.",
+      );
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+
+      // Pure lexical: query matches nothing.
+      expect(searchWiki(paths, "fixing cars")).toEqual([]);
+
+      // Semantic: query vector close to the automobile page, orthogonal to CSS.
+      writeSidecar(paths, {
+        "concepts/automobile-care": [1, 0, 0, 0],
+        "concepts/css-themes": [0, 0, 1, 0],
+      });
+      const semantic: SemanticContext = {
+        queryVector: normalizeVector([0.95, 0.05, 0, 0]),
+        weight: 0.5,
+      };
+      const results = searchWiki(paths, "fixing cars", 5, 0, semantic);
+
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results[0].id).toBe("concepts/automobile-care");
+      // The near-orthogonal CSS page stays below the semantic candidacy gate.
+      expect(results.some((r) => r.id === "concepts/css-themes")).toBe(false);
+    });
+
+    it("changes ranking order vs pure lexical when semantics dominate", () => {
+      // "Login Page" matches the query lexically; "Session Management" does not.
+      createRegistryPage(
+        "login-page",
+        "concept",
+        "Login Page",
+        "The login form accepts an email and a password.",
+      );
+      createRegistryPage(
+        "session-mgmt",
+        "concept",
+        "Token Lifecycle",
+        "How bearer credentials are minted, rotated, and revoked.",
+      );
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+
+      // Pure lexical: login-page is the (weak, body-only) match for "form";
+      // session-mgmt has no lexical overlap at all.
+      const lexical = searchWiki(paths, "form", 5);
+      expect(lexical[0].id).toBe("concepts/login-page");
+      expect(lexical.some((r) => r.id === "concepts/session-mgmt")).toBe(false);
+
+      // Semantic: query vector identical to session-mgmt, orthogonal to login.
+      writeSidecar(paths, {
+        "concepts/login-page": [0, 1, 0, 0],
+        "concepts/session-mgmt": [1, 0, 0, 0],
+      });
+      const semantic: SemanticContext = { queryVector: normalizeVector([1, 0, 0, 0]), weight: 0.5 };
+      const hybrid = searchWiki(paths, "form", 5, 0, semantic);
+
+      // session-mgmt now outranks the lexically-matched login-page.
+      expect(hybrid[0].id).toBe("concepts/session-mgmt");
+      expect(hybrid.some((r) => r.id === "concepts/login-page")).toBe(true);
+    });
+
+    it("no embeddings sidecar → identical to pure lexical (regression)", () => {
+      for (const [id, title] of [
+        ["alpha", "Alpha Concept"],
+        ["beta", "Beta Concept"],
+      ] as const) {
+        createRegistryPage(id, "concept", title, `Body about ${title} and shared concept text.`);
+      }
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+
+      const pure = searchWiki(paths, "concept", 5);
+      // Passing a semantic context but with NO sidecar present must be a no-op.
+      const semantic: SemanticContext = { queryVector: [1, 0, 0, 0], weight: 0.5 };
+      const withCtxNoSidecar = searchWiki(paths, "concept", 5, 0, semantic);
+
+      expect(withCtxNoSidecar.map((r) => [r.id, r.score])).toEqual(
+        pure.map((r) => [r.id, r.score]),
+      );
+    });
+
+    it("empty/missing sidecar is safe and does not crash", () => {
+      createRegistryPage("lonely", "concept", "Lonely Page", "Just some content here.");
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+      // Write an explicitly empty store.
+      writeFileSync(
+        embeddingStorePath(paths),
+        JSON.stringify({ version: "1.0", entries: {} }),
+        "utf-8",
+      );
+      const semantic: SemanticContext = { queryVector: [1, 0], weight: 0.5 };
+      const results = searchWiki(paths, "lonely", 5, 0, semantic);
+      expect(results[0].id).toBe("concepts/lonely");
+    });
+
+    it("minScore still filters: weak cosine excluded, strong cosine passes", () => {
+      createRegistryPage(
+        "orphan",
+        "concept",
+        "Unrelated Heading",
+        "Content with no overlap with the search query at all.",
+      );
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+
+      // weight 0.5, SCALE 12 → boost = 6 * cosine. minScore 5.
+      // cosine 0.5 → boost 3 < 5 → filtered out.
+      writeSidecar(paths, { "concepts/orphan": [1, 0, 0, 0] });
+      const weak: SemanticContext = {
+        queryVector: normalizeVector([0.5, 0.866, 0, 0]),
+        weight: 0.5,
+      };
+      expect(searchWiki(paths, "zzz nonmatching", 5, 5, weak)).toEqual([]);
+
+      // cosine 1.0 → boost 6 ≥ 5 → passes.
+      const strong: SemanticContext = { queryVector: normalizeVector([1, 0, 0, 0]), weight: 0.5 };
+      const passed = searchWiki(paths, "zzz nonmatching", 5, 5, strong);
+      expect(passed.map((r) => r.id)).toEqual(["concepts/orphan"]);
+    });
+
+    it("searchWikiHybrid skips the query embedding when no sidecar exists", async () => {
+      createRegistryPage("lex-only", "concept", "Lexical Only", "A page about caching layers.");
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+
+      const { embedder, calls } = makeFixedEmbedder([1, 0, 0, 0]);
+      const results = await searchWikiHybrid(paths, "caching", 5, 0, false, { embedder });
+
+      // No sidecar → no embedding call at all → pure lexical result.
+      expect(calls).toHaveLength(0);
+      expect(results[0].id).toBe("concepts/lex-only");
+      expect(results.map((r) => [r.id, r.score])).toEqual(
+        searchWiki(paths, "caching", 5).map((r) => [r.id, r.score]),
+      );
+    });
+
+    it("searchWikiHybrid embeds the query once and caches it across calls", async () => {
+      createRegistryPage("sem-page", "concept", "Distinct Title", "Body with unrelated wording.");
+      const paths = getVaultPaths(wikiDir);
+      rebuildMetadataLight(paths);
+      // Sidecar vector equals the embedder's fixed output → cosine 1.0.
+      writeSidecar(paths, { "concepts/sem-page": [1, 0, 0, 0] }, "mock-embed");
+
+      const { embedder, calls } = makeFixedEmbedder([1, 0, 0, 0], "mock-embed");
+      const q = "a query that lexically matches nothing";
+
+      const r1 = await searchWikiHybrid(paths, q, 5, 0, false, { embedder });
+      const r2 = await searchWikiHybrid(paths, q, 5, 0, false, { embedder });
+
+      // Semantic-only page surfaced...
+      expect(r1[0].id).toBe("concepts/sem-page");
+      expect(r2[0].id).toBe("concepts/sem-page");
+      // ...and the query was embedded exactly ONCE (cached on the 2nd call).
+      expect(calls).toHaveLength(1);
     });
   });
 });

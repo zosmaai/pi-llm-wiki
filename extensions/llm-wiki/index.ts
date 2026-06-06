@@ -7,7 +7,7 @@ import {
   registerObservationReminder,
   registerWikiObserve,
 } from "./lib/observation.js";
-import { formatRecallContext, registerWikiRecall, searchWikiLayered } from "./lib/recall.js";
+import { formatRecallContext, registerWikiRecall, searchWikiHybrid } from "./lib/recall.js";
 import { registerWikiRetro } from "./lib/retro.js";
 import { registerBackgroundRuntime } from "./lib/runtime.js";
 import {
@@ -66,7 +66,7 @@ export default function (pi: ExtensionAPI) {
   registerWikiReindexEmbeddings(pi, runtime);
   registerWikiLogEvent(pi);
   registerWikiWatch(pi);
-  registerWikiRecall(pi);
+  registerWikiRecall(pi, runtime);
   registerWikiRetro(pi);
   const reminderState = createReminderState();
   registerWikiObserve(pi, reminderState);
@@ -189,7 +189,13 @@ Then call wiki_bootstrap with the inferred topic and mode to finalize the setup.
       // or multiple body matches. This eliminates accidental body-only
       // substring matches (e.g. a Tally page matching on common words).
       // includePersonal=false: personal vault is excluded from auto-injection.
-      const results = searchWikiLayered(paths, prompt, 3, 5, false);
+      // Hybrid: blends semantic cosine when embeddings exist (single cached
+      // query embedding); degrades to pure lexical otherwise. minScore=5 still
+      // gates noise — a semantic-only match must be strongly relevant to pass.
+      runtime.ensureConfig(process.cwd());
+      const results = await searchWikiHybrid(paths, prompt, 3, 5, false, {
+        config: runtime.config,
+      });
       if (results.length > 0) {
         const recallContext = formatRecallContext(results);
         if (recallContext) {

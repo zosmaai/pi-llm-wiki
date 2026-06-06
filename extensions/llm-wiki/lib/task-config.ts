@@ -44,6 +44,14 @@ export interface TaskConfig {
   embeddingApiKey?: string;
   /** Env var name to read the embedding API key from (default: OPENAI_API_KEY). */
   embeddingApiKeyEnv?: string;
+
+  /**
+   * Weight of the semantic (cosine) signal when blending with lexical score in
+   * hybrid recall (issue #67). 0 = pure lexical, 1 = pure semantic boost.
+   * Default 0.5. Only takes effect when embeddings exist AND an embedder is
+   * configured; otherwise recall stays 100% lexical.
+   */
+  semanticWeight?: number;
 }
 
 export const TASK_DEFAULTS: TaskConfig = {};
@@ -79,6 +87,11 @@ function readNamespacedConfig(path: string): Partial<TaskConfig> {
     ] as const) {
       const value = section[key];
       if (typeof value === "string" && value.trim()) out[key] = value.trim();
+    }
+
+    const weight = section.semanticWeight;
+    if (typeof weight === "number" && Number.isFinite(weight)) {
+      out.semanticWeight = Math.min(1, Math.max(0, weight));
     }
     return out;
   } catch {
