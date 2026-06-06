@@ -109,6 +109,22 @@ For thorough research, also use `wiki_search` to browse the full registry:
 wiki_search(query="broad topic")
 ```
 
+### Background Model Selection (`/wiki-model`)
+
+The wiki's background work (ingest synthesis, etc.) runs on a model you can choose. By **default it uses the current session model** — zero config.
+
+- **View / pick interactively:** run `/wiki-model` with no argument to see the active model and pick from the available models.
+- **Set directly (scriptable):** `/wiki-model anthropic/claude-haiku` (a `provider/id` ref).
+- **Revert to session model:** `/wiki-model session` (also `clear`/`default`/`reset`).
+
+The choice is persisted to project settings (`.pi/settings.json` under `llm-wiki.taskModel`) and shown in the status bar.
+
+**Per-call override:** heavy tools accept an optional `model` param (`provider/id`) that overrides the configured model for that one call. Precedence is **override > configured `taskModel` > session model**; an unknown ref degrades gracefully to the configured/session model. Example:
+
+```
+wiki_ingest(model="anthropic/claude-haiku")
+```
+
 ### Auto-Bootstrap (One-Time)
 
 The extension creates the wiki vault automatically on startup. On the first turn, it injects a directive asking you to infer topic and mode, then call:

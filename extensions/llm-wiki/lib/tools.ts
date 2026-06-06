@@ -14,6 +14,7 @@ import {
 } from "./metadata.js";
 import type { Runtime } from "./runtime.js";
 import { captureFile, captureText, captureUrl } from "./source-packet.js";
+import { parseModelRef } from "./task-config.js";
 import {
   type VaultPaths,
   detectVaultFormat,
@@ -250,6 +251,12 @@ export function registerWikiIngest(pi: ExtensionAPI, runtime?: Runtime): void {
           default: true,
         }),
       ),
+      model: Type.Optional(
+        Type.String({
+          description:
+            "Per-call model override as 'provider/id' (e.g. anthropic/claude-haiku). Overrides the configured wiki taskModel for this call; defaults to the configured/session model.",
+        }),
+      ),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const paths = getPaths(ctx.cwd);
@@ -339,7 +346,11 @@ export function registerWikiIngest(pi: ExtensionAPI, runtime?: Runtime): void {
       const wantBackground = params.background !== false;
       if (wantBackground && runtime) {
         runtime.ensureConfig(ctx.cwd);
-        const resolved = await runtime.resolveModel(ctx);
+        // Per-call model override (issue #69): 'provider/id' beats the
+        // configured taskModel; a malformed/unknown ref degrades to the
+        // configured/session model inside resolveModel.
+        const override = params.model ? parseModelRef(params.model) : undefined;
+        const resolved = await runtime.resolveModel(ctx, override);
         if (resolved.ok) {
           const launchCtx = { hasUI: ctx.hasUI, ui: ctx.ui };
           for (const s of sources) {

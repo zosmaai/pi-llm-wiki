@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { getAgentDir } from "@mariozechner/pi-coding-agent";
 
 /**
@@ -119,6 +119,63 @@ function readNamespacedConfig(path: string): Partial<TaskConfig> {
   } catch {
     return {};
   }
+}
+
+/**
+ * Parse a `"provider/id"` model reference (issue #69). Splits on the FIRST
+ * slash so model ids that themselves contain slashes (e.g.
+ * `openrouter/meta/llama-3`) are preserved. Returns `undefined` for empty,
+ * slashless, or partial (`provider/` / `/id`) refs so callers can reject bad
+ * input. Whitespace is trimmed.
+ */
+export function parseModelRef(ref: string): { provider: string; id: string } | undefined {
+  const trimmed = ref.trim();
+  const slash = trimmed.indexOf("/");
+  if (slash <= 0) return undefined;
+  const provider = trimmed.slice(0, slash).trim();
+  const id = trimmed.slice(slash + 1).trim();
+  if (!provider || !id) return undefined;
+  return { provider, id };
+}
+
+/**
+ * Persist (or clear) the wiki background `taskModel` in the PROJECT settings
+ * file `<cwd>/.pi/settings.json` under the namespaced `llm-wiki` key (issue
+ * #69). Project settings win over global in `loadTaskConfig`, so this takes
+ * effect immediately on the next config load. Other top-level keys and other
+ * `llm-wiki` settings are preserved; passing `undefined` removes the key
+ * (reverting to the session model).
+ */
+export function persistTaskModel(
+  cwd: string,
+  model: { provider: string; id: string } | undefined,
+): void {
+  const settingsPath = join(cwd, ".pi", "settings.json");
+  let raw: Record<string, unknown> = {};
+  if (existsSync(settingsPath)) {
+    try {
+      const parsed = JSON.parse(readFileSync(settingsPath, "utf-8"));
+      if (parsed && typeof parsed === "object") raw = parsed as Record<string, unknown>;
+    } catch {
+      // Corrupt settings file: start from an empty object rather than throw.
+      raw = {};
+    }
+  }
+
+  const existing = raw[SETTINGS_KEY];
+  const section: Record<string, unknown> =
+    existing && typeof existing === "object" ? { ...(existing as Record<string, unknown>) } : {};
+
+  if (model) {
+    section.taskModel = { provider: model.provider, id: model.id };
+  } else {
+    // biome-ignore lint/performance/noDelete: one-off settings rewrite, not a hot path; removing the key (vs setting undefined) keeps the JSON clean
+    delete section.taskModel;
+  }
+  raw[SETTINGS_KEY] = section;
+
+  mkdirSync(dirname(settingsPath), { recursive: true });
+  writeFileSync(settingsPath, `${JSON.stringify(raw, null, 2)}\n`, "utf-8");
 }
 
 export function loadTaskConfig(cwd: string): TaskConfig {

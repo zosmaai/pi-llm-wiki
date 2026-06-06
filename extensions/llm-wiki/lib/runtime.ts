@@ -79,12 +79,20 @@ export class Runtime {
   /**
    * Resolve the model + auth for background work.
    *
-   * Precedence: configured `taskModel` (if found in the registry) → session
-   * model. Returns { ok: false } when nothing resolves or no API key exists,
-   * so callers can fall back to the synchronous main-agent path.
+   * Precedence (issue #69): per-call `override` → configured `taskModel` →
+   * session model. Each configured layer is applied only when the model is
+   * found in the registry; a missing layer warns (when UI is available) and
+   * falls through to the next. Returns { ok: false } when nothing resolves or
+   * no API key exists, so callers can fall back to the synchronous
+   * main-agent path.
    */
-  async resolveModel(ctx: ResolveCtx): Promise<ResolveResult> {
+  async resolveModel(
+    ctx: ResolveCtx,
+    override?: { provider: string; id: string },
+  ): Promise<ResolveResult> {
     let model = ctx.model;
+
+    // Configured taskModel layer (beats the session model).
     const configured = this.config.taskModel;
     if (configured) {
       const found = ctx.modelRegistry.find(configured.provider, configured.id);
@@ -93,6 +101,21 @@ export class Runtime {
       } else if (ctx.hasUI && ctx.ui) {
         ctx.ui.notify(
           `LLM Wiki: configured task model ${configured.provider}/${configured.id} not found, using session model`,
+          "warning",
+        );
+      }
+    }
+
+    // Per-call override layer (beats both config and session).
+    if (override) {
+      const found = ctx.modelRegistry.find(override.provider, override.id);
+      if (found) {
+        model = found;
+      } else if (ctx.hasUI && ctx.ui) {
+        ctx.ui.notify(
+          `LLM Wiki: model override ${override.provider}/${override.id} not found, using ${
+            configured ? "configured/session" : "session"
+          } model`,
           "warning",
         );
       }

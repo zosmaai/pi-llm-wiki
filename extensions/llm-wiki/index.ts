@@ -3,6 +3,11 @@ import { basename, join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { installGuardrails } from "./lib/guardrails.js";
 import {
+  MODEL_STATUS_KEY,
+  formatActiveModelLabel,
+  registerWikiModelCommand,
+} from "./lib/model-command.js";
+import {
   createReminderState,
   registerObservationReminder,
   registerWikiObserve,
@@ -74,6 +79,10 @@ export default function (pi: ExtensionAPI) {
   registerWikiWatch(pi);
   registerWikiRecall(pi, runtime);
   registerWikiRetro(pi);
+  // Model selection surface (issue #69): /wiki-model command to view/set the
+  // background task model. The taskModel config field + resolveModel already
+  // exist; this exposes them to the user (default stays the session model).
+  registerWikiModelCommand(pi, runtime);
   const reminderState = createReminderState();
   registerWikiObserve(pi, reminderState);
   registerObservationReminder(pi, reminderState);
@@ -136,6 +145,12 @@ export default function (pi: ExtensionAPI) {
     }
 
     ctx.ui.setStatus("llm-wiki", "🧠 LLM Wiki (13 tools, observe + recall active)");
+
+    // Surface the active background task model (issue #69). Defaults to the
+    // session model when no taskModel is configured.
+    runtime.ensureConfig(process.cwd());
+    const modelLabel = formatActiveModelLabel(runtime.config, (ctx.model as { id?: string })?.id);
+    ctx.ui.setStatus(MODEL_STATUS_KEY, `🧠 wiki model: ${modelLabel}`);
   });
 
   // ─── Layered recall + topic inference hook ──────────
