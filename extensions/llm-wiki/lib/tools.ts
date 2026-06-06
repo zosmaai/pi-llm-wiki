@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
+import { runIngestSynthesis } from "./ingest-worker.js";
 import {
   type Registry,
   appendEvent,
@@ -10,6 +11,7 @@ import {
   rebuildMetadata,
   rebuildMetadataLight,
 } from "./metadata.js";
+import type { Runtime } from "./runtime.js";
 import { captureFile, captureText, captureUrl } from "./source-packet.js";
 import {
   type VaultPaths,
@@ -220,16 +222,17 @@ export function registerWikiCaptureSource(pi: ExtensionAPI): void {
 
 // ─── 3. wiki_ingest ─────────────────────────────────────
 
-export function registerWikiIngest(pi: ExtensionAPI): void {
+export function registerWikiIngest(pi: ExtensionAPI, runtime?: Runtime): void {
   pi.registerTool({
     name: "wiki_ingest",
     label: "Wiki Ingest",
     description:
-      "Process uningested source packets. Returns a batch of source IDs with extracted content for the LLM to synthesize.",
-    promptSnippet: "Ingest source packets: get batch of sources needing synthesis",
+      "Process uningested source packets. By default synthesis runs in the background (non-blocking) on the configured task model; pass background=false to return extracted content for the main agent to synthesize itself.",
+    promptSnippet: "Ingest source packets (background synthesis by default)",
     promptGuidelines: [
       "Use wiki_ingest when the user wants to process captured sources.",
-      "After calling this tool, read each source's extracted.md, update its source page, create entity/concept pages, and cross-reference.",
+      "By default ingestion runs in the BACKGROUND — you'll get a notification, not extracted content. Do NOT synthesize those sources yourself.",
+      "If the tool returns extracted content (background unavailable, or background=false), then read each source's extracted.md, update its source page, create entity/concept pages, and cross-reference.",
       "The extension auto-updates metadata — you do NOT need to edit meta/ files.",
     ],
     parameters: Type.Object({
@@ -237,7 +240,14 @@ export function registerWikiIngest(pi: ExtensionAPI): void {
         Type.String({ description: "Specific source ID to ingest. Leave empty for all new." }),
       ),
       batch_size: Type.Optional(
-        Type.Number({ description: "Max sources to return (default: 3, max: 5)", default: 3 }),
+        Type.Number({ description: "Max sources to process (default: 3, max: 5)", default: 3 }),
+      ),
+      background: Type.Optional(
+        Type.Boolean({
+          description:
+            "Synthesize in the background without blocking (default: true). Set false to return extracted content for the main agent to synthesize.",
+          default: true,
+        }),
       ),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -320,6 +330,58 @@ export function registerWikiIngest(pi: ExtensionAPI): void {
         const manifest = readJson<Record<string, unknown>>(manifestPath, {});
         return { id, extracted, manifest };
       });
+
+      // ── Background synthesis (issue #65) ──────────────────
+      // Default path: dispatch each source to a background sub-agent so the
+      // main agent is not blocked. Falls back to the synchronous return below
+      // when no runtime/model is available (resolveModel ok:false).
+      const wantBackground = params.background !== false;
+      if (wantBackground && runtime) {
+        runtime.ensureConfig(ctx.cwd);
+        const resolved = await runtime.resolveModel(ctx);
+        if (resolved.ok) {
+          for (const s of sources) {
+            runtime.launchTask({ hasUI: ctx.hasUI, ui: ctx.ui }, `ingest:${s.id}`, async () => {
+              const committed = await runIngestSynthesis({
+                model: resolved.model as Parameters<typeof runIngestSynthesis>[0]["model"],
+                apiKey: resolved.apiKey,
+                headers: resolved.headers,
+                paths,
+                sourceId: s.id,
+                manifest: s.manifest,
+                extracted: s.extracted,
+              });
+              if (ctx.hasUI) {
+                ctx.ui.notify(
+                  committed
+                    ? `LLM Wiki: ingested ${s.id} → ${committed.entitiesCreated.length} entit${committed.entitiesCreated.length === 1 ? "y" : "ies"}, ${committed.conceptsCreated.length} concept${committed.conceptsCreated.length === 1 ? "" : "s"}`
+                    : `LLM Wiki: ${s.id} produced no synthesis`,
+                  committed ? "info" : "warning",
+                );
+              }
+            });
+          }
+          return {
+            content: [
+              {
+                type: "text",
+                text: [
+                  `🔄 **Ingesting ${sources.length} source(s) in the background** (${toProcess.length - batch.length} remaining).`,
+                  "",
+                  ...sources.map((s) => `- **${s.id}**: ${s.manifest.title || s.id}`),
+                  "",
+                  "Synthesis runs on the configured task model without blocking. You'll be notified as each source completes — do NOT synthesize these yourself.",
+                ].join("\n"),
+              },
+            ],
+            details: {
+              background: true,
+              dispatched: sources.map((s) => s.id),
+              remaining: toProcess.length - batch.length,
+            } as Record<string, unknown>,
+          };
+        }
+      }
 
       return {
         content: [
