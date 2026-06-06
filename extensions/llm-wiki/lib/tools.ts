@@ -819,14 +819,19 @@ function runWikiLint(paths: VaultPaths, autoFix: boolean): string {
         const folder = gap.topic.includes("/") ? gap.topic.split("/")[0] : "concepts";
         const name = gap.topic.includes("/") ? gap.topic.split("/").pop()! : gap.topic;
         const pagePath = join(paths.wiki, folder, `${name}.md`);
-        if (!existsSync(pagePath)) {
-          mkdirSync(join(paths.wiki, folder), { recursive: true });
+        mkdirSync(join(paths.wiki, folder), { recursive: true });
+        try {
+          // Atomic create-if-absent: the `wx` flag fails with EEXIST instead of
+          // overwriting, avoiding the existsSync→write TOCTOU race (CodeQL).
           writeFileSync(
             pagePath,
             `---\ntype: concept\ncreated: ${fmtDate()}\nupdated: ${fmtDate()}\nsources: []\nstatus: stub\n---\n\n# ${name.replace(/-/g, " ")}\n\n_Stub auto-created by lint. Expand with content from: ${gap.mentionedBy.map((r) => `[[${r}]]`).join(", ")}_\n`,
-            "utf-8",
+            { encoding: "utf-8", flag: "wx" },
           );
           fixesApplied++;
+        } catch (err) {
+          // Page already exists — nothing to fix. Re-throw anything else.
+          if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
         }
       }
     }
