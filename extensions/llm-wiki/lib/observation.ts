@@ -284,16 +284,63 @@ export function registerWikiObserve(
 // ─── Turn-End Reminder ─────────────────────────────────
 
 /**
+ * Build the one-time, user-visible session notice (issue #77) that announces
+ * the full wiki loop so the user can SEE the wiki is active and what it offers:
+ *
+ *   retrieval (sync, on the LLM's critical path): recall → search → read
+ *   capture  (background + reported):              observe → retro
+ *
+ * Shown once per session when `notices` are enabled; silenced otherwise.
+ */
+export function buildSessionNotice(): string {
+  return [
+    "\u{1F9E0} **LLM Wiki active.**",
+    "Retrieval (inline): recall runs automatically each turn — use `wiki_search` to query",
+    "and `read` to open pages.",
+    "Capture (background + reported): `wiki_observe` for timestamped notes,",
+    "`wiki_retro` for durable insights. All other wiki actions run in the background and",
+    "report when done. Silence these notices with `llm-wiki.notices: false`.",
+  ].join(" ");
+}
+
+/**
+ * Build the periodic observe/retro reminder text. Mentions BOTH capture tools
+ * (issue #77): `wiki_observe` for timestamped session observations and
+ * `wiki_retro` for distilled, durable insights at task end.
+ */
+export function buildReminderText(): string {
+  return [
+    "**Wiki capture reminder:** If the work in this session produced non-trivial",
+    "decisions, findings, constraints, or completions worth preserving across sessions,",
+    "record them now: call `wiki_observe` for timestamped observations, or `wiki_retro`",
+    "to save a distilled insight. Both are searchable via `wiki_recall` and compound",
+    "your wiki's knowledge over time.",
+    "",
+    "One item per call. Separate distinct findings into multiple calls.",
+  ].join(" ");
+}
+
+/**
  * Track observation cadence and send turn-end reminders.
  * After every N significant turns, reminds the model to call wiki_observe
  * for non-trivial findings (same pattern as memex-retro reminders).
+ *
+ * `options.display` (issue #77) controls whether the reminder is shown to the
+ * user (`true`, the default) or injected silently into model context only
+ * (`false`). Pass a resolver so the live `notices` config is read at send time.
  */
 export function registerObservationReminder(
   pi: ExtensionAPI,
   reminderState: ReminderState,
-  options?: { turnsBetweenReminders?: number },
+  options?: { turnsBetweenReminders?: number; display?: boolean | (() => boolean) },
 ): void {
   const REMINDER_INTERVAL = options?.turnsBetweenReminders ?? 5;
+  const resolveDisplay = (): boolean => {
+    const d = options?.display;
+    if (typeof d === "function") return d();
+    if (typeof d === "boolean") return d;
+    return true;
+  };
   let turnsSinceLastReminder = 0;
 
   pi.on("session_start", async () => {
@@ -315,15 +362,8 @@ export function registerObservationReminder(
     pi.sendMessage(
       {
         customType: "wiki-observe-reminder",
-        content: [
-          "**Wiki observation reminder:** If the work in this session produced non-trivial ",
-          "decisions, findings, constraints, or completions worth preserving across sessions,",
-          "call `wiki_observe` to record them. Observations are searchable via `wiki_recall`",
-          "and compound your wiki's knowledge over time.",
-          "",
-          "One observation per call. Separate distinct findings into multiple calls.",
-        ].join(" "),
-        display: false,
+        content: buildReminderText(),
+        display: resolveDisplay(),
       },
       {
         deliverAs: "nextTurn",

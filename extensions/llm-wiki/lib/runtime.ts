@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { TASK_DEFAULTS, type TaskConfig, loadTaskConfig } from "./task-config.js";
+import { TASK_DEFAULTS, type TaskConfig, loadTaskConfig, noticesEnabled } from "./task-config.js";
 
 /**
  * Background-task runtime for the LLM Wiki (issue #64, part of #63).
@@ -52,6 +52,13 @@ export interface LaunchCtx {
 export class Runtime {
   config: TaskConfig = { ...TASK_DEFAULTS };
   configLoaded = false;
+
+  /**
+   * Extension API handle, attached at registration. Used by `report()` to emit
+   * visible completion messages for background actions (issue #77). Optional so
+   * the Runtime stays unit-testable without a live `pi`.
+   */
+  pi?: ExtensionAPI;
 
   /** Labels of tasks currently in flight (single-flight guard per label). */
   private inFlightLabels = new Set<string>();
@@ -177,6 +184,44 @@ export class Runtime {
   }
 
   /**
+   * Report a completed background action to the user (issue #77).
+   *
+   * Every mutating wiki action runs off the agent's critical path; this is how
+   * the work becomes visible. Emits a `wiki-action-report` custom message,
+   * shown in the UI when notices are enabled (the `notices` config, default
+   * on) and otherwise injected silently. Delivered as `nextTurn` so it never
+   * interrupts or triggers a turn. Never throws — reporting must not crash the
+   * background task that called it.
+   */
+  report(summary: string, opts?: { display?: boolean }): void {
+    if (!this.pi || !summary) return;
+    const display = opts?.display ?? noticesEnabled(this.config);
+    try {
+      this.pi.sendMessage(
+        { customType: "wiki-action-report", content: summary, display },
+        { deliverAs: "nextTurn" },
+      );
+    } catch {
+      // Reporting is best-effort; a stale/torn-down session must not propagate.
+    }
+  }
+
+  /**
+   * Run a mutating action in the background and report its result (issue #77).
+   *
+   * Thin wrapper over `launchTask`: `work` performs the off-thread mutation and
+   * returns a one-line human summary (or null to stay silent). On success the
+   * summary is surfaced via `report()`. Single-flight, error-isolated, and
+   * awaited-at-exit exactly like `launchTask`.
+   */
+  launchReported(ctx: LaunchCtx, label: string, work: () => Promise<string | null>): Promise<void> {
+    return this.launchTask(ctx, label, async () => {
+      const summary = await work();
+      if (summary) this.report(summary);
+    });
+  }
+
+  /**
    * Await all in-flight background tasks. Call at compaction / session exit so
    * background work is not lost. Never rejects — task errors are already
    * isolated inside launchTask.
@@ -198,6 +243,9 @@ export class Runtime {
  */
 export function registerBackgroundRuntime(pi: ExtensionAPI): Runtime {
   const runtime = new Runtime();
+  // Attach the API so background tasks can emit visible completion reports
+  // (issue #77). Done here (not in the constructor) to keep Runtime testable.
+  runtime.pi = pi;
 
   pi.on("turn_start", (_event, ctx) => {
     runtime.ensureConfig(ctx.cwd);

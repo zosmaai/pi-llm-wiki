@@ -781,7 +781,7 @@ export function formatRecallContext(
 
     lines.push(
       "",
-      "Call `read` (or `wiki_read`) on the links you need to pull full content." +
+      "Call `read` on the links you need to pull their full content." +
         " Add new findings via wiki_ensure_page or wiki_retro.",
       "",
     );
