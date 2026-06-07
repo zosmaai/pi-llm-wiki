@@ -43,12 +43,18 @@ WIKI_ROOT/
     │   ├── original/          # Original artifact
     │   ├── extracted.md       # Normalized markdown
     │   └── attachments/       # Downloaded images, PDFs
+    ├── raw/trajectories/TRJ-*/ # Immutable agent task packets (extension-owned)
+    │   ├── manifest.json      # Capture metadata (format: trajectory)
+    │   ├── packet.json        # Full tool-call sequence
+    │   └── extracted.md       # README summary
     ├── wiki/                  # Editable knowledge pages (you + LLM)
     │   ├── sources/           # One summary per source
     │   ├── entities/          # People, orgs, tools, products
     │   ├── concepts/          # Ideas, patterns, frameworks
     │   ├── syntheses/         # Cross-cutting analyses
-    │   └── analyses/          # Durable query answers
+    │   ├── analyses/          # Durable query answers
+    │   ├── cases/             # One specific past task per trajectory
+    │   └── skills/            # Reusable patterns distilled from trajectories
     ├── meta/                  # Auto-generated (extension-owned)
     │   ├── registry.json      # Master page catalog
     │   ├── backlinks.json     # Inbound link map
@@ -89,11 +95,36 @@ Each captured source becomes a packet:
 - **concept** — ideas, patterns, frameworks
 - **synthesis** — cross-source theses and tensions
 - **analysis** — durable filed answers from queries
+- **requirement** — atomic requirements with status, priority, and traceability
+- **trajectory** — an immutable captured agent task run (working-memory source)
+- **case** — one specific past task implementation, citing its trajectory
+- **skill** — a reusable pattern distilled from one or more trajectories
+
+## Agent Working-Memory (Trajectories)
+
+The wiki captures not only what the agent *reads* (sources) but what it *does*
+(trajectories). A completed task is just another kind of source, so it flows
+through the same pipeline:
+
+```
+raw/trajectories/TRJ-*  →  wiki/cases/*  →  wiki/skills/*  →  meta/*
+```
+
+- `wiki_capture_trajectory` writes the immutable packet + a skeleton `case` page
+  (auto-extracting the tool-call sequence from the live session).
+- `wiki_distill_skills` batches undistilled trajectories so the model can
+  generalize them into reusable `skill` pages.
+- `wiki_recall_skill` filters layered recall to `skill`/`case` pages —
+  "have I done something like this before?".
+
+Trajectory packets live under `raw/**` and are therefore immutable under the
+same guardrail as source packets — no new ownership rule required.
 
 ## Linking Style
 
 - Internal: `[[folder/page-name]]`
 - Citation: `[[sources/SRC-YYYY-MM-DD-NNN]]`
+- Trajectory citation: `[[trajectories/TRJ-YYYY-MM-DD-NNN]]`
 
 ## Guardrails
 

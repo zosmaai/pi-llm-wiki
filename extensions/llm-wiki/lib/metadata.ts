@@ -19,7 +19,16 @@ import {
  */
 
 export interface RegistryEntry {
-  type: "source" | "entity" | "concept" | "synthesis" | "analysis";
+  type:
+    | "source"
+    | "entity"
+    | "concept"
+    | "synthesis"
+    | "analysis"
+    | "requirement"
+    | "trajectory"
+    | "skill"
+    | "case";
   title: string;
   created: string;
   updated: string;
@@ -89,6 +98,30 @@ export function buildRegistry(paths: VaultPaths): Registry {
       if (!pages[sourcePage]) {
         pages[sourcePage] = {
           type: "source",
+          title: String(manifest.title || id),
+          created: String(manifest.captured || fmtDate()),
+          updated: String(manifest.captured || fmtDate()),
+          ...manifest,
+        };
+      }
+    }
+  }
+
+  // Scan raw trajectory packets (agent working-memory). These are catalogued
+  // under the `trajectories/` namespace so distillation and recall can find
+  // them even before a canonical case/skill page has been written.
+  if (existsSync(paths.rawTrajectories)) {
+    for (const entry of readdirSync(paths.rawTrajectories)) {
+      const manifestPath = join(paths.rawTrajectories, entry, "manifest.json");
+      if (!existsSync(manifestPath)) continue;
+
+      const manifest = readJson<Record<string, unknown>>(manifestPath, {});
+      const id = String(manifest.id || entry);
+      const trajectoryPage = `trajectories/${id}`;
+
+      if (!pages[trajectoryPage]) {
+        pages[trajectoryPage] = {
+          type: "trajectory",
           title: String(manifest.title || id),
           created: String(manifest.captured || fmtDate()),
           updated: String(manifest.captured || fmtDate()),

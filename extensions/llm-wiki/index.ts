@@ -37,6 +37,11 @@ import {
   registerWikiWatch,
 } from "./lib/tools.js";
 import {
+  registerWikiCaptureTrajectory,
+  registerWikiDistillSkills,
+  registerWikiRecallSkill,
+} from "./lib/trajectory.js";
+import {
   ensureVaultStructure,
   fmtDate,
   getVaultPaths,
@@ -48,7 +53,7 @@ import {
 /**
  * @zosmaai/pi-llm-wiki — LLM Wiki extension for Pi
  *
- * Registers 12 custom tools and installs guardrails:
+ * Registers 16 custom tools and installs guardrails:
  * - wiki_recall (layered: personal + project vaults)
  * - wiki_retro (lightweight: single markdown file)
  * - wiki_capture_source (full 4-layer pipeline)
@@ -81,6 +86,11 @@ export default function (pi: ExtensionAPI) {
   registerWikiWatch(pi);
   registerWikiRecall(pi, runtime);
   registerWikiRetro(pi, runtime);
+  // Agent working-memory: capture what the agent *did* (its tool-call
+  // trajectory), distill it into reusable skills, and recall past skills/cases.
+  registerWikiCaptureTrajectory(pi);
+  registerWikiDistillSkills(pi);
+  registerWikiRecallSkill(pi);
   // Model selection surface (issue #69): /wiki-model command to view/set the
   // background task model. The taskModel config field + resolveModel already
   // exist; this exposes them to the user (default stays the session model).
@@ -151,7 +161,7 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    ctx.ui.setStatus("llm-wiki", "🧠 LLM Wiki (13 tools, observe + recall active)");
+    ctx.ui.setStatus("llm-wiki", "🧠 LLM Wiki (16 tools, trajectory + observe + recall active)");
 
     // Surface the active background task model (issue #69). Defaults to the
     // session model when no taskModel is configured.

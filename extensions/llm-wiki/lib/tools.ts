@@ -513,7 +513,8 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
     ],
     parameters: Type.Object({
       type: Type.String({
-        description: "Page type: entity | concept | synthesis | analysis | requirement",
+        description:
+          "Page type: entity | concept | synthesis | analysis | requirement | skill | case",
       }),
       title: Type.String({ description: "Page title" }),
       content: Type.Optional(
@@ -531,7 +532,14 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
         };
       }
 
-      const type = params.type as "entity" | "concept" | "synthesis" | "analysis";
+      const type = params.type as
+        | "entity"
+        | "concept"
+        | "synthesis"
+        | "analysis"
+        | "requirement"
+        | "skill"
+        | "case";
       const slug = params.title
         .toLowerCase()
         .replace(/[^a-z0-9\s-]/g, "")
@@ -545,6 +553,8 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
         synthesis: "syntheses",
         analysis: "analyses",
         requirement: "requirements",
+        skill: "skills",
+        case: "cases",
       };
       const folder = folderMap[type] || "concepts";
       const pagePath = join(paths.wiki, folder, `${slug}.md`);
@@ -621,6 +631,76 @@ function buildPageTemplate(
       "[Description to be filled]",
       "Durable answer from a query.\n\n## Question\n\n[Original question]",
     );
+  }
+  if (type === "skill") {
+    return [
+      "---",
+      "type: skill",
+      `created: ${date}`,
+      `updated: ${date}`,
+      "status: draft",
+      "trajectories: []",
+      "tags: []",
+      "---",
+      "",
+      `# ${title}`,
+      "",
+      "_One-line summary of the reusable pattern this skill captures._",
+      "",
+      "## When to Use",
+      "",
+      "[Trigger conditions — when this pattern applies]",
+      "",
+      "## Procedure",
+      "",
+      "1. [Step 1]",
+      "2. [Step 2]",
+      "",
+      "## Pitfalls",
+      "",
+      "- [Known failure mode or caveat]",
+      "",
+      "## Distilled From",
+      "",
+      "_Trajectories this skill was generalized from._",
+      "",
+      "- [[trajectories/TRJ-...]]",
+      "",
+    ].join("\n");
+  }
+  if (type === "case") {
+    return [
+      "---",
+      "type: case",
+      `created: ${date}`,
+      `updated: ${date}`,
+      "status: draft",
+      "outcome: success",
+      "trajectory_id: ",
+      "tags: []",
+      "---",
+      "",
+      `# ${title}`,
+      "",
+      "_One-line summary of the specific task this case records._",
+      "",
+      "## Task",
+      "",
+      "[What was requested]",
+      "",
+      "## Approach",
+      "",
+      "[How the agent solved it — key steps and decisions]",
+      "",
+      "## Outcome",
+      "",
+      "[Result, and anything worth reusing or avoiding next time]",
+      "",
+      "## Trajectory",
+      "",
+      "- [[trajectories/TRJ-...]] — captured tool-call run",
+      "",
+    ].join("\n");
   }
   if (type === "requirement") {
     return [

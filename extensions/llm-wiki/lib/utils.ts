@@ -20,6 +20,7 @@ export interface VaultPaths {
   root: string;
   raw: string;
   rawSources: string;
+  rawTrajectories: string;
   wiki: string;
   meta: string;
   dotWiki: string;
@@ -157,6 +158,7 @@ export function getVaultPaths(root: string): VaultPaths {
     root,
     raw: join(root, ".llm-wiki", "raw"),
     rawSources: join(root, ".llm-wiki", "raw", "sources"),
+    rawTrajectories: join(root, ".llm-wiki", "raw", "trajectories"),
     wiki: join(root, ".llm-wiki", "wiki"),
     meta: join(root, ".llm-wiki", "meta"),
     dotWiki: join(root, ".llm-wiki"),
@@ -171,6 +173,7 @@ export function getLegacyVaultPaths(root: string): VaultPaths {
     root,
     raw: join(root, "raw"),
     rawSources: join(root, "raw", "sources"),
+    rawTrajectories: join(root, "raw", "trajectories"),
     wiki: join(root, "wiki"),
     meta: join(root, "meta"),
     dotWiki: join(root, ".wiki"),
@@ -194,6 +197,7 @@ export function resolveVaultPaths(cwd: string): VaultPaths {
 export function ensureVaultStructure(paths: VaultPaths): void {
   const dirs = [
     paths.rawSources,
+    paths.rawTrajectories,
     join(paths.raw, "assets"),
     join(paths.wiki, "sources"),
     join(paths.wiki, "entities"),
@@ -201,6 +205,8 @@ export function ensureVaultStructure(paths: VaultPaths): void {
     join(paths.wiki, "syntheses"),
     join(paths.wiki, "analyses"),
     join(paths.wiki, "requirements"),
+    join(paths.wiki, "skills"),
+    join(paths.wiki, "cases"),
     paths.meta,
     paths.dotWiki,
     paths.outputs,
@@ -238,12 +244,22 @@ export function readText(path: string): string {
 
 /** Generate the next source ID. */
 export function nextSourceId(paths: VaultPaths): string {
+  return nextSequentialId(paths.rawSources, "SRC");
+}
+
+/** Generate the next trajectory ID. */
+export function nextTrajectoryId(paths: VaultPaths): string {
+  return nextSequentialId(paths.rawTrajectories, "TRJ");
+}
+
+/** Generate the next sequential, date-stamped packet ID for a raw subdir. */
+function nextSequentialId(dir: string, kind: string): string {
   const today = new Date().toISOString().split("T")[0];
-  const prefix = `SRC-${today}`;
+  const prefix = `${kind}-${today}`;
 
-  if (!existsSync(paths.rawSources)) return `${prefix}-001`;
+  if (!existsSync(dir)) return `${prefix}-001`;
 
-  const dirs = readdirSync(paths.rawSources)
+  const dirs = readdirSync(dir)
     .filter((d) => d.startsWith(prefix))
     .sort();
 

@@ -1,6 +1,6 @@
 # API Reference
 
-All 13 tools registered by the extension. Parameters marked `?` are optional.
+All 16 tools registered by the extension. Parameters marked `?` are optional.
 
 ---
 
@@ -92,7 +92,7 @@ Resolve or safely create a canonical wiki page. Returns immediately if the page 
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `type` | `string` | ✅ | Page type: `"entity"`, `"concept"`, `"synthesis"`, `"analysis"`, or `"requirement"` |
+| `type` | `string` | ✅ | Page type: `"entity"`, `"concept"`, `"synthesis"`, `"analysis"`, `"requirement"`, `"skill"`, or `"case"` |
 | `title` | `string` | ✅ | Human-readable page title; auto-slugified to a kebab-case filename |
 | `content` | `string` | — | Full markdown content for the page; if omitted, the type-appropriate template is used |
 
@@ -331,6 +331,104 @@ details: {
 
 When `interval` is `"stop"`, returns `details: { action: "stop_instructions" }` with instructions
 for removing existing jobs via `schedule_prompt action=remove`.
+
+---
+
+## wiki_capture_trajectory
+
+Capture the just-completed task's tool-call trajectory into an immutable packet
+(`raw/trajectories/TRJ-*`) plus a skeleton `case` page (`wiki/cases/`). The working-memory
+counterpart to `wiki_capture_source`. By default the trajectory is auto-extracted from the live
+session; pass `steps` to override.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `title` | `string` | — | Short descriptive title for the task (≤60 chars). Inferred from the prompt if omitted. |
+| `task` | `string` | — | The task/prompt that started the work. Inferred from the session if omitted. |
+| `outcome` | `string` | — | `"success"` (default), `"failure"`, or `"partial"` — recorded on the case skeleton |
+| `steps` | `array` | — | Explicit trajectory steps (tool-call history). Omit to auto-extract from the live session. |
+| `model` | `string` | — | Model that ran the task. Inferred from the session if omitted. |
+
+**Returns**
+
+```
+details: {
+  trajectoryId: string,    // e.g. "TRJ-2026-06-07-001"
+  casePagePath: string,    // path to wiki/cases/....md (skeleton)
+  stepCount: number
+}
+```
+
+Errors with `isError: true` if no vault exists, or with `error: "empty_trajectory"` when no
+trajectory can be extracted and no `steps` are provided.
+
+---
+
+## wiki_distill_skills
+
+Return a batch of captured trajectories that have not yet been distilled into `skill` pages. Does
+not write anything itself — the model reads each packet and synthesizes reusable skill pages (via
+`wiki_ensure_page(type="skill")`) that cite the trajectory IDs. A trajectory counts as "distilled"
+once a `skills/` page links to it.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `trajectory_id` | `string` | — | Distill a specific trajectory only; omit for all undistilled |
+| `batch_size` | `number` | — | Max trajectories to return (default: `3`, max: `5`) |
+
+**Returns**
+
+```
+details: {
+  batch: string[],    // trajectory IDs in this batch, e.g. ["TRJ-2026-06-07-001"]
+  remaining: number   // undistilled trajectories still waiting after this batch
+}
+```
+
+Each batch entry includes the title, step/tool-call counts, and paths to read
+(`raw/trajectories/{id}/packet.json` and `extracted.md`). Returns an "all trajectories distilled"
+message with `{ distilled, total }` when nothing is pending.
+
+---
+
+## wiki_recall_skill
+
+Search distilled `skill` pages and past `case` pages for patterns relevant to the current task —
+answers "have I done something like this before?". Filters layered recall (`searchWikiLayered`) to
+skill/case pages. Call at the START of a task.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `query` | `string` | ✅ | Search query — use the task description or key terms |
+| `kind` | `string` | — | `"skill"`, `"case"`, or `"any"` (default) |
+| `max_results` | `number` | — | Maximum pages to return (default: `5`, max: `10`) |
+
+**Returns**
+
+```
+details: {
+  query: string,
+  kind: string,
+  matches: Array<{
+    id: string,           // folder-qualified page ID, e.g. "skills/jwt-revocation"
+    title: string,
+    type: string,         // "skill" | "case"
+    preview: string,
+    path: string,
+    score: number,
+    vaultLabel?: string   // "📓 personal" when result is from the personal vault
+  }>
+}
+```
+
+Returns empty `matches: []` with a hint to capture work via `wiki_capture_trajectory` /
+`wiki_distill_skills` when nothing matches.
 
 ---
 
