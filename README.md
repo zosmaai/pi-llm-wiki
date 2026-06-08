@@ -82,7 +82,7 @@ The result is a wiki that **compounds** as you capture sources, ask questions, a
 | 🧠 **Layered recall** | Searches both personal (`~/.llm-wiki/`) and project (`.llm-wiki/`) vaults — personal knowledge follows you everywhere |
 | 📝 **Auto-bootstrap** | Extension suggests creating a wiki when none exists in the current directory |
 | 💾 **Lightweight capture** | `wiki_retro` — save atomic insights as a single markdown file; full 4-layer pipeline also available via `wiki_capture_source` |
-| 🧭 **Agent working-memory** | `wiki_capture_trajectory` records *how* a task was solved (tool-call trajectory) → distill into reusable `skill`/`case` pages → `wiki_recall_skill` surfaces them next time |
+| 🧭 **Agent working-memory** _(opt-in)_ | `wiki_capture_trajectory` records *how* a task was solved (tool-call trajectory) → distill into reusable `skill`/`case` pages → `wiki_recall_skill` surfaces them next time. Off by default; enable with `/wiki-trajectories on` |
 | 🌐 **MCP Server** | Use with Claude Code, Cursor, Windsurf via stdio MCP transport |
 | 📝 **Obsidian-friendly** | Folder-qualified wikilinks, stable source-ID citations, compatible vault |
 | 🛡️ **Guardrails** | Blocks direct edits to raw sources and generated metadata |
@@ -107,9 +107,11 @@ The result is a wiki that **compounds** as you capture sources, ask questions, a
 | `wiki_rebuild_meta` | Force a full metadata rebuild (registry, backlinks, index, log) |
 | `wiki_log_event` | Append a structured event to the wiki activity log |
 | `wiki_watch` | Schedule automatic wiki updates (daily / weekly / hourly) |
-| `wiki_capture_trajectory` | Capture the completed task's tool-call trajectory (agent working-memory) |
-| `wiki_distill_skills` | Batch undistilled trajectories for synthesis into reusable skill pages |
-| `wiki_recall_skill` | Recall distilled skills + similar past cases — "have I done this before?" |
+| `wiki_capture_trajectory` _(opt-in)_ | Capture the completed task's tool-call trajectory (agent working-memory) |
+| `wiki_distill_skills` _(opt-in)_ | Batch undistilled trajectories for synthesis into reusable skill pages |
+| `wiki_recall_skill` _(opt-in)_ | Recall distilled skills + similar past cases — "have I done this before?" |
+
+> The three agent-trajectory tools are **off by default** (issue #80). Enable them with `/wiki-trajectories on` (sets `llm-wiki.trajectories`); when off they are not registered at all.
 
 ### Slash Commands
 
@@ -125,8 +127,9 @@ The result is a wiki that **compounds** as you capture sources, ask questions, a
 | `/wiki-digest [--period daily\|weekly]` | Generate a digest of recent activity |
 | `/wiki-retro` | Save atomic insights from completed tasks |
 | `/wiki-req <concept>` | Decompose a concept into atomic, traceable requirement pages |
-| `/wiki-record <title>` | Capture the completed task's trajectory (agent working-memory) |
-| `/wiki-skills [query]` | Search distilled skills + past cases relevant to the task |
+| `/wiki-trajectories <on\|off>` | Enable/disable agent working-memory (opt-in, off by default) |
+| `/wiki-record <title>` | Capture the completed task's trajectory (requires trajectories enabled) |
+| `/wiki-skills [query]` | Search distilled skills + past cases (requires trajectories enabled) |
 
 ---
 

@@ -107,11 +107,17 @@ The wiki captures not only what the agent *reads* (sources) but what it *does*
 through the same pipeline:
 
 ```
-raw/trajectories/TRJ-*  →  wiki/cases/*  →  wiki/skills/*  →  meta/*
+raw/trajectories/TRJ-*  →  wiki/skills/*  (+ optional wiki/cases/*)  →  meta/*
 ```
 
-- `wiki_capture_trajectory` writes the immutable packet + a skeleton `case` page
-  (auto-extracting the tool-call sequence from the live session).
+This is **opt-in, off by default** (issue #80): the three tools below are only
+registered when `llm-wiki.trajectories` is enabled (`/wiki-trajectories on`), and
+the `raw/trajectories`, `wiki/skills`, `wiki/cases` directories are created lazily
+on first use — so a vault with the feature off carries no trace of it.
+
+- `wiki_capture_trajectory` writes the immutable packet + a self-contained summary
+  (`extracted.md`), auto-extracting the tool-call sequence from the live session.
+  It does not emit a to-be-fleshed skeleton — capture is a single lightweight call.
 - `wiki_distill_skills` batches undistilled trajectories so the model can
   generalize them into reusable `skill` pages.
 - `wiki_recall_skill` filters layered recall to `skill`/`case` pages —

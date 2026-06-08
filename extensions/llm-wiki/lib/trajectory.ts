@@ -10,7 +10,6 @@ import {
   nextTrajectoryId,
   readJson,
   resolveVaultPaths,
-  slugify,
   writeJson,
 } from "./utils.js";
 
@@ -19,12 +18,14 @@ import {
  *
  * Where wiki_capture_source captures what the agent *read* (URLs, files, text),
  * wiki_capture_trajectory captures what the agent *did*: the sequence of
- * tool calls that solved a real task. A completed task is just another kind of
- * source, so it flows through the same 4-layer pipeline:
+ * tool calls that solved a real task. Capture is deliberately lightweight — a
+ * single call writes an immutable packet plus a SELF-CONTAINED summary
+ * (extracted.md); it does NOT emit a to-be-fleshed skeleton (issue #80). The
+ * optional distillation step then turns trajectories into reusable pages:
  *
- *   raw/trajectories/TRJ-* (immutable packet)
- *     → wiki/cases/*  (one specific past task)
+ *   raw/trajectories/TRJ-* (immutable packet + self-contained summary)
  *     → wiki/skills/* (reusable pattern distilled from many trajectories)
+ *     → wiki/cases/*  (a specific past task, written during distillation)
  *     → meta/*        (auto-generated registry/backlinks)
  */
 
@@ -72,7 +73,6 @@ export interface CaptureTrajectoryInput {
 export interface CaptureTrajectoryResult {
   trajectoryId: string;
   packetPath: string;
-  casePagePath: string;
   stepCount: number;
 }
 
@@ -220,51 +220,11 @@ function buildTrajectoryReadme(packet: TrajectoryPacket, title: string): string 
   return lines.join("\n");
 }
 
-/** Build a skeleton `case` page for a captured trajectory. */
-function buildCasePageSkeleton(packet: TrajectoryPacket, title: string, outcome: string): string {
-  const preview = (packet.prompt || "").replace(/\s+/g, " ").trim().slice(0, 300);
-
-  return `---
-type: case
-title: "${title.replace(/"/g, "'")}"
-trajectory_id: ${packet.id}
-status: skeleton
-outcome: ${outcome}
-created: ${packet.captured}
-updated: ${packet.captured}
-model: ${packet.model || "unknown"}
----
-
-# ${title}
-
-> _Trajectory: [[trajectories/${packet.id}]]_
-
-## Task
-
-[LLM: Restate what was requested]
-
-> _Auto-preview: ${preview}${(packet.prompt || "").length > 300 ? "..." : ""}_
-
-## Approach
-
-[LLM: Summarize the key steps and decisions the agent made]
-
-## Outcome
-
-[LLM: What was the result? What is worth reusing or avoiding next time?]
-
-## Trajectory
-
-- **ID:** \`[[trajectories/${packet.id}]]\`
-- **Packet:** [raw/trajectories/${packet.id}/packet.json](../../raw/trajectories/${packet.id}/packet.json)
-- **Steps:** ${packet.steps.length}
-`;
-}
-
 /**
- * Capture an agent task trajectory into an immutable packet plus a skeleton
- * case page. Mirrors the source-packet capture flow:
- *   raw/trajectories/TRJ-*  →  wiki/cases/<slug>.md
+ * Capture an agent task trajectory into an immutable packet plus a
+ * self-contained summary (extracted.md). No `[LLM:]` case skeleton is emitted
+ * (issue #80) — case pages, if wanted, are written during distillation via
+ * wiki_ensure_page(type='case').
  */
 export function captureTrajectory(
   paths: VaultPaths,
@@ -279,7 +239,6 @@ export function captureTrajectory(
   const title =
     input.title?.trim() ||
     (prompt ? prompt.replace(/\s+/g, " ").slice(0, 60) : `Task ${trajectoryId}`);
-  const outcome = input.outcome ?? "success";
 
   const packet: TrajectoryPacket = {
     id: trajectoryId,
@@ -302,19 +261,13 @@ export function captureTrajectory(
     title,
     format: "trajectory",
     model: packet.model || "unknown",
+    outcome: input.outcome ?? "success",
     step_count: steps.length,
     tool_call_count: toolCallCount,
   });
 
-  // Human/LLM-readable summary (the issue's README.md role).
+  // Self-contained, human/LLM-readable summary — no skeleton to flesh later.
   writeFileSync(join(packetPath, "extracted.md"), buildTrajectoryReadme(packet, title), "utf-8");
-
-  // Skeleton case page (the specific past task), parallel to skeleton source pages.
-  const slug = `${slugify(title)}-${trajectoryId.toLowerCase()}`.slice(0, 80);
-  const caseDir = join(paths.wiki, "cases");
-  mkdirSync(caseDir, { recursive: true });
-  const casePagePath = join(caseDir, `${slug}.md`);
-  writeFileSync(casePagePath, buildCasePageSkeleton(packet, title, outcome), "utf-8");
 
   appendEvent(paths, {
     kind: "capture_trajectory",
@@ -328,7 +281,6 @@ export function captureTrajectory(
   return {
     trajectoryId,
     packetPath,
-    casePagePath,
     stepCount: steps.length,
   };
 }
@@ -446,16 +398,16 @@ export function registerWikiCaptureTrajectory(pi: ExtensionAPI): void {
               `🧭 **Trajectory captured**: ${result.trajectoryId}`,
               "",
               `- Packet: \`${result.packetPath}/packet.json\``,
-              `- Case skeleton: \`${result.casePagePath}\``,
+              `- Summary: \`${result.packetPath}/extracted.md\``,
               `- Steps: ${result.stepCount}`,
               "",
-              "**Next:** Flesh out the case page's Approach/Outcome, then run `wiki_distill_skills` to generalize this into a reusable skill.",
+              "**Next (optional):** run `wiki_distill_skills` to generalize captured trajectories into reusable skill pages.",
             ].join("\n"),
           },
         ],
         details: {
           trajectoryId: result.trajectoryId,
-          casePagePath: result.casePagePath,
+          packetPath: result.packetPath,
           stepCount: result.stepCount,
         } as Record<string, unknown>,
       };
@@ -577,8 +529,8 @@ export function registerWikiDistillSkills(pi: ExtensionAPI): void {
               "",
               "**Next steps for each trajectory:**",
               "1. Read packet.json (full tool-call sequence) and extracted.md (summary)",
-              "2. Refine the skeleton case page in wiki/cases/",
-              "3. Create/refine reusable skill pages via wiki_ensure_page(type='skill')",
+              "2. Create/refine reusable skill pages via wiki_ensure_page(type='skill')",
+              "3. Optionally write a case page (a specific past task) via wiki_ensure_page(type='case')",
               "4. Cite the trajectory with [[trajectories/TRJ-...]] in each skill's 'Distilled From'",
               "",
               "The extension auto-updates metadata when you're done.",

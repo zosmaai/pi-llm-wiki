@@ -22,7 +22,7 @@ import {
 } from "./lib/recall.js";
 import { registerWikiRetro } from "./lib/retro.js";
 import { registerBackgroundRuntime } from "./lib/runtime.js";
-import { noticesEnabled } from "./lib/task-config.js";
+import { loadTaskConfig, noticesEnabled, trajectoriesEnabled } from "./lib/task-config.js";
 import {
   registerWikiBootstrap,
   registerWikiCaptureSource,
@@ -36,6 +36,7 @@ import {
   registerWikiStatus,
   registerWikiWatch,
 } from "./lib/tools.js";
+import { registerWikiTrajectoriesCommand } from "./lib/trajectories-command.js";
 import {
   registerWikiCaptureTrajectory,
   registerWikiDistillSkills,
@@ -53,7 +54,8 @@ import {
 /**
  * @zosmaai/pi-llm-wiki — LLM Wiki extension for Pi
  *
- * Registers 16 custom tools and installs guardrails:
+ * Registers 13 custom tools and installs guardrails (+3 agent-trajectory tools
+ * when `llm-wiki.trajectories` is enabled — opt-in, off by default, issue #80):
  * - wiki_recall (layered: personal + project vaults)
  * - wiki_retro (lightweight: single markdown file)
  * - wiki_capture_source (full 4-layer pipeline)
@@ -86,11 +88,23 @@ export default function (pi: ExtensionAPI) {
   registerWikiWatch(pi);
   registerWikiRecall(pi, runtime);
   registerWikiRetro(pi, runtime);
-  // Agent working-memory: capture what the agent *did* (its tool-call
-  // trajectory), distill it into reusable skills, and recall past skills/cases.
-  registerWikiCaptureTrajectory(pi);
-  registerWikiDistillSkills(pi);
-  registerWikiRecallSkill(pi);
+  // Agent working-memory (issue #80): capture what the agent *did* (its
+  // tool-call trajectory), distill it into reusable skills, and recall past
+  // skills/cases. OPT-IN, default OFF — registered ONLY when enabled so the 3
+  // tools cost nothing in the system prompt for users who don't opt in.
+  //
+  // Gate on loadTaskConfig(process.cwd()) at factory time, NOT runtime.config:
+  // runtime.config is empty ({}) until ensureConfig runs in a later hook, so a
+  // runtime.config gate here would read as permanently off. Toggling the flag
+  // via /wiki-trajectories reloads the extension, re-running this gate.
+  const trajectoriesOn = trajectoriesEnabled(loadTaskConfig(process.cwd()));
+  if (trajectoriesOn) {
+    registerWikiCaptureTrajectory(pi);
+    registerWikiDistillSkills(pi);
+    registerWikiRecallSkill(pi);
+  }
+  // Activation surface for the above (always available so users can turn it on).
+  registerWikiTrajectoriesCommand(pi);
   // Model selection surface (issue #69): /wiki-model command to view/set the
   // background task model. The taskModel config field + resolveModel already
   // exist; this exposes them to the user (default stays the session model).
@@ -161,7 +175,12 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    ctx.ui.setStatus("llm-wiki", "🧠 LLM Wiki (16 tools, trajectory + observe + recall active)");
+    ctx.ui.setStatus(
+      "llm-wiki",
+      trajectoriesOn
+        ? "🧠 LLM Wiki (16 tools, trajectory + observe + recall active)"
+        : "🧠 LLM Wiki (13 tools, observe + recall active)",
+    );
 
     // Surface the active background task model (issue #69). Defaults to the
     // session model when no taskModel is configured.

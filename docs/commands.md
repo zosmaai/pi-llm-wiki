@@ -13,12 +13,17 @@
 | `/wiki-status`   | Show wiki health                      |
 | `/wiki-digest`   | Daily/weekly summary                  |
 | `/wiki-retro`    | Save atomic insights from tasks        |
-| `/wiki-record`   | Capture the completed task's trajectory (agent working-memory) |
-| `/wiki-skills`   | Search distilled skills + past cases   |
+| `/wiki-model`    | View/set the background-task model     |
+| `/wiki-trajectories` | Enable/disable agent working-memory (`on`/`off`, opt-in) |
+| `/wiki-record`   | Capture the completed task's trajectory (requires trajectories enabled) |
+| `/wiki-skills`   | Search distilled skills + past cases (requires trajectories enabled) |
 
 ## Extension Tools
 
-The extension registers 16 tools the LLM can call directly:
+The extension always registers 13 tools the LLM can call directly. The 3 agent-trajectory
+tools (`wiki_capture_trajectory`, `wiki_distill_skills`, `wiki_recall_skill`) are **opt-in,
+off by default** (issue #80) — registered only when `llm-wiki.trajectories` is enabled
+(`/wiki-trajectories on`).
 
 | Tool                  | Purpose                                     |
 | --------------------- | ------------------------------------------- |
@@ -60,9 +65,10 @@ The extension registers 16 tools the LLM can call directly:
 
 ### Task → Record → Distill (agent working-memory)
 
+_Opt-in: enable first with `/wiki-trajectories on`._
+
 1. Finish a non-trivial task (debug, refactor, integration)
-2. `wiki_capture_trajectory(title="...")` — auto-extracts the tool-call trajectory from the live session into `raw/trajectories/TRJ-*` plus a skeleton `case` page
-3. Flesh out the `wiki/cases/` page (Task → Approach → Outcome)
-4. `wiki_distill_skills()` — get undistilled trajectories
-5. `wiki_ensure_page(type="skill", title="...")` — generalize into a reusable skill citing `[[trajectories/TRJ-...]]`
-6. Next time, `wiki_recall_skill(query="...")` surfaces the skill/case before you start
+2. `wiki_capture_trajectory(title="...")` — auto-extracts the tool-call trajectory from the live session into `raw/trajectories/TRJ-*` with a self-contained summary (no skeleton to flesh)
+3. `wiki_distill_skills()` — get undistilled trajectories
+4. `wiki_ensure_page(type="skill", title="...")` — generalize into a reusable skill citing `[[trajectories/TRJ-...]]` (and optionally a `case` page)
+5. Next time, `wiki_recall_skill(query="...")` surfaces the skill/case before you start

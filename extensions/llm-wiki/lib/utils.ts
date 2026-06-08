@@ -195,9 +195,12 @@ export function resolveVaultPaths(cwd: string): VaultPaths {
 
 /** Ensure all vault directories exist. */
 export function ensureVaultStructure(paths: VaultPaths): void {
+  // NOTE: the agent-trajectory dirs (raw/trajectories, wiki/skills, wiki/cases)
+  // are intentionally NOT created here — they are created lazily on first
+  // capture/distill (issue #80), so a vault with the feature off carries no
+  // trace of it. All readers of these paths are existsSync-guarded.
   const dirs = [
     paths.rawSources,
-    paths.rawTrajectories,
     join(paths.raw, "assets"),
     join(paths.wiki, "sources"),
     join(paths.wiki, "entities"),
@@ -205,8 +208,6 @@ export function ensureVaultStructure(paths: VaultPaths): void {
     join(paths.wiki, "syntheses"),
     join(paths.wiki, "analyses"),
     join(paths.wiki, "requirements"),
-    join(paths.wiki, "skills"),
-    join(paths.wiki, "cases"),
     paths.meta,
     paths.dotWiki,
     paths.outputs,

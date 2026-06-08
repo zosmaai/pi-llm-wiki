@@ -79,6 +79,14 @@ export interface TaskConfig {
    * not want any chat-level wiki notices.
    */
   notices?: boolean;
+
+  /**
+   * Agent-trajectory working-memory (capture → distill → recall), issue #80.
+   * OPT-IN, default OFF: only an explicit `trajectories: true` enables it.
+   * When off, the trajectory tools are never registered (see index.ts), so
+   * they cost nothing in the system prompt for the ~95% who don't use them.
+   */
+  trajectories?: boolean;
 }
 
 export const TASK_DEFAULTS: TaskConfig = {};
@@ -89,6 +97,15 @@ export const TASK_DEFAULTS: TaskConfig = {};
  */
 export function noticesEnabled(config: TaskConfig | undefined): boolean {
   return config?.notices !== false;
+}
+
+/**
+ * Resolve whether agent-trajectory working-memory is enabled (issue #80).
+ * INVERSE polarity of `noticesEnabled`: defaults to `false`; only an explicit
+ * `trajectories: true` turns it on.
+ */
+export function trajectoriesEnabled(config: TaskConfig | undefined): boolean {
+  return config?.trajectories === true;
 }
 
 const SETTINGS_KEY = "llm-wiki";
@@ -136,6 +153,10 @@ function readNamespacedConfig(path: string): Partial<TaskConfig> {
 
     if (typeof section.notices === "boolean") {
       out.notices = section.notices;
+    }
+
+    if (typeof section.trajectories === "boolean") {
+      out.trajectories = section.trajectories;
     }
     return out;
   } catch {
@@ -193,6 +214,41 @@ export function persistTaskModel(
   } else {
     // biome-ignore lint/performance/noDelete: one-off settings rewrite, not a hot path; removing the key (vs setting undefined) keeps the JSON clean
     delete section.taskModel;
+  }
+  raw[SETTINGS_KEY] = section;
+
+  mkdirSync(dirname(settingsPath), { recursive: true });
+  writeFileSync(settingsPath, `${JSON.stringify(raw, null, 2)}\n`, "utf-8");
+}
+
+/**
+ * Persist the agent-trajectory flag in the PROJECT settings file
+ * `<cwd>/.pi/settings.json` under the namespaced `llm-wiki` key (issue #80).
+ * Mirrors `persistTaskModel`: project settings win in `loadTaskConfig`, other
+ * keys are preserved. `true` writes `trajectories: true`; `false` removes the
+ * key (reverting to the default-off behavior).
+ */
+export function persistTrajectoriesEnabled(cwd: string, enabled: boolean): void {
+  const settingsPath = join(cwd, ".pi", "settings.json");
+  let raw: Record<string, unknown> = {};
+  if (existsSync(settingsPath)) {
+    try {
+      const parsed = JSON.parse(readFileSync(settingsPath, "utf-8"));
+      if (parsed && typeof parsed === "object") raw = parsed as Record<string, unknown>;
+    } catch {
+      raw = {};
+    }
+  }
+
+  const existing = raw[SETTINGS_KEY];
+  const section: Record<string, unknown> =
+    existing && typeof existing === "object" ? { ...(existing as Record<string, unknown>) } : {};
+
+  if (enabled) {
+    section.trajectories = true;
+  } else {
+    // biome-ignore lint/performance/noDelete: one-off settings rewrite, not a hot path; removing the key keeps the JSON clean (default is off)
+    delete section.trajectories;
   }
   raw[SETTINGS_KEY] = section;
 

@@ -31,14 +31,19 @@ describe("agent trajectory memory", () => {
     } catch {}
   });
 
-  it("creates raw/trajectories/ and wiki/cases/ in the vault structure", () => {
+  it("does not eagerly create trajectory dirs (opt-in, lazy on first capture)", () => {
+    // Issue #80: an inactive vault carries no trace of the feature.
     const paths = getVaultPaths(wikiDir);
+    expect(existsSync(paths.rawTrajectories)).toBe(false);
+    expect(existsSync(join(paths.wiki, "cases"))).toBe(false);
+    expect(existsSync(join(paths.wiki, "skills"))).toBe(false);
+
+    // raw/trajectories is created on demand by the first capture.
+    captureTrajectory(paths, { steps: [{ role: "user", text: "hi" }] });
     expect(existsSync(paths.rawTrajectories)).toBe(true);
-    expect(existsSync(join(paths.wiki, "cases"))).toBe(true);
-    expect(existsSync(join(paths.wiki, "skills"))).toBe(true);
   });
 
-  it("captures a trajectory packet and skeleton case page", () => {
+  it("captures a trajectory packet with a self-contained summary (no skeleton)", () => {
     const paths = getVaultPaths(wikiDir);
     const result = captureTrajectory(paths, {
       title: "Fix login timeout",
@@ -80,17 +85,14 @@ describe("agent trajectory memory", () => {
     expect(manifest.format).toBe("trajectory");
     expect(manifest.tool_call_count).toBe(1);
 
-    // README/extracted summary
+    // README/extracted summary is self-contained — no [LLM:] placeholders to flesh.
     const readme = readFile(join(result.packetPath, "extracted.md"));
     expect(readme).toContain("Fix login timeout");
     expect(readme).toContain("`read`");
+    expect(readme).not.toContain("[LLM:");
 
-    // skeleton case page
-    expect(existsSync(result.casePagePath)).toBe(true);
-    const casePage = readFile(result.casePagePath);
-    expect(casePage).toContain("type: case");
-    expect(casePage).toContain(`trajectory_id: ${result.trajectoryId}`);
-    expect(casePage).toContain(`[[trajectories/${result.trajectoryId}]]`);
+    // No skeleton case page is emitted; capture does not create wiki/cases/.
+    expect(existsSync(join(paths.wiki, "cases"))).toBe(false);
   });
 
   it("registers the trajectory in metadata as type 'trajectory'", () => {

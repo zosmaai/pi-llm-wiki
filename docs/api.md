@@ -1,6 +1,11 @@
 # API Reference
 
-All 16 tools registered by the extension. Parameters marked `?` are optional.
+All tools registered by the extension. Parameters marked `?` are optional.
+
+13 tools are always registered. The 3 agent-trajectory tools
+(`wiki_capture_trajectory`, `wiki_distill_skills`, `wiki_recall_skill`) are **opt-in,
+off by default** (issue #80) — they are only registered when `llm-wiki.trajectories`
+is `true`; enable with `/wiki-trajectories on`.
 
 ---
 
@@ -337,9 +342,10 @@ for removing existing jobs via `schedule_prompt action=remove`.
 ## wiki_capture_trajectory
 
 Capture the just-completed task's tool-call trajectory into an immutable packet
-(`raw/trajectories/TRJ-*`) plus a skeleton `case` page (`wiki/cases/`). The working-memory
+(`raw/trajectories/TRJ-*`) with a self-contained summary (`extracted.md`). The working-memory
 counterpart to `wiki_capture_source`. By default the trajectory is auto-extracted from the live
-session; pass `steps` to override.
+session; pass `steps` to override. **Opt-in** (issue #80): only available when
+`llm-wiki.trajectories` is enabled (`/wiki-trajectories on`).
 
 **Parameters**
 
@@ -347,7 +353,7 @@ session; pass `steps` to override.
 |------|------|----------|-------------|
 | `title` | `string` | — | Short descriptive title for the task (≤60 chars). Inferred from the prompt if omitted. |
 | `task` | `string` | — | The task/prompt that started the work. Inferred from the session if omitted. |
-| `outcome` | `string` | — | `"success"` (default), `"failure"`, or `"partial"` — recorded on the case skeleton |
+| `outcome` | `string` | — | `"success"` (default), `"failure"`, or `"partial"` — recorded in the packet manifest |
 | `steps` | `array` | — | Explicit trajectory steps (tool-call history). Omit to auto-extract from the live session. |
 | `model` | `string` | — | Model that ran the task. Inferred from the session if omitted. |
 
@@ -356,7 +362,7 @@ session; pass `steps` to override.
 ```
 details: {
   trajectoryId: string,    // e.g. "TRJ-2026-06-07-001"
-  casePagePath: string,    // path to wiki/cases/....md (skeleton)
+  packetPath: string,      // path to raw/trajectories/TRJ-*/ (packet.json + extracted.md)
   stepCount: number
 }
 ```

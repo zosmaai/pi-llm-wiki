@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { SessionManager } from "@mariozechner/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -141,8 +141,7 @@ describe("trajectory extraction — real pi SessionManager", () => {
     expect(packet.model).toBe("claude-haiku-4-5");
     expect((packet.steps as unknown[]).length).toBe(2);
 
-    // Skeleton case page + README produced.
-    expect(existsSync(result.casePagePath)).toBe(true);
+    // Self-contained summary produced (no skeleton case page).
     const readme = readFile(join(result.packetPath, "extracted.md"));
     expect(readme).toContain("`read`");
   });
