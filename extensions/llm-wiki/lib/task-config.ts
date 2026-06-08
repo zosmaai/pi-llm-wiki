@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@mariozechner/pi-coding-agent";
 
@@ -120,9 +120,8 @@ function readModelSpec(value: unknown): { provider: string; id: string } | undef
 }
 
 function readNamespacedConfig(path: string): Partial<TaskConfig> {
-  if (!existsSync(path)) return {};
   try {
-    const raw = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
+    const raw = readSettingsObject(path);
     const nested = raw[SETTINGS_KEY];
     if (!nested || typeof nested !== "object") return {};
     const section = nested as Record<string, unknown>;
@@ -182,6 +181,22 @@ export function parseModelRef(ref: string): { provider: string; id: string } | u
 }
 
 /**
+ * Read a settings JSON file as a plain object, or `{}` when it is absent or
+ * corrupt. Reads directly (no `existsSync` pre-check) so there is no
+ * check-then-use race: a missing file throws ENOENT, which the catch treats
+ * the same as an empty file.
+ */
+function readSettingsObject(path: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf-8"));
+    if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
+  } catch {
+    // Missing or corrupt settings file: start from an empty object.
+  }
+  return {};
+}
+
+/**
  * Persist (or clear) the wiki background `taskModel` in the PROJECT settings
  * file `<cwd>/.pi/settings.json` under the namespaced `llm-wiki` key (issue
  * #69). Project settings win over global in `loadTaskConfig`, so this takes
@@ -194,16 +209,7 @@ export function persistTaskModel(
   model: { provider: string; id: string } | undefined,
 ): void {
   const settingsPath = join(cwd, ".pi", "settings.json");
-  let raw: Record<string, unknown> = {};
-  if (existsSync(settingsPath)) {
-    try {
-      const parsed = JSON.parse(readFileSync(settingsPath, "utf-8"));
-      if (parsed && typeof parsed === "object") raw = parsed as Record<string, unknown>;
-    } catch {
-      // Corrupt settings file: start from an empty object rather than throw.
-      raw = {};
-    }
-  }
+  const raw = readSettingsObject(settingsPath);
 
   const existing = raw[SETTINGS_KEY];
   const section: Record<string, unknown> =
@@ -230,15 +236,7 @@ export function persistTaskModel(
  */
 export function persistTrajectoriesEnabled(cwd: string, enabled: boolean): void {
   const settingsPath = join(cwd, ".pi", "settings.json");
-  let raw: Record<string, unknown> = {};
-  if (existsSync(settingsPath)) {
-    try {
-      const parsed = JSON.parse(readFileSync(settingsPath, "utf-8"));
-      if (parsed && typeof parsed === "object") raw = parsed as Record<string, unknown>;
-    } catch {
-      raw = {};
-    }
-  }
+  const raw = readSettingsObject(settingsPath);
 
   const existing = raw[SETTINGS_KEY];
   const section: Record<string, unknown> =
