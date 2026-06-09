@@ -437,14 +437,30 @@ describe("wiki recall", () => {
 
     it("small vault (default opts) renders previews inline, no scores (regression)", () => {
       const out = formatRecallContext(sampleResults());
-      // Byte-for-byte identical to the explicit linksOnly=false path.
-      expect(out).toBe(formatRecallContext(sampleResults(), { linksOnly: false }));
-      // Preview content is present; no score / two-stage directive leaks in.
-      expect(out).toContain("Retrieval augmented generation is a technique");
-      expect(out).toContain("## Relevant Wiki Knowledge\n");
+      // Prior-release guard (NOT a self-comparison): for ordinary non-skill pages
+      // the default path must render byte-for-byte as it did pre-fix — no resolvable
+      // `↳ read <path>` line, the original footer copy. This is the #68 promise that
+      // small vaults below the threshold see zero recall-shape regression.
+      const expected = [
+        "## Relevant Wiki Knowledge",
+        "",
+        "_2 page(s) matched your query (personal + project)._",
+        "",
+        "- **[[concepts/rag]]** — *concept* — RAG",
+        "  Retrieval augmented generation is a technique for grounding LLMs in external knowledge sources.",
+        "",
+        "- **[[entities/openai]]** — *entity* — OpenAI 📓 personal",
+        "  OpenAI is an AI research organization.",
+        "",
+        "Use `read` to view full pages. Add new findings via wiki_ensure_page or wiki_retro.",
+        "",
+      ].join("\n");
+      expect(out).toBe(expected);
+      // Belt-and-suspenders: the links-first-only affordances must not leak here.
+      expect(out).not.toContain("↳");
+      expect(out).not.toContain("on the exact path shown under each link");
       expect(out).not.toContain("links-first");
       expect(out).not.toContain("score ");
-      expect(out).toContain("Use `read` to view full pages.");
     });
 
     it("large vault (linksOnly) renders ranked links: id/title/type/score/snippet, no full preview", () => {
@@ -515,6 +531,32 @@ describe("wiki recall", () => {
       expect(loadTaskConfig(projectDir).recallLinksThreshold).toBeUndefined();
     });
 
+    it("config parsing clamps recallSkillInlineMax to a non-negative integer", async () => {
+      const { loadTaskConfig } = await import("../extensions/llm-wiki/lib/task-config.js");
+      const projectDir = join(tmpDir, "cfg-inline-max");
+      mkdirSync(join(projectDir, ".pi"), { recursive: true });
+      writeFileSync(
+        join(projectDir, ".pi", "settings.json"),
+        JSON.stringify({ "llm-wiki": { recallSkillInlineMax: 800.9 } }),
+        "utf-8",
+      );
+      expect(loadTaskConfig(projectDir).recallSkillInlineMax).toBe(800);
+
+      writeFileSync(
+        join(projectDir, ".pi", "settings.json"),
+        JSON.stringify({ "llm-wiki": { recallSkillInlineMax: -10 } }),
+        "utf-8",
+      );
+      expect(loadTaskConfig(projectDir).recallSkillInlineMax).toBe(0);
+
+      writeFileSync(
+        join(projectDir, ".pi", "settings.json"),
+        JSON.stringify({ "llm-wiki": { recallSkillInlineMax: "nope" } }),
+        "utf-8",
+      );
+      expect(loadTaskConfig(projectDir).recallSkillInlineMax).toBeUndefined();
+    });
+
     it("end-to-end gating: same results below vs above a custom threshold", () => {
       createRegistryPage("alpha", "concept", "Alpha", "Body about caching alpha.");
       createRegistryPage("beta", "concept", "Beta", "Body about caching beta.");
@@ -536,6 +578,233 @@ describe("wiki recall", () => {
       expect(inline).not.toContain("links-first");
       expect(links).toContain("links-first");
       expect(links).toContain("score ");
+    });
+  });
+
+  // ── Recall-adherence rendering: resolvable read-path, salience nudge, and
+  //    the skills/cases inline carve-out (commit ee16fad) ──
+  describe("recall-adherence rendering (read-path + nudge + skills inline)", () => {
+    const NUDGE = "read and APPLY it BEFORE experimenting";
+
+    // Write a real skill fixture on disk so inlineSkillBody can read it; the
+    // returned absolute path is what formatRecallContext renders + inlines.
+    const writeSkillFixture = (name: string, content: string): string => {
+      const dir = join(wikiDir, ".llm-wiki", "wiki", "skills");
+      mkdirSync(dir, { recursive: true });
+      const path = join(dir, `${name}.md`);
+      writeFileSync(path, content, "utf-8");
+      return path;
+    };
+
+    it("surfaces a resolvable `read <path>` under each link in links-first, but NOT in the default small-vault path", () => {
+      const results = [
+        {
+          id: "concepts/rag",
+          title: "RAG",
+          type: "concept",
+          preview: "p",
+          path: "/abs/wiki/concepts/rag.md",
+          score: 5,
+        },
+      ];
+      // Links-first: there is no inline content, so every link gets a resolvable path.
+      expect(formatRecallContext(results, { linksOnly: true })).toContain(
+        "↳ `read /abs/wiki/concepts/rag.md`",
+      );
+      // Default (small-vault) mode: ordinary pages keep the pre-fix render — no read-path line.
+      expect(formatRecallContext(results)).not.toContain("↳");
+    });
+
+    it("omits the read-path line in links-first when a result has no path", () => {
+      const results = [
+        { id: "concepts/x", title: "X", type: "concept", preview: "p", path: "", score: 5 },
+      ];
+      expect(formatRecallContext(results, { linksOnly: true })).not.toContain("↳ `read");
+    });
+
+    it("injects the salience nudge in both modes only when a skill/case matches", () => {
+      const plain = [
+        {
+          id: "concepts/rag",
+          title: "RAG",
+          type: "concept",
+          preview: "p",
+          path: "/x.md",
+          score: 5,
+        },
+      ];
+      expect(formatRecallContext(plain)).not.toContain(NUDGE);
+      expect(formatRecallContext(plain, { linksOnly: true })).not.toContain(NUDGE);
+
+      // Caught by the type check (skill/case) AND by the id-prefix fallback for
+      // pages whose frontmatter type was lost (recall as a generic "page").
+      const skillish = [
+        {
+          id: "skills/debug",
+          title: "Debug",
+          type: "skill",
+          preview: "p",
+          path: "/x.md",
+          score: 9,
+        },
+        {
+          id: "cases/outage",
+          title: "Outage",
+          type: "case",
+          preview: "p",
+          path: "/x.md",
+          score: 9,
+        },
+        { id: "skills/lost", title: "Lost", type: "page", preview: "p", path: "/x.md", score: 9 },
+        { id: "cases/lost", title: "Lost", type: "page", preview: "p", path: "/x.md", score: 9 },
+      ];
+      for (const r of skillish) {
+        expect(formatRecallContext([r])).toContain(NUDGE);
+        expect(formatRecallContext([r], { linksOnly: true })).toContain(NUDGE);
+      }
+    });
+
+    it("inlines a skill body (frontmatter stripped) and suppresses the one-line preview", () => {
+      const path = writeSkillFixture(
+        "kebab-cli",
+        [
+          "---",
+          "type: skill",
+          'title: "Kebab CLI"',
+          "---",
+          "",
+          "# Kebab CLI",
+          "",
+          "Always pass --json.",
+        ].join("\n"),
+      );
+      const results = [
+        {
+          id: "skills/kebab-cli",
+          title: "Kebab CLI",
+          type: "skill",
+          preview: "ONE-LINE-PREVIEW",
+          path,
+          score: 9,
+        },
+      ];
+      const out = formatRecallContext(results);
+      expect(out).toContain("Always pass --json."); // body inlined
+      expect(out).not.toContain("type: skill"); // frontmatter stripped
+      expect(out).not.toContain("ONE-LINE-PREVIEW"); // preview suppressed when inlined
+      // Even in default mode an inlined skill carries its resolvable path (the
+      // body may be truncated) — this is the ONLY default-path read-path line.
+      expect(out).toContain(`↳ \`read ${path}\``);
+    });
+
+    it("skillInlineMax 0 disables inlining (skill falls back to preview/link, zero page-body I/O)", () => {
+      const path = writeSkillFixture(
+        "disabled",
+        ["---", "type: skill", "---", "", "Body that should NOT be inlined."].join("\n"),
+      );
+      const results = [
+        {
+          id: "skills/disabled",
+          title: "Disabled",
+          type: "skill",
+          preview: "PREVIEW-FALLBACK",
+          path,
+          score: 9,
+        },
+      ];
+      // Default mode, inlining off → no body, falls back to preview, no read-path line.
+      const def = formatRecallContext(results, { skillInlineMax: 0 });
+      expect(def).not.toContain("Body that should NOT be inlined.");
+      expect(def).toContain("PREVIEW-FALLBACK");
+      expect(def).not.toContain("↳");
+      // Links-first, inlining off → ranked link only, no inlined body.
+      const links = formatRecallContext(results, { linksOnly: true, skillInlineMax: 0 });
+      expect(links).not.toContain("Body that should NOT be inlined.");
+      expect(links).toContain("[[skills/disabled]]");
+    });
+
+    it("falls back to the preview when the skill file can't be read", () => {
+      const results = [
+        {
+          id: "skills/missing",
+          title: "Missing",
+          type: "skill",
+          preview: "FALLBACK-PREVIEW",
+          path: "/does/not/exist.md",
+          score: 9,
+        },
+      ];
+      const out = formatRecallContext(results);
+      expect(out).toContain("FALLBACK-PREVIEW"); // preview, not an inlined body
+      expect(out).toContain(NUDGE); // still a skill → still nudged
+    });
+
+    it("truncates an over-long skill body with a marker", () => {
+      const huge = "A".repeat(5000);
+      const path = writeSkillFixture("huge", ["---", "type: skill", "---", "", huge].join("\n"));
+      const results = [
+        { id: "skills/huge", title: "Huge", type: "skill", preview: "p", path, score: 9 },
+      ];
+      const out = formatRecallContext(results);
+      expect(out).toContain("…(truncated — `read` the path above for the full page)");
+      expect(out).not.toContain(huge); // full body not dumped
+    });
+
+    it("wraps a fenced skill body in a longer outer fence so it can't terminate early", () => {
+      // Skill body contains its OWN ```bash fence — the wrapper must out-length
+      // it (regression for the code-fence corruption bug).
+      const path = writeSkillFixture(
+        "fenced",
+        [
+          "---",
+          "type: skill",
+          "---",
+          "",
+          "Run this:",
+          "",
+          "```bash",
+          "kebab build --json",
+          "```",
+          "",
+          "Done.",
+        ].join("\n"),
+      );
+      const results = [
+        { id: "skills/fenced", title: "Fenced", type: "skill", preview: "p", path, score: 9 },
+      ];
+      const out = formatRecallContext(results, { linksOnly: true });
+      // Whole body — including the inner fence's contents and trailing prose — is present.
+      expect(out).toContain("kebab build --json");
+      expect(out).toContain("Done.");
+      // Two wrapper fences, each strictly longer than the body's own 3-backtick
+      // fence (which survives as content), prove no early termination.
+      const fenceLens = out
+        .split("\n")
+        .filter((l) => /^\s*`{3,}\s*$/.test(l))
+        .map((l) => l.trim().length);
+      expect(fenceLens).toContain(3); // body's own ``` preserved as content
+      expect(fenceLens.filter((n) => n >= 4).length).toBe(2); // two longer wrappers
+    });
+
+    it("strips CRLF frontmatter so no raw YAML leaks into the prompt", () => {
+      const crlf = [
+        "---",
+        "type: skill",
+        'title: "CRLF"',
+        "---",
+        "",
+        "# CRLF Skill",
+        "",
+        "Body after CRLF frontmatter.",
+      ].join("\r\n");
+      const path = writeSkillFixture("crlf", crlf);
+      const results = [
+        { id: "skills/crlf", title: "CRLF", type: "skill", preview: "p", path, score: 9 },
+      ];
+      const out = formatRecallContext(results);
+      expect(out).toContain("Body after CRLF frontmatter.");
+      expect(out).not.toContain("type: skill"); // frontmatter gone despite CRLF
+      expect(out).not.toContain("---"); // no raw YAML delimiters leaked
     });
   });
 

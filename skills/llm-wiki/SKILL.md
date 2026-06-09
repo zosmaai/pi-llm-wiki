@@ -136,6 +136,8 @@ Recall scales with vault size via **two-stage retrieval** (memex-style):
 
 The gate is the `recallLinksThreshold` setting (namespaced `llm-wiki`, default **50** pages). Page count is read from `meta/registry.json` (O(1), no page-body I/O). Set it to `0` to force links-first always, or a large number to always keep previews inline.
 
+**Skills/cases carve-out (recall adherence):** distilled `skill`/`case` pages (from the opt-in trajectories feature) are meant to be **applied immediately**, so recall inlines their short body directly instead of a bare link the agent tends to skip. The `recallSkillInlineMax` setting (namespaced `llm-wiki`, default **1600** chars, clamped to a non-negative integer) caps how much body is inlined; set it to `0` to disable inlining entirely (skills/cases fall back to pure links-first, and no page body is read at format time). Only relevant when `trajectories` is enabled.
+
 ### At End — Save Insights with wiki_retro
 
 After completing any meaningful task, call `wiki_retro` to save key insights:

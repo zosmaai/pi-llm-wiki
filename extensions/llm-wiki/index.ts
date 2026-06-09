@@ -270,7 +270,10 @@ Then call wiki_bootstrap with the inferred topic and mode to finalize the setup.
         // large vault never floods the system prompt with inline previews.
         // includePersonal=false here mirrors the auto-injection search scope.
         const linksOnly = shouldUseLinksFirst(vaultPageCount(paths, false), runtime.config);
-        const recallContext = formatRecallContext(results, { linksOnly });
+        const recallContext = formatRecallContext(results, {
+          linksOnly,
+          skillInlineMax: runtime.config?.recallSkillInlineMax,
+        });
         if (recallContext) {
           injectedContext += `\n\n${recallContext}`;
         }

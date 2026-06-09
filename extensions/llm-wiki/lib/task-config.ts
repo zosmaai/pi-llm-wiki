@@ -71,6 +71,19 @@ export interface TaskConfig {
   recallLinksThreshold?: number;
 
   /**
+   * Max characters of a distilled `skill`/`case` body inlined directly into a
+   * recall block before truncation (recall-adherence fix). Skills/cases are
+   * meant to be APPLIED immediately, so links-first recall inlines their short
+   * body instead of a bare link the agent often skips. Set to 0 to DISABLE
+   * inlining entirely — skills/cases then fall back to the normal link/preview
+   * path (pure links-first), and no page body is read at format time. Only
+   * relevant when the trajectories feature is on (skill/case pages exist only
+   * then). Default 1600. Clamped to a non-negative integer. Mirrors the
+   * `recallLinksThreshold` knob — the other context-window lever for recall.
+   */
+  recallSkillInlineMax?: number;
+
+  /**
    * Surface wiki activity in the UI (issue #77). When enabled (the default),
    * the status line reflects recall hits and the periodic observe/retro
    * reminder is shown to the user (`display: true`) instead of being injected
@@ -148,6 +161,11 @@ function readNamespacedConfig(path: string): Partial<TaskConfig> {
     const threshold = section.recallLinksThreshold;
     if (typeof threshold === "number" && Number.isFinite(threshold)) {
       out.recallLinksThreshold = Math.max(0, Math.floor(threshold));
+    }
+
+    const inlineMax = section.recallSkillInlineMax;
+    if (typeof inlineMax === "number" && Number.isFinite(inlineMax)) {
+      out.recallSkillInlineMax = Math.max(0, Math.floor(inlineMax));
     }
 
     if (typeof section.notices === "boolean") {

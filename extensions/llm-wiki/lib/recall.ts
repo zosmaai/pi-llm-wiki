@@ -33,7 +33,7 @@ export interface RecallResult {
   type: string;
   /** First N chars of page content for context */
   preview: string;
-  /** Relative path from wiki root */
+  /** Absolute filesystem path to the page (resolvable by the `read` tool). */
   path: string;
   /** Vault source label for dual-vault results */
   vaultLabel?: string;
@@ -743,8 +743,12 @@ function linkSnippet(preview: string): string {
   return oneLine.length > LINKS_SNIPPET_MAX ? `${oneLine.slice(0, LINKS_SNIPPET_MAX)}…` : oneLine;
 }
 
-/** Max chars of a skill/case body inlined directly into the recall block. */
-const SKILL_INLINE_MAX = 1600;
+/**
+ * Default cap on chars of a skill/case body inlined directly into a recall
+ * block. Overridable per-vault via `recallSkillInlineMax` (0 disables inlining).
+ * Mirrors `DEFAULT_RECALL_LINKS_THRESHOLD` — the sibling context-window lever.
+ */
+export const DEFAULT_RECALL_SKILL_INLINE_MAX = 1600;
 
 /**
  * Skills/working-memory carve-out from links-first: short, high-value
@@ -762,34 +766,75 @@ function isSkillOrCase(r: RecallResult): boolean {
   );
 }
 
-function inlineSkillBody(r: RecallResult): string | null {
+/**
+ * Inlined body for a skill/case page, or null. `max <= 0` disables inlining and
+ * short-circuits BEFORE any filesystem access, so a vault that opts out keeps
+ * recall page-body-I/O-free (issue #68's cheap-recall invariant). Otherwise the
+ * read is bounded: it fires only for skill/case results (which exist only when
+ * the trajectories feature is on) and only the top-N ranked hits.
+ */
+function inlineSkillBody(r: RecallResult, max = DEFAULT_RECALL_SKILL_INLINE_MAX): string | null {
+  if (max <= 0) return null;
   if (!isSkillOrCase(r)) return null;
   if (!r.path || !existsSync(r.path)) return null;
-  let body = readFileSync(r.path, "utf-8");
+  // Normalize CRLF first so the LF-anchored frontmatter strip below works on
+  // Windows-authored / git-autocrlf'd vaults (otherwise the raw YAML leaks in).
+  let body = readFileSync(r.path, "utf-8").replace(/\r\n/g, "\n");
   body = body.replace(/^---\n[\s\S]*?\n---\n/, "").trim(); // strip YAML frontmatter
   if (!body) return null;
-  if (body.length > SKILL_INLINE_MAX) {
-    body = `${body.slice(0, SKILL_INLINE_MAX)}\n…(truncated — \`read\` the path above for the full page)`;
+  if (body.length > max) {
+    body = `${body.slice(0, max)}\n…(truncated — \`read\` the path above for the full page)`;
   }
   return body;
+}
+
+/**
+ * A backtick fence guaranteed longer than any backtick run inside `body`.
+ * Skill/case pages routinely embed their own fenced code blocks; CommonMark
+ * closes a fenced block only on a fence of length >= the opener, so opening
+ * with (longest inner run + 1, min 3) keeps an inlined body from terminating
+ * the wrapper early — and stays safe even when truncation cuts mid-fence.
+ */
+function codeFenceFor(body: string): string {
+  let longest = 0;
+  for (const run of body.match(/`+/g) ?? []) longest = Math.max(longest, run.length);
+  return "`".repeat(Math.max(3, longest + 1));
+}
+
+/** Indented, fence-safe lines wrapping an inlined skill/case body. */
+function inlineBlockLines(body: string, indent: string): string[] {
+  const fence = codeFenceFor(body);
+  return [
+    "",
+    `${indent}${fence}`,
+    ...body.split("\n").map((line) => `${indent}${line}`),
+    `${indent}${fence}`,
+  ];
 }
 
 /**
  * Format recall results as a compact system-prompt section.
  *
  * Two render modes (issue #68):
- * - Default / `linksOnly: false` — preview-inline (unchanged for small vaults).
+ * - Default / `linksOnly: false` — preview-inline. For ordinary pages this is
+ *   byte-for-byte the pre-fix small-vault rendering (no regression); the
+ *   resolvable read-path + new footer copy are confined to links-first, where
+ *   there is no inline content and the agent MUST resolve a link.
  * - `linksOnly: true` — stage-1 "links-first": a ranked list of links carrying
- *   id, title, type, score, and a single short snippet. The agent expands the
- *   links it wants on demand via `read` (stage 2). Used above the vault-size
- *   threshold to keep large vaults from flooding context.
+ *   id, title, type, score, and a single short snippet, each with a resolvable
+ *   `read <path>`. The agent expands the links it wants on demand (stage 2).
+ *   Used above the vault-size threshold to keep large vaults from flooding context.
+ *
+ * `skillInlineMax` (default `DEFAULT_RECALL_SKILL_INLINE_MAX`) caps how much of a
+ * skill/case body is inlined; 0 disables inlining (pure links-first for those too).
  */
 export function formatRecallContext(
   results: RecallResult[],
-  opts: { linksOnly?: boolean } = {},
+  opts: { linksOnly?: boolean; skillInlineMax?: number } = {},
 ): string {
   if (results.length === 0) return "";
 
+  const skillInlineMax = opts.skillInlineMax ?? DEFAULT_RECALL_SKILL_INLINE_MAX;
   const hasLayered = results.some((r) => r.vaultLabel);
   const label = hasLayered ? " (personal + project)" : "";
   // Salience nudge: when a distilled skill/case matches, tell the agent to
@@ -819,8 +864,8 @@ export function formatRecallContext(
       if (r.path) lines.push(`   ↳ \`read ${r.path}\``);
       // Skills/case carve-out: inline the body so the agent doesn't have to
       // (and often won't) expand the link before acting.
-      const inl = inlineSkillBody(r);
-      if (inl) lines.push("", "   \`\`\`", ...inl.split("\n").map((x) => `   ${x}`), "   \`\`\`");
+      const inl = inlineSkillBody(r, skillInlineMax);
+      if (inl) lines.push(...inlineBlockLines(inl, "   "));
     });
 
     lines.push(
@@ -844,13 +889,15 @@ export function formatRecallContext(
   for (const r of results) {
     const vaultTag = r.vaultLabel ? ` ${r.vaultLabel}` : "";
     lines.push(`- **[[${r.id}]]** — *${r.type}* — ${r.title}${vaultTag}`);
-    // Read-resolvable path so the agent expands in one first-try `read`
-    // instead of guessing the file location from the wikilink id.
-    if (r.path) lines.push(`  ↳ \`read ${r.path}\``);
-    // Skills/case carve-out: inline the body (adherence > context-economy).
-    const inl = inlineSkillBody(r);
+    // Skills/case carve-out: inline the body (adherence > context-economy). Only
+    // here does the default path deviate from the pre-fix small-vault render —
+    // and only when a skill/case matched (i.e. the trajectories feature is on),
+    // so ordinary pages stay byte-for-byte unchanged (#68 no-regression promise).
+    const inl = inlineSkillBody(r, skillInlineMax);
     if (inl) {
-      lines.push("", "  ```", ...inl.split("\n").map((x) => `  ${x}`), "  ```");
+      // Resolvable path so a truncated inline body is one `read` away.
+      if (r.path) lines.push(`  ↳ \`read ${r.path}\``);
+      lines.push(...inlineBlockLines(inl, "  "));
     } else if (r.preview) {
       // Truncate preview to one line
       const preview = r.preview.length > 120 ? `${r.preview.slice(0, 120)}…` : r.preview;
@@ -860,8 +907,7 @@ export function formatRecallContext(
   }
 
   lines.push(
-    "Use `read` on the exact path shown under each link to view its full page." +
-      " Add new findings via wiki_ensure_page or wiki_retro.",
+    "Use `read` to view full pages. Add new findings via wiki_ensure_page or wiki_retro.",
     "",
   );
 
