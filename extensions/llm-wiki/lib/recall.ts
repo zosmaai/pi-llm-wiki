@@ -743,6 +743,37 @@ function linkSnippet(preview: string): string {
   return oneLine.length > LINKS_SNIPPET_MAX ? `${oneLine.slice(0, LINKS_SNIPPET_MAX)}…` : oneLine;
 }
 
+/** Max chars of a skill/case body inlined directly into the recall block. */
+const SKILL_INLINE_MAX = 1600;
+
+/**
+ * Skills/working-memory carve-out from links-first: short, high-value
+ * procedural pages (`skill`/`case`) are meant to be APPLIED immediately, so we
+ * inline their body directly rather than make the agent expand a link it often
+ * skips (adherence > context-economy for these page types). Returns null for
+ * non-skill pages or when the body can't be read.
+ */
+function isSkillOrCase(r: RecallResult): boolean {
+  return (
+    r.type === "skill" ||
+    r.type === "case" ||
+    r.id.startsWith("skills/") ||
+    r.id.startsWith("cases/")
+  );
+}
+
+function inlineSkillBody(r: RecallResult): string | null {
+  if (!isSkillOrCase(r)) return null;
+  if (!r.path || !existsSync(r.path)) return null;
+  let body = readFileSync(r.path, "utf-8");
+  body = body.replace(/^---\n[\s\S]*?\n---\n/, "").trim(); // strip YAML frontmatter
+  if (!body) return null;
+  if (body.length > SKILL_INLINE_MAX) {
+    body = `${body.slice(0, SKILL_INLINE_MAX)}\n…(truncated — \`read\` the path above for the full page)`;
+  }
+  return body;
+}
+
 /**
  * Format recall results as a compact system-prompt section.
  *
@@ -761,6 +792,11 @@ export function formatRecallContext(
 
   const hasLayered = results.some((r) => r.vaultLabel);
   const label = hasLayered ? " (personal + project)" : "";
+  // Salience nudge: when a distilled skill/case matches, tell the agent to
+  // apply it BEFORE experimenting (the dominant cost is recall non-adherence).
+  const hasSkill = results.some(isSkillOrCase);
+  const skillNudge =
+    "⚠\ufe0f A distilled skill/case below matches this task — read and APPLY it BEFORE experimenting on your own.";
 
   if (opts.linksOnly) {
     const lines: string[] = [
@@ -770,6 +806,7 @@ export function formatRecallContext(
       "",
     ];
 
+    if (hasSkill) lines.splice(1, 0, "", skillNudge);
     results.forEach((r, i) => {
       const vaultTag = r.vaultLabel ? ` ${r.vaultLabel}` : "";
       const snippet = linkSnippet(r.preview);
@@ -777,11 +814,18 @@ export function formatRecallContext(
       lines.push(
         `${i + 1}. **[[${r.id}]]** — *${r.type}* — score ${r.score.toFixed(1)}${vaultTag} — ${r.title}${tail}`,
       );
+      // Surface a read-resolvable path so expansion is a single, first-try
+      // `read` (issue: wikilink ids aren't resolvable by the file read tool).
+      if (r.path) lines.push(`   ↳ \`read ${r.path}\``);
+      // Skills/case carve-out: inline the body so the agent doesn't have to
+      // (and often won't) expand the link before acting.
+      const inl = inlineSkillBody(r);
+      if (inl) lines.push("", "   \`\`\`", ...inl.split("\n").map((x) => `   ${x}`), "   \`\`\`");
     });
 
     lines.push(
       "",
-      "Call `read` on the links you need to pull their full content." +
+      "Call `read` on the exact path shown under each link to pull its full content." +
         " Add new findings via wiki_ensure_page or wiki_retro.",
       "",
     );
@@ -796,10 +840,18 @@ export function formatRecallContext(
     "",
   ];
 
+  if (hasSkill) lines.splice(1, 0, "", skillNudge);
   for (const r of results) {
     const vaultTag = r.vaultLabel ? ` ${r.vaultLabel}` : "";
     lines.push(`- **[[${r.id}]]** — *${r.type}* — ${r.title}${vaultTag}`);
-    if (r.preview) {
+    // Read-resolvable path so the agent expands in one first-try `read`
+    // instead of guessing the file location from the wikilink id.
+    if (r.path) lines.push(`  ↳ \`read ${r.path}\``);
+    // Skills/case carve-out: inline the body (adherence > context-economy).
+    const inl = inlineSkillBody(r);
+    if (inl) {
+      lines.push("", "  ```", ...inl.split("\n").map((x) => `  ${x}`), "  ```");
+    } else if (r.preview) {
       // Truncate preview to one line
       const preview = r.preview.length > 120 ? `${r.preview.slice(0, 120)}…` : r.preview;
       lines.push(`  ${preview}`);
@@ -808,7 +860,8 @@ export function formatRecallContext(
   }
 
   lines.push(
-    "Use `read` to view full pages. Add new findings via wiki_ensure_page or wiki_retro.",
+    "Use `read` on the exact path shown under each link to view its full page." +
+      " Add new findings via wiki_ensure_page or wiki_retro.",
     "",
   );
 
