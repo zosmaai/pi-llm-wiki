@@ -175,18 +175,23 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    ctx.ui.setStatus(
-      "llm-wiki",
-      trajectoriesOn
-        ? "🧠 LLM Wiki (16 tools, trajectory + observe + recall active)"
-        : "🧠 LLM Wiki (13 tools, observe + recall active)",
-    );
-
     // Surface the active background task model (issue #69). Defaults to the
     // session model when no taskModel is configured.
     runtime.ensureConfig(process.cwd());
+
+    if (noticesEnabled(runtime.config)) {
+      ctx.ui.setStatus(
+        "llm-wiki",
+        trajectoriesOn
+          ? "🧠 LLM Wiki (16 tools, trajectory + observe + recall active)"
+          : "🧠 LLM Wiki (13 tools, observe + recall active)",
+      );
+    }
+
     const modelLabel = formatActiveModelLabel(runtime.config, (ctx.model as { id?: string })?.id);
-    ctx.ui.setStatus(MODEL_STATUS_KEY, `🧠 wiki model: ${modelLabel}`);
+    if (noticesEnabled(runtime.config)) {
+      ctx.ui.setStatus(MODEL_STATUS_KEY, `🧠 wiki model: ${modelLabel}`);
+    }
 
     // One-time, user-visible session notice announcing the full wiki loop
     // (issue #77). Without this, recall/observe/retro are invisible — they
