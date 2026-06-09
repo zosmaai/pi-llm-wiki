@@ -2,9 +2,11 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { MODEL_STATUS_KEY } from "../extensions/llm-wiki/lib/model-command.js";
 import { buildReminderText, buildSessionNotice } from "../extensions/llm-wiki/lib/observation.js";
 import { Runtime } from "../extensions/llm-wiki/lib/runtime.js";
 import { loadTaskConfig, noticesEnabled } from "../extensions/llm-wiki/lib/task-config.js";
+import { applySessionStartStatus } from "../extensions/llm-wiki/lib/visible-status.js";
 
 // Issue #77: make wiki activity visible (recall status, observe/retro reminder,
 // session notice) and route mutating actions through background + report.
@@ -146,6 +148,131 @@ describe("Runtime.launchReported (issue #77)", () => {
     rt.pi = pi;
     await rt.launchReported({ hasUI: false }, "label-b", async () => null);
     expect(sent).toHaveLength(0);
+  });
+});
+
+// ─── applySessionStartStatus (issues #77, #83, #84) ─────────────────────────
+//
+// Regression guard for #83: the two `setStatus` calls in `session_start`
+// (`🧠 LLM Wiki (…)` and `🧠 wiki model: …`) MUST be silenced when
+// `notices: false`. The original #77 implementation only gated the reminder
+// and the session-notice message; the status lines slipped through and
+// surfaced even in quiet mode. PR #83 added the guards; PR #84 extracted the
+// gating block into this helper so it's directly testable instead of buried
+// inside the `pi.on("session_start", …)` closure.
+
+interface StatusCall {
+  key: string;
+  value: string;
+}
+
+function fakeUi(): { ui: { setStatus: (k: string, v: string) => void }; calls: StatusCall[] } {
+  const calls: StatusCall[] = [];
+  return {
+    ui: { setStatus: (key, value) => calls.push({ key, value }) },
+    calls,
+  };
+}
+
+describe("applySessionStartStatus (issues #77 + #83 + #84)", () => {
+  it("sets BOTH status lines when notices default (unset) — default-on contract", () => {
+    const rt = new Runtime();
+    // rt.config is `{}` by default — same shape as before ensureConfig runs.
+    // noticesEnabled({}) === true, so the helper must still emit both lines.
+    // This is the case that nudged the original #83 author toward an
+    // "ensureConfig was empty" theory; the test pins down that empty-config
+    // is default-ON and therefore non-silencing.
+    const { ui, calls } = fakeUi();
+    applySessionStartStatus({
+      ui,
+      runtime: rt,
+      trajectoriesOn: false,
+      sessionModelId: "anthropic-sonnet-4",
+    });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toEqual({
+      key: "llm-wiki",
+      value: "🧠 LLM Wiki (13 tools, observe + recall active)",
+    });
+    expect(calls[1]).toEqual({
+      key: MODEL_STATUS_KEY,
+      value: "🧠 wiki model: session model (anthropic-sonnet-4)",
+    });
+  });
+
+  it("sets BOTH status lines when notices: true is explicit", () => {
+    const rt = new Runtime();
+    rt.config = { notices: true };
+    const { ui, calls } = fakeUi();
+    applySessionStartStatus({
+      ui,
+      runtime: rt,
+      trajectoriesOn: false,
+      sessionModelId: undefined,
+    });
+    expect(calls).toHaveLength(2);
+    expect(calls[0].key).toBe("llm-wiki");
+    expect(calls[1].key).toBe(MODEL_STATUS_KEY);
+  });
+
+  it("emits the 16-tools label when trajectoriesOn is true", () => {
+    const rt = new Runtime();
+    const { ui, calls } = fakeUi();
+    applySessionStartStatus({
+      ui,
+      runtime: rt,
+      trajectoriesOn: true,
+      sessionModelId: undefined,
+    });
+    expect(calls[0].value).toBe("🧠 LLM Wiki (16 tools, trajectory + observe + recall active)");
+  });
+
+  // ↑ Default-on / explicit-on coverage. ↓ The actual #83 regression contract.
+
+  it("emits NEITHER status line when notices: false (regression guard for #83)", () => {
+    const rt = new Runtime();
+    rt.config = { notices: false };
+    const { ui, calls } = fakeUi();
+    applySessionStartStatus({
+      ui,
+      runtime: rt,
+      trajectoriesOn: false,
+      sessionModelId: "anthropic-sonnet-4",
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("emits NEITHER status line when notices: false AND trajectoriesOn (sanity)", () => {
+    const rt = new Runtime();
+    rt.config = { notices: false };
+    const { ui, calls } = fakeUi();
+    applySessionStartStatus({
+      ui,
+      runtime: rt,
+      trajectoriesOn: true,
+      sessionModelId: "anthropic-sonnet-4",
+    });
+    // Both keys must stay silent regardless of which tools-active label would
+    // otherwise have been chosen.
+    expect(calls.some((c) => c.key === "llm-wiki")).toBe(false);
+    expect(calls.some((c) => c.key === MODEL_STATUS_KEY)).toBe(false);
+  });
+
+  it("uses the configured taskModel label when one is set", () => {
+    const rt = new Runtime();
+    rt.config = { taskModel: { provider: "anthropic", id: "claude-sonnet-4" } };
+    const { ui, calls } = fakeUi();
+    applySessionStartStatus({
+      ui,
+      runtime: rt,
+      trajectoriesOn: false,
+      sessionModelId: "some-other-session-id",
+    });
+    // taskModel wins over the session model id (see formatActiveModelLabel).
+    expect(calls[1]).toEqual({
+      key: MODEL_STATUS_KEY,
+      value: "🧠 wiki model: anthropic/claude-sonnet-4",
+    });
   });
 });
 

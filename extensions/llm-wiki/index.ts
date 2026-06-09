@@ -2,11 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { installGuardrails } from "./lib/guardrails.js";
-import {
-  MODEL_STATUS_KEY,
-  formatActiveModelLabel,
-  registerWikiModelCommand,
-} from "./lib/model-command.js";
+import { registerWikiModelCommand } from "./lib/model-command.js";
 import {
   buildSessionNotice,
   createReminderState,
@@ -50,6 +46,7 @@ import {
   resolveVaultPaths,
   writeJson,
 } from "./lib/utils.js";
+import { applySessionStartStatus } from "./lib/visible-status.js";
 
 /**
  * @zosmaai/pi-llm-wiki — LLM Wiki extension for Pi
@@ -130,6 +127,10 @@ export default function (pi: ExtensionAPI) {
     try {
       const migration = migrateDoubledPersonalVault();
       if (migration && migration.moved.length > 0) {
+        // INTENTIONALLY NOT gated by `noticesEnabled` (issues #77, #84): this is
+        // a one-shot data-integrity recovery signal, not chat-noise. If the
+        // user has a broken doubled-dotdir layout we want them to see that it
+        // was fixed, even in quiet mode.
         ctx.ui.setStatus(
           "llm-wiki",
           `🧠 Personal wiki layout fixed: flattened ${migration.moved.length} entries out of ${migration.from} (see CHANGELOG)`,
@@ -171,27 +172,24 @@ export default function (pi: ExtensionAPI) {
       writeFileSync(join(vaultPaths.dotWiki, "WIKI_SCHEMA.md"), schema, "utf-8");
 
       needsTopicInference = true;
+      // INTENTIONALLY NOT gated by `noticesEnabled` (issues #77, #84): one-shot
+      // first-run setup signal. The user needs to know the wiki was just
+      // auto-created, regardless of quiet mode.
       ctx.ui.setStatus("llm-wiki", "🧠 Wiki created (inferring topic from first prompt…)");
       return;
     }
 
-    // Surface the active background task model (issue #69). Defaults to the
-    // session model when no taskModel is configured.
+    // Surface the "wiki active" badge and the active background task model
+    // (issue #69), both gated by `llm-wiki.notices` (issue #77, regression
+    // fixed in #83, helper extracted in #84). `ensureConfig` MUST run first so
+    // the gate sees the loaded project settings.
     runtime.ensureConfig(process.cwd());
-
-    if (noticesEnabled(runtime.config)) {
-      ctx.ui.setStatus(
-        "llm-wiki",
-        trajectoriesOn
-          ? "🧠 LLM Wiki (16 tools, trajectory + observe + recall active)"
-          : "🧠 LLM Wiki (13 tools, observe + recall active)",
-      );
-    }
-
-    const modelLabel = formatActiveModelLabel(runtime.config, (ctx.model as { id?: string })?.id);
-    if (noticesEnabled(runtime.config)) {
-      ctx.ui.setStatus(MODEL_STATUS_KEY, `🧠 wiki model: ${modelLabel}`);
-    }
+    applySessionStartStatus({
+      ui: ctx.ui,
+      runtime,
+      trajectoriesOn,
+      sessionModelId: (ctx.model as { id?: string })?.id,
+    });
 
     // One-time, user-visible session notice announcing the full wiki loop
     // (issue #77). Without this, recall/observe/retro are invisible — they
