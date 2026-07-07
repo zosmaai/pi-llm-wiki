@@ -404,12 +404,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, test patterns, and
 
 <br/>
 
-## Star History
-
-<img src="./assets/star-history.svg" alt="Star History Chart" width="100%" />
-
-_Chart auto-updates weekly via [GitHub Action](./.github/workflows/star-history.yml)._
-
 ## Contributors
 
 Thanks to everyone who has contributed! This list is regenerated automatically by [`.github/workflows/contributors.yml`](.github/workflows/contributors.yml) — see [#60](https://github.com/zosmaai/pi-llm-wiki/issues/60) for the rationale.
