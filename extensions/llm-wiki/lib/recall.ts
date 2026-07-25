@@ -888,7 +888,7 @@ export function formatRecallContext(
   if (hasSkill) lines.splice(1, 0, "", skillNudge);
   for (const r of results) {
     const vaultTag = r.vaultLabel ? ` ${r.vaultLabel}` : "";
-    lines.push(`- **[[${r.id}]]** — *${r.type}* — ${r.title}${vaultTag}`);
+    lines.push(`- **[[${r.id}]]**(${r.path}) — *${r.type}* — ${r.title}${vaultTag}`);
     // Skills/case carve-out: inline the body (adherence > context-economy). Only
     // here does the default path deviate from the pre-fix small-vault render —
     // and only when a skill/case matched (i.e. the trajectories feature is on),
