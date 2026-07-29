@@ -15,6 +15,13 @@ let pendingRebuild = false;
 const APPLY_PATCH_PATH_NOISE =
   /^\*{0,3}\s*(?:(?:update|add|delete|move)[^A-Za-z0-9]*(?:file|to)?[^A-Za-z0-9]*:)?\s*\*{0,3}\s*/i;
 const PATCH_INPUT_KEYS: Record<string, true> = { input: true, _input: true, patch: true };
+const DESTINATION_KEYS: Record<string, true> = {
+  rename: true,
+  move: true,
+  dest: true,
+  destination: true,
+  newPath: true,
+};
 
 interface MutationScan {
   paths: string[];
@@ -41,18 +48,52 @@ function parsePatchHeader(line: string): string | undefined {
   return normalizePatchTarget(rawTarget) || undefined;
 }
 
+function parseMoveDestination(line: string): string | undefined {
+  const rawDestination = line.trim().slice(2).trim();
+  if (!rawDestination) return undefined;
+  const quote = rawDestination[0];
+  if (quote !== '"' && quote !== "'") return rawDestination;
+
+  let cursor = 1;
+  while (cursor < rawDestination.length) {
+    if (rawDestination[cursor] === "\\" && cursor + 1 < rawDestination.length) {
+      cursor += 2;
+      continue;
+    }
+    if (rawDestination[cursor] === quote) {
+      return cursor === rawDestination.length - 1
+        ? rawDestination.slice(1, cursor)
+        : undefined;
+    }
+    cursor++;
+  }
+  return undefined;
+}
+
 function scanPatchString(input: string): MutationScan {
   const paths: string[] = [];
   let sawHeader = false;
+  let sectionHasMove = false;
   let complete = true;
   const stripped = input.startsWith("\uFEFF") ? input.slice(1) : input;
 
   for (const line of stripped.split("\n")) {
-    if (!line.replace(/\r$/, "").trimEnd().startsWith("[")) continue;
-    sawHeader = true;
-    const path = parsePatchHeader(line);
-    if (path) paths.push(path);
-    else complete = false;
+    const trimmed = line.replace(/\r$/, "").trim();
+    if (trimmed.startsWith("[")) {
+      sawHeader = true;
+      sectionHasMove = false;
+      const path = parsePatchHeader(line);
+      if (path) paths.push(path);
+      else complete = false;
+      continue;
+    }
+    if (!/^MV(?:\s|$)/.test(trimmed)) continue;
+    const destination = parseMoveDestination(trimmed);
+    if (!sawHeader || sectionHasMove || !destination) complete = false;
+    else {
+      paths.push(destination);
+      sectionHasMove = true;
+    }
   }
 
   return { paths, complete: sawHeader && complete };
@@ -95,6 +136,11 @@ function collectMutationPaths(
 
   for (const [key, value] of Object.entries(record)) {
     if (key === "path" || key === "paths") continue;
+    if (DESTINATION_KEYS[key] === true) {
+      if (typeof value === "string" && value.length > 0) scan.paths.push(value);
+      else scan.complete = false;
+      continue;
+    }
     const childStringsArePatches = stringsArePatches || PATCH_INPUT_KEYS[key] === true;
     if (typeof value !== "string" && (!value || typeof value !== "object")) continue;
     mergeMutationScans(scan, collectMutationPaths(value, seen, childStringsArePatches));

@@ -206,6 +206,76 @@ describe("edit guardrails", () => {
     });
   });
 
+  it.each([
+    ["raw source", join(vaultPaths.rawSources, "moved.md"), "Raw sources are immutable. Use wiki_capture_source to add sources."],
+    ["metadata", join(vaultPaths.meta, "moved.json"), "Metadata is auto-generated. Use wiki_rebuild_meta or wiki_log_event instead."],
+  ])("blocks a hashline move to protected %s", async (_label, destination, reason) => {
+    const handler = captureToolCallHandler();
+    const source = join(vaultPaths.wiki, "sources", "issue-109.md");
+    const result = await handler({
+      toolName: "edit",
+      input: { input: `[${source}#ABCD]\nMV ${destination}` },
+    });
+
+    expect(result).toEqual({ block: true, reason });
+  });
+
+  it.each([
+    ["raw source", join(vaultPaths.rawSources, "renamed.md"), "Raw sources are immutable. Use wiki_capture_source to add sources."],
+    ["metadata", join(vaultPaths.meta, "renamed.json"), "Metadata is auto-generated. Use wiki_rebuild_meta or wiki_log_event instead."],
+  ])("blocks a JSON patch rename to protected %s", async (_label, destination, reason) => {
+    const handler = captureToolCallHandler();
+    const result = await handler({
+      toolName: "edit",
+      input: {
+        path: join(vaultPaths.wiki, "sources", "issue-109.md"),
+        edits: [{ op: "update", rename: destination, diff: "@@\n unchanged" }],
+      },
+    });
+
+    expect(result).toEqual({ block: true, reason });
+  });
+
+  it("blocks a mixed ordinary edit and protected move destination", async () => {
+    const handler = captureToolCallHandler();
+    const result = await handler({
+      toolName: "edit",
+      input: {
+        input: [
+          `[${join(vaultPaths.wiki, "sources", "issue-109.md")}#ABCD]`,
+          "INS.TAIL:",
+          "+updated",
+          `[${join(vaultPaths.wiki, "sources", "move-source.md")}#1234]`,
+          `MV ${join(vaultPaths.rawSources, "move-destination.md")}`,
+        ].join("\n"),
+      },
+    });
+
+    expect(result).toEqual({
+      block: true,
+      reason: "Raw sources are immutable. Use wiki_capture_source to add sources.",
+    });
+  });
+
+  it("allows an ordinary JSON patch rename", async () => {
+    const handler = captureToolCallHandler();
+    const result = await handler({
+      toolName: "edit",
+      input: {
+        path: join(vaultPaths.wiki, "sources", "issue-109.md"),
+        edits: [
+          {
+            op: "update",
+            rename: join(vaultPaths.wiki, "sources", "renamed-issue-109.md"),
+            diff: "@@\n unchanged",
+          },
+        ],
+      },
+    });
+
+    expect(result).toBeUndefined();
+  });
+
   it("blocks a pathless Edit request with a clear error", async () => {
     const handler = captureToolCallHandler();
     const result = await handler({ toolName: "edit", input: { patch: "invalid patch" } });
