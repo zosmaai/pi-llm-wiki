@@ -126,6 +126,7 @@ describe("commitSynthesis", () => {
       },
       "2026-06-06",
     );
-    expect(res.entitiesCreated).toEqual([]);
+    // Non-alphanumeric titles fall back to "untitled" slug.
+    expect(res.entitiesCreated).toEqual(["untitled"]);
   });
 });

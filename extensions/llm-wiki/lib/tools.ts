@@ -26,6 +26,7 @@ import {
   getVaultPaths,
   readJson,
   resolveVaultPaths,
+  slugify,
   writeJson,
 } from "./utils.js";
 
@@ -544,13 +545,7 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
         | "requirement"
         | "skill"
         | "case";
-      const slug =
-        params.title
-          .toLocaleLowerCase()
-          .replace(/[^\p{L}\p{N}\s-]/gu, "")
-          .trim()
-          .replace(/\s+/g, "-")
-          .slice(0, 80) || "untitled";
+      const slug = slugify(params.title);
 
       const folderMap: Record<string, string> = {
         entity: "entities",
