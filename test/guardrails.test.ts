@@ -124,6 +124,88 @@ describe("edit guardrails", () => {
     });
   });
 
+  it("checks nested edit input even when a top-level path is present", async () => {
+    const handler = captureToolCallHandler();
+    const result = await handler({
+      toolName: "edit",
+      input: {
+        path: join(vaultPaths.wiki, "sources", "issue-109.md"),
+        input: `[${join(
+          vaultPaths.rawSources,
+          "SRC-2026-07-27-001",
+          "extracted.md",
+        )}#ABCD]\nSWAP 1.=1:\n+changed`,
+      },
+    });
+
+    expect(result).toEqual({
+      block: true,
+      reason: "Raw sources are immutable. Use wiki_capture_source to add sources.",
+    });
+  });
+
+  it("blocks a mixed edit when a protected target uses a lowercase tag", async () => {
+    const handler = captureToolCallHandler();
+    const result = await handler({
+      toolName: "edit",
+      input: {
+        input: [
+          `[${join(vaultPaths.wiki, "sources", "issue-109.md")}#ABCD]`,
+          "SWAP 1.=1:",
+          "+updated",
+          `[${join(vaultPaths.rawSources, "SRC-2026-07-27-001", "extracted.md")}#abcd]`,
+          "SWAP 1.=1:",
+          "+changed",
+        ].join("\n"),
+      },
+    });
+
+    expect(result).toEqual({
+      block: true,
+      reason: "Raw sources are immutable. Use wiki_capture_source to add sources.",
+    });
+  });
+
+  it("blocks a protected target recovered from an apply-patch-prefixed header", async () => {
+    const handler = captureToolCallHandler();
+    const result = await handler({
+      toolName: "edit",
+      input: {
+        input: `[*** Update File:${join(
+          vaultPaths.meta,
+          "registry.json",
+        )}#ABCD]\nSWAP 1.=1:\n+changed`,
+      },
+    });
+
+    expect(result).toEqual({
+      block: true,
+      reason: "Metadata is auto-generated. Use wiki_rebuild_meta or wiki_log_event instead.",
+    });
+  });
+
+  it("fails closed when a mixed edit contains an unparseable header", async () => {
+    const handler = captureToolCallHandler();
+    const result = await handler({
+      toolName: "edit",
+      input: {
+        input: [
+          `[${join(vaultPaths.wiki, "sources", "issue-109.md")}#ABCD]`,
+          "SWAP 1.=1:",
+          "+updated",
+          `[${join(vaultPaths.rawSources, "SRC-2026-07-27-001", "extracted.md")}#XYZ]`,
+          "SWAP 1.=1:",
+          "+changed",
+        ].join("\n"),
+      },
+    });
+
+    expect(result).toEqual({
+      block: true,
+      reason: "Cannot determine the files targeted by this edit.",
+    });
+  });
+
   it("blocks a pathless Edit request with a clear error", async () => {
     const handler = captureToolCallHandler();
     const result = await handler({ toolName: "edit", input: { patch: "invalid patch" } });

@@ -12,26 +12,105 @@ import { isProtectedPath, resolveVaultPaths } from "./utils.js";
 
 let pendingRebuild = false;
 
-const PATCH_HEADER = /^\[([^#\r\n]+)#[0-9A-F]{4}\]$/gm;
+const APPLY_PATCH_PATH_NOISE =
+  /^\*{0,3}\s*(?:(?:update|add|delete|move)[^A-Za-z0-9]*(?:file|to)?[^A-Za-z0-9]*:)?\s*\*{0,3}\s*/i;
+const PATCH_INPUT_KEYS: Record<string, true> = { input: true, _input: true, patch: true };
 
-function collectMutationPaths(input: unknown, seen: WeakSet<object>): string[] {
-  if (typeof input === "string") {
-    return Array.from(input.matchAll(PATCH_HEADER), ([, target]) => target);
+interface MutationScan {
+  paths: string[];
+  complete: boolean;
+}
+
+function normalizePatchTarget(target: string): string {
+  const stripped = target.trim().replace(APPLY_PATCH_PATH_NOISE, "");
+  if (stripped.length < 2) return stripped;
+  const first = stripped[0];
+  const last = stripped[stripped.length - 1];
+  return (first === '"' || first === "'") && first === last ? stripped.slice(1, -1) : stripped;
+}
+
+function parsePatchHeader(line: string): string | undefined {
+  const trimmed = line.replace(/\r$/, "").trimEnd();
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return undefined;
+
+  const body = trimmed.slice(1, -1).trim().replace(APPLY_PATCH_PATH_NOISE, "");
+  const tag = /#[0-9A-Fa-f]{4}\s*$/.exec(body);
+  const rawTarget = tag ? body.slice(0, tag.index) : body.replace(/\s+$/, "");
+  if (!rawTarget || rawTarget.includes("#")) return undefined;
+
+  return normalizePatchTarget(rawTarget) || undefined;
+}
+
+function scanPatchString(input: string): MutationScan {
+  const paths: string[] = [];
+  let sawHeader = false;
+  let complete = true;
+  const stripped = input.startsWith("\uFEFF") ? input.slice(1) : input;
+
+  for (const line of stripped.split("\n")) {
+    if (!line.replace(/\r$/, "").trimEnd().startsWith("[")) continue;
+    sawHeader = true;
+    const path = parsePatchHeader(line);
+    if (path) paths.push(path);
+    else complete = false;
   }
-  if (!input || typeof input !== "object" || seen.has(input)) return [];
+
+  return { paths, complete: sawHeader && complete };
+}
+
+function mergeMutationScans(target: MutationScan, source: MutationScan): void {
+  target.paths.push(...source.paths);
+  target.complete &&= source.complete;
+}
+
+function collectMutationPaths(
+  input: unknown,
+  seen: WeakSet<object>,
+  stringsArePatches = false,
+): MutationScan {
+  if (typeof input === "string") {
+    return stringsArePatches ? scanPatchString(input) : { paths: [], complete: true };
+  }
+  if (!input || typeof input !== "object" || seen.has(input)) {
+    return { paths: [], complete: true };
+  }
 
   seen.add(input);
-  if (Array.isArray(input)) return input.flatMap((value) => collectMutationPaths(value, seen));
+  const scan: MutationScan = { paths: [], complete: true };
+  if (Array.isArray(input)) {
+    for (const value of input) {
+      mergeMutationScans(scan, collectMutationPaths(value, seen, stringsArePatches));
+    }
+    return scan;
+  }
 
-  const { path, ...nested } = input as Record<string, unknown>;
-  if (typeof path === "string" && path.length > 0) return [path];
+  const record = input as Record<string, unknown>;
+  if (typeof record.path === "string" && record.path.length > 0) {
+    scan.paths.push(record.path);
+  }
+  const eventPaths = Array.isArray(record.paths) ? record.paths : [record.paths];
+  for (const path of eventPaths) {
+    if (typeof path === "string" && path.length > 0) scan.paths.push(path);
+  }
 
-  return Object.values(nested).flatMap((value) => collectMutationPaths(value, seen));
+  for (const [key, value] of Object.entries(record)) {
+    if (key === "path" || key === "paths") continue;
+    const childStringsArePatches = stringsArePatches || PATCH_INPUT_KEYS[key] === true;
+    if (typeof value !== "string" && (!value || typeof value !== "object")) continue;
+    mergeMutationScans(scan, collectMutationPaths(value, seen, childStringsArePatches));
+  }
+  return scan;
+}
+
+function inspectMutationPaths(input: unknown): MutationScan {
+  const stringsArePatches = typeof input === "string" || Array.isArray(input);
+  const scan = collectMutationPaths(input, new WeakSet(), stringsArePatches);
+  return { paths: [...new Set(scan.paths)], complete: scan.complete };
 }
 
 /** Return every file path targeted by a write or patch-shaped edit input. */
 export function extractMutationPaths(input: unknown): string[] {
-  return [...new Set(collectMutationPaths(input, new WeakSet()))];
+  return inspectMutationPaths(input).paths;
 }
 
 /** True when a write or patch-shaped edit targets a page in the wiki directory. */
@@ -59,8 +138,9 @@ export function installGuardrails(pi: ExtensionAPI, runtime?: Runtime): void {
     }
 
     if (isToolCallEventType("edit", event)) {
-      const targetPaths = extractMutationPaths(event.input);
-      if (targetPaths.length === 0) {
+      const mutation = inspectMutationPaths(event.input);
+      const targetPaths = mutation.paths;
+      if (!mutation.complete || targetPaths.length === 0) {
         return { block: true, reason: "Cannot determine the files targeted by this edit." };
       }
 
