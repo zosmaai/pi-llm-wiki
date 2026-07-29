@@ -207,8 +207,16 @@ describe("edit guardrails", () => {
   });
 
   it.each([
-    ["raw source", join(vaultPaths.rawSources, "moved.md"), "Raw sources are immutable. Use wiki_capture_source to add sources."],
-    ["metadata", join(vaultPaths.meta, "moved.json"), "Metadata is auto-generated. Use wiki_rebuild_meta or wiki_log_event instead."],
+    [
+      "raw source",
+      join(vaultPaths.rawSources, "moved.md"),
+      "Raw sources are immutable. Use wiki_capture_source to add sources.",
+    ],
+    [
+      "metadata",
+      join(vaultPaths.meta, "moved.json"),
+      "Metadata is auto-generated. Use wiki_rebuild_meta or wiki_log_event instead.",
+    ],
   ])("blocks a hashline move to protected %s", async (_label, destination, reason) => {
     const handler = captureToolCallHandler();
     const source = join(vaultPaths.wiki, "sources", "issue-109.md");
@@ -221,8 +229,16 @@ describe("edit guardrails", () => {
   });
 
   it.each([
-    ["raw source", join(vaultPaths.rawSources, "renamed.md"), "Raw sources are immutable. Use wiki_capture_source to add sources."],
-    ["metadata", join(vaultPaths.meta, "renamed.json"), "Metadata is auto-generated. Use wiki_rebuild_meta or wiki_log_event instead."],
+    [
+      "raw source",
+      join(vaultPaths.rawSources, "renamed.md"),
+      "Raw sources are immutable. Use wiki_capture_source to add sources.",
+    ],
+    [
+      "metadata",
+      join(vaultPaths.meta, "renamed.json"),
+      "Metadata is auto-generated. Use wiki_rebuild_meta or wiki_log_event instead.",
+    ],
   ])("blocks a JSON patch rename to protected %s", async (_label, destination, reason) => {
     const handler = captureToolCallHandler();
     const result = await handler({
