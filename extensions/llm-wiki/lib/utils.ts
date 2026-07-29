@@ -370,12 +370,14 @@ export function extractWikilinks(content: string): string[] {
 
 /** Slugify a title. */
 export function slugify(title: string): string {
-  return title
-    .toLocaleLowerCase()
-    .replace(/[^\p{L}\p{N}\s-]/gu, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .slice(0, 80) || "untitled";
+  return (
+    title
+      .toLocaleLowerCase()
+      .replace(/[^\p{L}\p{N}\s-]/gu, "")
+      .trim()
+      .replace(/\s+/g, "-")
+      .slice(0, 80) || "untitled"
+  );
 }
 
 /** Format date as YYYY-MM-DD. */
