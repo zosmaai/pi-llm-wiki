@@ -276,6 +276,62 @@ describe("edit guardrails", () => {
     expect(result).toBeUndefined();
   });
 
+  it.each([
+    [
+      "raw source",
+      `"*** Update File:${join(vaultPaths.rawSources, "quoted-source.md")}"`,
+      "Raw sources are immutable. Use wiki_capture_source to add sources.",
+    ],
+    [
+      "metadata",
+      `"*** Delete File:${join(vaultPaths.meta, "quoted-source.json")}"`,
+      "Metadata is auto-generated. Use wiki_rebuild_meta or wiki_log_event instead.",
+    ],
+  ])("blocks a quoted recovery-prefixed %s header", async (_label, source, reason) => {
+    const handler = captureToolCallHandler();
+    const result = await handler({
+      toolName: "edit",
+      input: { input: `[${source}#ABCD]\nREM` },
+    });
+
+    expect(result).toEqual({ block: true, reason });
+  });
+
+  it.each([
+    [
+      "raw source",
+      `*** Move to:${join(vaultPaths.rawSources, "prefixed-move.md")}`,
+      "Raw sources are immutable. Use wiki_capture_source to add sources.",
+    ],
+    [
+      "metadata",
+      `"*** Move to:${join(vaultPaths.meta, "prefixed-move.json")}"`,
+      "Metadata is auto-generated. Use wiki_rebuild_meta or wiki_log_event instead.",
+    ],
+  ])("blocks a recovery-prefixed move to protected %s", async (_label, destination, reason) => {
+    const handler = captureToolCallHandler();
+    const result = await handler({
+      toolName: "edit",
+      input: {
+        input: `[${join(vaultPaths.wiki, "sources", "issue-109.md")}#ABCD]\nMV ${destination}`,
+      },
+    });
+
+    expect(result).toEqual({ block: true, reason });
+  });
+
+  it("normalizes ordinary quoted recovery-prefixed sources and destinations", async () => {
+    const source = join(vaultPaths.wiki, "sources", "quoted-source.md");
+    const destination = join(vaultPaths.wiki, "sources", "quoted-destination.md");
+    const input = {
+      input: `["*** Update File:${source}"#ABCD]\nMV "*** Move to:${destination}"`,
+    };
+
+    expect(extractMutationPaths(input)).toEqual([source, destination]);
+    const handler = captureToolCallHandler();
+    expect(await handler({ toolName: "edit", input })).toBeUndefined();
+  });
+
   it("blocks a pathless Edit request with a clear error", async () => {
     const handler = captureToolCallHandler();
     const result = await handler({ toolName: "edit", input: { patch: "invalid patch" } });

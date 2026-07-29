@@ -28,31 +28,36 @@ interface MutationScan {
   complete: boolean;
 }
 
-function normalizePatchTarget(target: string): string {
-  const stripped = target.trim().replace(APPLY_PATCH_PATH_NOISE, "");
-  if (stripped.length < 2) return stripped;
-  const first = stripped[0];
-  const last = stripped[stripped.length - 1];
-  return (first === '"' || first === "'") && first === last ? stripped.slice(1, -1) : stripped;
+function normalizeMutationPath(target: string): string | undefined {
+  const trimmed = target.trim();
+  if (!trimmed) return undefined;
+  const first = trimmed[0];
+  const last = trimmed[trimmed.length - 1];
+  const quoted = first === '"' || first === "'";
+  if (quoted !== (last === '"' || last === "'") || (quoted && first !== last)) {
+    return undefined;
+  }
+  const unquoted = quoted ? trimmed.slice(1, -1) : trimmed;
+  return unquoted.replace(APPLY_PATCH_PATH_NOISE, "") || undefined;
 }
 
 function parsePatchHeader(line: string): string | undefined {
   const trimmed = line.replace(/\r$/, "").trimEnd();
   if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return undefined;
 
-  const body = trimmed.slice(1, -1).trim().replace(APPLY_PATCH_PATH_NOISE, "");
+  const body = trimmed.slice(1, -1).trim();
   const tag = /#[0-9A-Fa-f]{4}\s*$/.exec(body);
   const rawTarget = tag ? body.slice(0, tag.index) : body.replace(/\s+$/, "");
   if (!rawTarget || rawTarget.includes("#")) return undefined;
 
-  return normalizePatchTarget(rawTarget) || undefined;
+  return normalizeMutationPath(rawTarget);
 }
 
 function parseMoveDestination(line: string): string | undefined {
   const rawDestination = line.trim().slice(2).trim();
   if (!rawDestination) return undefined;
   const quote = rawDestination[0];
-  if (quote !== '"' && quote !== "'") return rawDestination;
+  if (quote !== '"' && quote !== "'") return normalizeMutationPath(rawDestination);
 
   let cursor = 1;
   while (cursor < rawDestination.length) {
@@ -62,7 +67,7 @@ function parseMoveDestination(line: string): string | undefined {
     }
     if (rawDestination[cursor] === quote) {
       return cursor === rawDestination.length - 1
-        ? rawDestination.slice(1, cursor)
+        ? normalizeMutationPath(rawDestination)
         : undefined;
     }
     cursor++;
@@ -104,6 +109,12 @@ function mergeMutationScans(target: MutationScan, source: MutationScan): void {
   target.complete &&= source.complete;
 }
 
+function addMutationPath(scan: MutationScan, target: string): void {
+  const path = normalizeMutationPath(target);
+  if (path) scan.paths.push(path);
+  else scan.complete = false;
+}
+
 function collectMutationPaths(
   input: unknown,
   seen: WeakSet<object>,
@@ -127,17 +138,17 @@ function collectMutationPaths(
 
   const record = input as Record<string, unknown>;
   if (typeof record.path === "string" && record.path.length > 0) {
-    scan.paths.push(record.path);
+    addMutationPath(scan, record.path);
   }
   const eventPaths = Array.isArray(record.paths) ? record.paths : [record.paths];
   for (const path of eventPaths) {
-    if (typeof path === "string" && path.length > 0) scan.paths.push(path);
+    if (typeof path === "string" && path.length > 0) addMutationPath(scan, path);
   }
 
   for (const [key, value] of Object.entries(record)) {
     if (key === "path" || key === "paths") continue;
     if (DESTINATION_KEYS[key] === true) {
-      if (typeof value === "string" && value.length > 0) scan.paths.push(value);
+      if (typeof value === "string" && value.length > 0) addMutationPath(scan, value);
       else scan.complete = false;
       continue;
     }
