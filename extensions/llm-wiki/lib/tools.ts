@@ -544,12 +544,13 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
         | "requirement"
         | "skill"
         | "case";
-      const slug = params.title
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .trim()
-        .replace(/\s+/g, "-")
-        .slice(0, 80);
+      const slug =
+        params.title
+          .toLocaleLowerCase()
+          .replace(/[^\p{L}\p{N}\s-]/gu, "")
+          .trim()
+          .replace(/\s+/g, "-")
+          .slice(0, 80) || "untitled";
 
       const folderMap: Record<string, string> = {
         entity: "entities",
