@@ -12,7 +12,8 @@
 
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { McpServer, StdioServerTransport } from "@modelcontextprotocol/server";
+import { McpServer } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 import { resolveVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
 import { createExecApi } from "./exec.js";
