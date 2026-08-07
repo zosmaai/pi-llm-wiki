@@ -363,10 +363,28 @@ The package ships a standalone MCP server exposing 5 wiki tools over stdio:
 pi install npm:@zosmaai/pi-llm-wiki
 
 # Standalone with any MCP client:
-WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/mcp/index.js
+WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js
 ```
 
 Set `WIKI_ROOT` to your wiki vault directory. If unset, the server auto-detects from the current working directory.
+
+### Client configuration
+
+The same server as an entry in `.mcp.json` (Claude Code) or `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "llm-wiki": {
+      "command": "node",
+      "args": ["/absolute/path/to/node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js"],
+      "env": { "WIKI_ROOT": "/absolute/path/to/my-wiki" }
+    }
+  }
+}
+```
+
+> MCP clients spawn the command **without a shell**, so `~` is never expanded. A `~/my-wiki` in `args` or `env` is passed through literally and the server fails to start, which the client reports only as a generic connection error — use absolute paths here. The shell snippet above is fine: your shell expands `~` before `node` sees it.
 
 ---
 

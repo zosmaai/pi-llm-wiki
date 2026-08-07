@@ -347,10 +347,28 @@ El paquete incluye un servidor MCP independiente que expone 5 herramientas de wi
 pi install npm:@zosmaai/pi-llm-wiki
 
 # Independiente con cualquier cliente MCP:
-WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/mcp/index.js
+WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js
 ```
 
 Establece `WIKI_ROOT` en el directorio de tu vault de wiki. Si no está establecido, el servidor lo detecta automáticamente desde el directorio de trabajo actual.
+
+### Configuración del cliente
+
+El mismo servidor como entrada en `.mcp.json` (Claude Code) o `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "llm-wiki": {
+      "command": "node",
+      "args": ["/absolute/path/to/node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js"],
+      "env": { "WIKI_ROOT": "/absolute/path/to/my-wiki" }
+    }
+  }
+}
+```
+
+> Los clientes MCP lanzan el comando **sin shell**, por lo que `~` nunca se expande. Un `~/my-wiki` en `args` o `env` se pasa literalmente y el servidor no arranca, algo que el cliente solo informa como un error de conexión genérico: usa rutas absolutas aquí. El fragmento de shell anterior sí funciona, porque tu shell expande `~` antes de que `node` lo reciba.
 
 ---
 

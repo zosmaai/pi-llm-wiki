@@ -347,10 +347,28 @@ my-wiki/
 pi install npm:@zosmaai/pi-llm-wiki
 
 # 独立使用任何 MCP 客户端：
-WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/mcp/index.js
+WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js
 ```
 
 设置 `WIKI_ROOT` 为您的 wiki vault 目录。如果未设置，服务器从当前工作目录自动检测。
+
+### 客户端配置
+
+在 `.mcp.json`（Claude Code）或 `claude_desktop_config.json` 中配置同一个服务器：
+
+```json
+{
+  "mcpServers": {
+    "llm-wiki": {
+      "command": "node",
+      "args": ["/absolute/path/to/node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js"],
+      "env": { "WIKI_ROOT": "/absolute/path/to/my-wiki" }
+    }
+  }
+}
+```
+
+> MCP 客户端在**不经过 shell** 的情况下启动该命令，因此 `~` 不会被展开。`args` 或 `env` 中的 `~/my-wiki` 会被原样传递，服务器随即启动失败，而客户端只会报告一个笼统的连接错误——这里请使用绝对路径。上面的 shell 命令没有问题：`~` 由你的 shell 在 `node` 收到之前展开。
 
 ---
 
