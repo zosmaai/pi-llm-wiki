@@ -77,3 +77,43 @@ jobs:
           test -f "$fixture/.llm-wiki/wiki/concepts/node-18.md"
           test "$(sha256sum "$fixture/.llm-wiki/config.json" | cut -d' ' -f1)" = "$config_hash"
           test "$(sha256sum "$fixture/.llm-wiki/wiki/concepts/node-18.md" | cut -d' ' -f1)" = "$page_hash"
+
+  packaged-mcp-consumer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: true
+
+      # test/mcp-package.test.ts covers the same handshake, but always against
+      # this repo's lockfile. Consumers install without it and resolve the
+      # newest versions our ranges allow (issue #128), so pack the tarball and
+      # run the server from a lockfile-free install of it.
+      - name: Smoke-test the packed MCP server from a lockfile-free install
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer="$RUNNER_TEMP/consumer"
+          mkdir -p "$consumer"
+
+          # prepack builds dist/, so no --ignore-scripts here.
+          tarball=$(npm pack --pack-destination "$RUNNER_TEMP" --silent | tail -1)
+
+          cd "$consumer"
+          npm init -y > /dev/null
+          npm install --no-package-lock --no-audit --no-fund "$RUNNER_TEMP/$tarball"
+
+          installed="$consumer/node_modules/@zosmaai/pi-llm-wiki"
+          test -f "$installed/dist/mcp/index.js"
+          node -e "console.log('resolved MCP SDK:', require('$consumer/node_modules/@modelcontextprotocol/server/package.json').version)"
+
+          node "$GITHUB_WORKSPACE/scripts/mcp-smoke.mjs" "$installed/dist/mcp/index.js"
