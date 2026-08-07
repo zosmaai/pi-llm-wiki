@@ -207,6 +207,26 @@ describe("package structure", () => {
     expect(readme).toContain("Karpathy");
     expect(readme).toContain("Obsidian");
   });
+
+  it("documents the runnable MCP entry point in every README (issue #129)", () => {
+    const pkg = JSON.parse(readFile(join(rootDir, "package.json")));
+    // The manifest command is the one test/mcp-package.test.ts actually spawns,
+    // so tying the docs to it keeps every README pointed at runnable JavaScript
+    // rather than at mcp/, which ships only TypeScript.
+    const entry = (pkg.pi.mcpservers["llm-wiki"] as string).replace(/^node\s+\.\//, "");
+    expect(entry).toBe("dist/mcp/index.js");
+
+    const documented = /@zosmaai\/pi-llm-wiki\/\S*mcp\/index\.js/g;
+    const english = readFile(join(rootDir, "README.md"));
+    expect([...english.matchAll(documented)].length).toBeGreaterThan(0);
+
+    const readmes = readdirSync(rootDir).filter((name) => /^README(\.[a-z]{2})?\.md$/.test(name));
+    for (const name of readmes) {
+      for (const [path] of readFile(join(rootDir, name)).matchAll(documented)) {
+        expect(path, `${name} documents a path that ships no JavaScript`).toContain(entry);
+      }
+    }
+  });
 });
 
 // ─── SKILL.md Frontmatter Validation ────────────────────
