@@ -116,7 +116,7 @@ server.registerTool(
   "wiki_recall",
   {
     description:
-      "Search the wiki for pages relevant to a query. Returns matching page IDs, titles, types, and content previews.",
+      "Search the wiki for pages relevant to a query. Searches the resolved vault and the personal vault (~/.llm-wiki) together, deduplicated, with personal hits labelled. Returns matching page IDs, titles, types, and content previews.",
     inputSchema: z.object({
       query: z.string().describe("Search query — use the user's full request or key terms"),
       max_results: z.number().optional().default(5).describe("Max results (default: 5, max: 10)"),

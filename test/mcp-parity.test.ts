@@ -3,10 +3,14 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { bootstrapVault } from "../extensions/llm-wiki/lib/bootstrap.js";
 import { rebuildMetadata } from "../extensions/llm-wiki/lib/metadata.js";
-import { searchWiki } from "../extensions/llm-wiki/lib/recall.js";
+import { searchWikiLayered } from "../extensions/llm-wiki/lib/recall.js";
 import { saveInsight } from "../extensions/llm-wiki/lib/retro.js";
 import { captureText } from "../extensions/llm-wiki/lib/source-packet.js";
-import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
+import {
+  ensureVaultStructure,
+  getPersonalWikiPaths,
+  getVaultPaths,
+} from "../extensions/llm-wiki/lib/utils.js";
 import { inspectVaultFormat } from "../extensions/llm-wiki/lib/vault-format.js";
 import { getWikiStatus, searchRegistry } from "../extensions/llm-wiki/lib/wiki-service.js";
 import { createExecApi } from "../mcp/exec.js";
@@ -73,7 +77,7 @@ describe("MCP parity with shared services", () => {
     );
   });
 
-  it("recall parity: MCP matches shared searchWiki with vault diagnostics", async () => {
+  it("recall parity: MCP matches shared searchWikiLayered with vault diagnostics", async () => {
     mkdirSync(join(paths.wiki, "concepts"), { recursive: true });
     writeFileSync(
       join(paths.wiki, "concepts", "nested.md"),
@@ -81,13 +85,49 @@ describe("MCP parity with shared services", () => {
     );
     rebuildMetadata(paths);
 
-    const piRecall = searchWiki(paths, "nested", 5);
+    const piRecall = searchWikiLayered(paths, "nested", 5);
     const mcpRecall = await recallOperation(paths, "nested", 5);
 
     expect(mcpRecall.results).toEqual(piRecall);
     expect(mcpRecall.diagnostics.map((d) => d.code)).toEqual(
       inspectVaultFormat(paths).diagnostics.map((d) => d.code),
     );
+  });
+
+  it("recall uses layered search: MCP returns personal vault results when project vault has no matches", async () => {
+    // Arrange: search for a term that exists in personal vault but not in the temp project vault
+    const personalVault = getPersonalWikiPaths();
+    const personalExists = existsSync(join(personalVault.dotWiki, "config.json"));
+    if (!personalExists) {
+      // skip if no personal vault
+      return;
+    }
+
+    // Use a known unique term from personal vault
+    const uniqueTerm = "mcp-layered-test";
+
+    // Create a test page in personal vault with this unique term
+    const personalPagePath = join(personalVault.wiki, "concepts", "mcp-layered-test.md");
+    mkdirSync(join(personalVault.wiki, "concepts"), { recursive: true });
+    writeFileSync(
+      personalPagePath,
+      "---\ntype: concept\ntitle: MCP Layered Test\ndescription: Test page for mcp-layered-test\n---\n\n# MCP Layered Test\n\nContent for mcp-layered-test.",
+    );
+    rebuildMetadata(personalVault);
+
+    try {
+      // Act: search from project vault for term that only exists in personal vault
+      const mcpRecall = await recallOperation(paths, uniqueTerm, 10);
+
+      // Assert: should find the personal vault page
+      const found = mcpRecall.results.find((r) => r.id === "concepts/mcp-layered-test");
+      expect(found).toBeDefined();
+      expect(found?.vaultLabel).toBe("📓 personal");
+    } finally {
+      // Cleanup
+      rmSync(personalPagePath);
+      rebuildMetadata(personalVault);
+    }
   });
 
   it("retro parity: MCP uses same saveInsight as Pi", async () => {
