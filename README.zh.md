@@ -334,7 +334,7 @@ my-wiki/
 
 | 工具 | 描述 |
 |------|------|
-| `wiki_recall` | 搜索 wiki 中与任务相关的页面 |
+| `wiki_recall` | 搜索 wiki 中与任务相关的页面——搜索个人和项目 vault，去重 |
 | `wiki_search` | 完整注册表搜索 |
 | `wiki_status` | Wiki 统计（页面计数、类型分解） |
 | `wiki_retro` | 保存原子洞察 |

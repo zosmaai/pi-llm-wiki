@@ -350,7 +350,7 @@ The package ships a standalone MCP server exposing 5 wiki tools over stdio:
 
 | Tool | Description |
 |------|-------------|
-| `wiki_recall` | Search wiki for task-relevant pages |
+| `wiki_recall` | Search wiki for task-relevant pages — searches both personal (`~/.llm-wiki/`) and project (`.llm-wiki/`) vaults, deduplicated |
 | `wiki_search` | Full registry search |
 | `wiki_status` | Wiki stats (page counts, type breakdown) |
 | `wiki_retro` | Save atomic insights |

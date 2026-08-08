@@ -334,7 +334,7 @@ El paquete incluye un servidor MCP independiente que expone 5 herramientas de wi
 
 | Herramienta | Descripción |
 |-------------|-------------|
-| `wiki_recall` | Busca en el wiki páginas relevantes para la tarea |
+| `wiki_recall` | Busca en el wiki páginas relevantes para la tarea — busca en vaults personales y del proyecto, deduplicadas |
 | `wiki_search` | Búsqueda completa del registro |
 | `wiki_status` | Estadísticas del wiki (conteos de páginas, desglose por tipo) |
 | `wiki_retro` | Guarda ideas atómicas |
