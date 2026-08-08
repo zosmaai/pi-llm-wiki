@@ -2,10 +2,14 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { rebuildMetadata } from "../extensions/llm-wiki/lib/metadata.js";
-import { searchWiki } from "../extensions/llm-wiki/lib/recall.js";
+import { searchWikiLayered } from "../extensions/llm-wiki/lib/recall.js";
 import { saveInsight } from "../extensions/llm-wiki/lib/retro.js";
 import { captureText } from "../extensions/llm-wiki/lib/source-packet.js";
-import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
+import {
+  type VaultPaths,
+  ensureVaultStructure,
+  getVaultPaths,
+} from "../extensions/llm-wiki/lib/utils.js";
 import { inspectVaultFormat } from "../extensions/llm-wiki/lib/vault-format.js";
 import { getWikiStatus, searchRegistry } from "../extensions/llm-wiki/lib/wiki-service.js";
 import { createExecApi } from "../mcp/exec.js";
@@ -17,22 +21,37 @@ import {
   statusOperation,
 } from "../mcp/operations.js";
 
+/** Create a usable vault at `root` and return its paths. */
+function seedVault(root: string, topic: string): VaultPaths {
+  const vault = getVaultPaths(root);
+  ensureVaultStructure(vault);
+  writeFileSync(
+    join(vault.dotWiki, "config.json"),
+    JSON.stringify({ topic, mode: "personal", knowledge_format: "legacy" }),
+  );
+  return vault;
+}
+
 describe("MCP parity with shared services", () => {
   let tmpDir: string;
   let paths: ReturnType<typeof getVaultPaths>;
+  let prevWikiHome: string | undefined;
 
   beforeEach(() => {
     tmpDir = join(import.meta.dirname, "..", "tmp", `mcp-parity-${Date.now()}`);
     mkdirSync(tmpDir, { recursive: true });
-    paths = getVaultPaths(tmpDir);
-    ensureVaultStructure(paths);
-    writeFileSync(
-      join(paths.dotWiki, "config.json"),
-      JSON.stringify({ topic: "Test", mode: "personal", knowledge_format: "legacy" }),
-    );
+    // Sandbox the personal vault: layered recall consults `~/.llm-wiki`, so
+    // without this the results would depend on whether the machine running the
+    // tests happens to have a personal vault.
+    prevWikiHome = process.env.WIKI_HOME;
+    process.env.WIKI_HOME = join(tmpDir, "home");
+    mkdirSync(process.env.WIKI_HOME, { recursive: true });
+    paths = seedVault(tmpDir, "Test");
   });
 
   afterEach(() => {
+    if (prevWikiHome === undefined) Reflect.deleteProperty(process.env, "WIKI_HOME");
+    else process.env.WIKI_HOME = prevWikiHome;
     try {
       rmSync(tmpDir, { recursive: true, force: true });
     } catch {}
@@ -79,13 +98,71 @@ describe("MCP parity with shared services", () => {
     );
     rebuildMetadata(paths);
 
-    const piRecall = searchWiki(paths, "nested", 5);
+    // Layered is the shared contract for recall: the Pi tool searches the
+    // primary vault and the personal vault together, and so must MCP (#131).
+    const piRecall = searchWikiLayered(paths, "nested", 5);
     const mcpRecall = await recallOperation(paths, "nested", 5);
 
     expect(mcpRecall.results).toEqual(piRecall);
     expect(mcpRecall.diagnostics.map((d) => d.code)).toEqual(
       inspectVaultFormat(paths).diagnostics.map((d) => d.code),
     );
+  });
+
+  describe("layered recall over MCP (issue #131)", () => {
+    const QUERY = "portainer redeploy image";
+    const INSIGHT = "Portainer restart does not adopt a new image";
+
+    /** Seed the sandboxed personal vault with one insight, as `wiki_retro` would. */
+    function seedPersonalInsight(): VaultPaths {
+      const personal = seedVault(process.env.WIKI_HOME as string, "Personal");
+      saveInsight(
+        personal,
+        "portainer-redeploy-needed",
+        INSIGHT,
+        "Restarting a stack reuses the old image; a redeploy is required to adopt it.",
+        "devops",
+        { rebuild: false },
+      );
+      rebuildMetadata(personal);
+      return personal;
+    }
+
+    it("surfaces personal-vault hits when recalling from a project vault", async () => {
+      seedPersonalInsight();
+      rebuildMetadata(paths);
+
+      const recall = await recallOperation(paths, QUERY, 5);
+
+      expect(recall.results.map((r) => r.title)).toContain(INSIGHT);
+      const personalHits = recall.results.filter((r) => r.vaultLabel);
+      expect(personalHits).toHaveLength(1);
+      expect(personalHits[0].vaultLabel).toBe("📓 personal");
+    });
+
+    it("merges both layers, keeping project hits alongside personal ones", async () => {
+      seedPersonalInsight();
+      mkdirSync(join(paths.wiki, "concepts"), { recursive: true });
+      writeFileSync(
+        join(paths.wiki, "concepts", "portainer-stacks.md"),
+        "---\ntype: concept\ntitle: Portainer Stacks\ndescription: How this project lays out Portainer stacks\n---\n\n# Portainer Stacks\n\nProject-specific notes.",
+      );
+      rebuildMetadata(paths);
+
+      const titles = (await recallOperation(paths, "portainer", 5)).results.map((r) => r.title);
+
+      expect(titles).toContain("Portainer Stacks");
+      expect(titles).toContain(INSIGHT);
+    });
+
+    it("does not double-count when the resolved vault is itself the personal vault", async () => {
+      const personal = seedPersonalInsight();
+
+      const recall = await recallOperation(personal, QUERY, 5);
+
+      expect(recall.results).toHaveLength(1);
+      expect(recall.results[0].vaultLabel).toBeUndefined();
+    });
   });
 
   it("retro parity: MCP uses same saveInsight as Pi", async () => {
