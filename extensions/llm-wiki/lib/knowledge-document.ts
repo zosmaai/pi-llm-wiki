@@ -25,7 +25,14 @@ export type DiagnosticCode =
   | "event_source_unreadable"
   | "event_invalid_json"
   | "event_invalid_timestamp"
-  | "event_missing_kind";
+  | "event_missing_kind"
+  | "config_invalid_vault_id"
+  | "qmd_index_missing"
+  | "qmd_index_stale"
+  | "qmd_index_error"
+  | "qmd_index_busy"
+  | "qmd_manifest_invalid"
+  | "qmd_swap_interrupted";
 
 export interface KnowledgeDiagnostic {
   severity: DiagnosticSeverity;

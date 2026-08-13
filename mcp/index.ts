@@ -15,12 +15,14 @@ import { join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
+import { recoverQmdIndex } from "../extensions/llm-wiki/lib/qmd-indexing.js";
 import { getVaultPaths, resolveVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
 import { createExecApi } from "./exec.js";
 import {
   bootstrapOperation,
   captureSourceOperation,
   recallOperation,
+  reindexOperation,
   retroOperation,
   searchOperation,
   statusOperation,
@@ -64,7 +66,7 @@ const server = new McpServer({
 // ---- wiki_bootstrap ----
 //
 // Registered first, and the only tool not gated on an existing vault: the
-// other five fail closed with a message naming this one, which an MCP-only
+// other tools fail closed with a message naming this one, which an MCP-only
 // client could not act on while it was extension-only (issue #130).
 
 server.registerTool(
@@ -234,6 +236,65 @@ server.registerTool(
   },
 );
 
+// ---- wiki_reindex ----
+
+server.registerTool(
+  "wiki_reindex",
+  {
+    description:
+      "Rebuild or repair the generated QMD search index (meta/qmd) for the vault. " +
+      "Lexical indexing is model-free; selecting vectors may download approximately 2 GB " +
+      "of models on first use. Options: scope (changed|all), components (lexical|vectors), " +
+      "force, vault (active|personal|project|all).",
+    inputSchema: z.object({
+      scope: z.enum(["changed", "all"]).optional().default("changed").describe("changed or all"),
+      components: z
+        .array(z.enum(["lexical", "vectors"]))
+        .min(1)
+        .optional()
+        .describe("Index components (lexical|vectors)"),
+      force: z.boolean().optional().describe("Force full rebuild of selected components"),
+      vault: z
+        .enum(["active", "personal", "project", "all"])
+        .optional()
+        .default("active")
+        .describe("Which vaults to reindex"),
+    }),
+  },
+  async ({ scope, components, force, vault }) => {
+    if (!hasVault()) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: "No wiki vault found. Set WIKI_ROOT or run wiki_bootstrap first.",
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    const paths = getPaths();
+    const result = await reindexOperation(paths, {
+      scope,
+      components,
+      force,
+      vault,
+    });
+
+    const ok = result.results.every((r) => r.result.ok);
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+      ...(ok ? {} : { isError: true as const }),
+    };
+  },
+);
+
 // ---- wiki_retro ----
 
 server.registerTool(
@@ -352,6 +413,22 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("🧠 LLM Wiki MCP Server running on stdio");
+
+  // Fire-and-forget QMD index recovery AFTER the transport is connected so
+  // clients are never blocked. A busy/live lock just logs a warning and MCP
+  // continues with current state untouched.
+  if (hasVault()) {
+    const paths = getPaths();
+    recoverQmdIndex(paths)
+      .then((result) => {
+        if (!result.ok) {
+          console.error(
+            `[llm-wiki] QMD recovery skipped: ${result.diagnostics[0]?.message ?? "locked"}`,
+          );
+        }
+      })
+      .catch((err) => console.error(`[llm-wiki] QMD recovery failed: ${(err as Error).message}`));
+  }
 }
 
 main().catch((err) => {

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { INGEST_SYSTEM } from "../extensions/llm-wiki/lib/ingest-worker.js";
-import type { VaultPaths } from "../extensions/llm-wiki/lib/utils.js";
+import { type VaultPaths, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
 
 // We test the language instruction is appended to the system prompt by
 // spying on runSubAgent and inspecting what systemPrompt it receives.
@@ -21,17 +21,7 @@ describe("runIngestSynthesis language injection", () => {
 
   beforeEach(() => {
     testDir = createTestVault();
-    paths = {
-      root: testDir,
-      raw: join(testDir, ".llm-wiki", "raw"),
-      rawSources: join(testDir, ".llm-wiki", "raw", "sources"),
-      rawTrajectories: join(testDir, ".llm-wiki", "raw", "trajectories"),
-      wiki: join(testDir, ".llm-wiki", "wiki"),
-      meta: join(testDir, ".llm-wiki", "meta"),
-      dotWiki: join(testDir, ".llm-wiki"),
-      outputs: join(testDir, ".llm-wiki", "outputs"),
-      discoveries: join(testDir, ".llm-wiki", "discoveries"),
-    };
+    paths = getVaultPaths(testDir);
   });
 
   afterEach(() => {

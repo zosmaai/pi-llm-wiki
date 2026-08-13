@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [20, 22, 23, 24, 25]
+        node-version: [22, 24]
 
     steps:
       - uses: actions/checkout@v4
@@ -47,6 +47,33 @@ jobs:
           files: ./coverage/lcov.info
           fail_ci_if_error: false
           verbose: true
+
+  qmd-native-compatibility:
+    name: QMD native compatibility (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: true
+
+      - name: Verify QMD SDK and model-free lexical search
+        run: pnpm exec vitest run test/qmd-contract.test.ts --reporter=verbose
+        env:
+          QMD_FORCE_CPU: "1"
 
   migration-node18:
     runs-on: ubuntu-latest

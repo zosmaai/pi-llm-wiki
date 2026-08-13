@@ -1,0 +1,41 @@
+name: QMD Model Smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 1"
+
+concurrency:
+  group: qmd-model-smoke
+  cancel-in-progress: true
+
+jobs:
+  model-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: true
+
+      - name: Cache QMD models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/qmd/models
+          key: qmd-2.5.3-models-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Exercise embedding, vector, expansion, fusion, and reranking
+        run: pnpm exec vitest run test/qmd-contract.test.ts --reporter=verbose
+        env:
+          QMD_FORCE_CPU: "1"
+          QMD_MODEL_SMOKE: "1"

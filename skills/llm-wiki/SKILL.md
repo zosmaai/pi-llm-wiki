@@ -37,10 +37,16 @@ WIKI_ROOT/
     │   ├── backlinks.json     # Inbound link map
     │   ├── index.md           # Human-readable catalog
     │   ├── log.md             # Activity log
-    │   └── events.jsonl       # Structured event stream
+    │   ├── events.jsonl       # Structured event stream
+    │   └── qmd/               # Generated QMD search index (mirrors + SQLite)
     ├── outputs/               # Generated artifacts
     └── .discoveries/          # Discovery tracking
 ```
+
+> `meta/qmd/` is extension-owned, generated, and **rebuildable** with `wiki_reindex`. It never
+> scans `wiki/` directly — it indexes parser-valid mirrors. Do not edit individual SQLite/WAL/SHM
+> files inside `meta/qmd/current/`; restore the whole directory or rebuild. Active recall still uses
+> the legacy heuristic until Phase 3.
 
 ## Golden Rules
 

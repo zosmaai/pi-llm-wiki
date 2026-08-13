@@ -125,6 +125,7 @@ The result is a wiki that **compounds** as you capture sources, ask questions, a
 | `wiki_lint` | Deterministic health checks (orphans, gaps, contradictions, auto-fix) |
 | `wiki_status` | Show counts, source states, and recent activity |
 | `wiki_rebuild_meta` | Force a full metadata rebuild (registry, backlinks, index, log) |
+| `wiki_reindex` | Rebuild/repair the generated QMD search index at `meta/qmd` (lexical is model-free; vectors may download ~2 GB) |
 | `wiki_log_event` | Append a structured event to the wiki activity log |
 | `wiki_watch` | Print a `crontab` line for automatic wiki updates (daily / weekly / hourly) — does not install it |
 | `wiki_capture_trajectory` _(opt-in)_ | Capture the completed task's tool-call trajectory (agent working-memory) |
@@ -285,7 +286,21 @@ my-wiki/
 | `.llm-wiki/meta/events.jsonl` | Extension / tool | Authoritative append-only state; back up for activity continuity |
 | `.llm-wiki/meta/log.md` | Extension | Generated from events |
 | `.llm-wiki/meta/lint-report.md` | Extension | Generated |
+| `.llm-wiki/meta/qmd/**` | Extension | Generated QMD search index (mirrors + SQLite); local, rebuildable with `wiki_reindex` |
 | `.llm-wiki/WIKI_SCHEMA.md` | Human + explicit request | Operating manual |
+
+### Generated QMD search index (phase 2)
+
+`.llm-wiki/meta/qmd/**` is extension-owned, generated, local, and **rebuildable** with `wiki_reindex`.
+
+- `.llm-wiki/wiki/**` remains authoritative and user editable; QMD never scans it directly.
+- `manifest.json` maps validated mirrors back to stable `(vault_id, page_id)` identities.
+- `documents/{canonical,evidence}/**` hold parser-valid mirrors that QMD indexes; the two collections never overlap.
+- `current/index.sqlite` is the live store. Do **not** copy, partially restore, or edit individual SQLite/WAL/SHM files inside `current` — restore the whole generated directory or rebuild with `wiki_reindex`.
+- Ordinary write-triggered updates are **lexical and model-free**. Selecting `vectors` may download approximately 2 GB of models on first use.
+- Cancellation and failures retain the last usable `current` store; stale/error/recovering state is repaired with `wiki_reindex`.
+- Full-vault backups include the generated searchable text (`meta/qmd`); OKF-only exports do not.
+- **Active recall still uses the legacy heuristic until Phase 3.** QMD indexing is observable and repairable, but no recall path depends on it yet.
 
 ### Activity history, backup, and portability
 

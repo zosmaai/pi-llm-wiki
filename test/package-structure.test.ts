@@ -25,6 +25,15 @@ describe("package structure", () => {
     expect(pkg.peerDependencies).toBeDefined();
     expect(pkg.peerDependencies["@mariozechner/pi-coding-agent"]).toBe("*");
     expect(pkg.peerDependencies.typebox).toBe("*");
+
+    expect(pkg.engines.node).toBe(">=22.0.0");
+    expect(pkg.dependencies["@tobilu/qmd"]).toBe("2.5.3");
+    expect(pkg.devDependencies.typescript).toBe("^5.9.3");
+    expect(pkg.pnpm.onlyBuiltDependencies).toEqual([
+      "better-sqlite3",
+      "node-llama-cpp",
+      "sqlite-vec",
+    ]);
   });
 
   // oh-my-pi reads `package.json#omp` first and only falls back to `#pi`
@@ -164,6 +173,7 @@ describe("package structure", () => {
       "registerWikiLint",
       "registerWikiStatus",
       "registerWikiRebuildMeta",
+      "registerWikiReindex",
       "registerWikiLogEvent",
       "registerWikiWatch",
       "registerWikiRecall",
@@ -253,6 +263,16 @@ describe("package structure", () => {
     expect(readme).toContain("pi install npm:@zosmaai/pi-llm-wiki");
     expect(readme).toContain("Karpathy");
     expect(readme).toContain("Obsidian");
+  });
+
+  it("documents validated QMD indexing (phase 2)", () => {
+    for (const path of ["README.md", "docs/api.md", "docs/architecture.md", "docs/commands.md"]) {
+      const content = readFile(join(rootDir, path));
+      expect(content, path).toContain("wiki_reindex");
+      expect(content, path).toContain("meta/qmd");
+    }
+    expect(readFile(join(rootDir, "docs/api.md"))).toContain('components: ["lexical", "vectors"]');
+    expect(readFile(join(rootDir, "docs/architecture.md"))).toContain("generated and rebuildable");
   });
 
   it("documents the runnable MCP entry point in every README (issue #129)", () => {

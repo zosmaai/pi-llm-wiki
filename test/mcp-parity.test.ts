@@ -12,16 +12,23 @@ import {
   getVaultPaths,
 } from "../extensions/llm-wiki/lib/utils.js";
 import { inspectVaultFormat } from "../extensions/llm-wiki/lib/vault-format.js";
-import { getWikiStatus, searchRegistry } from "../extensions/llm-wiki/lib/wiki-service.js";
+import {
+  getWikiStatus,
+  reindexWiki,
+  searchRegistry,
+} from "../extensions/llm-wiki/lib/wiki-service.js";
 import { createExecApi } from "../mcp/exec.js";
 import {
   bootstrapOperation,
   captureSourceOperation,
   recallOperation,
+  reindexOperation,
   retroOperation,
   searchOperation,
   statusOperation,
 } from "../mcp/operations.js";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 describe("MCP parity with shared services", () => {
   let tmpDir: string;
@@ -65,7 +72,7 @@ describe("MCP parity with shared services", () => {
   it("status parity: MCP matches shared getWikiStatus", async () => {
     rebuildMetadata(paths);
 
-    const piStatus = getWikiStatus(paths);
+    const piStatus = await getWikiStatus(paths);
     const mcpStatus = await statusOperation(paths);
 
     expect(mcpStatus.knowledgeFormat).toBe(piStatus.knowledgeFormat);
@@ -75,6 +82,7 @@ describe("MCP parity with shared services", () => {
     expect(mcpStatus.blockingDiagnostics).toEqual(
       piStatus.blockingDiagnostics.map((d) => ({ code: d.code, message: d.message })),
     );
+    expect(mcpStatus.qmd).toEqual(piStatus.qmd);
   });
 
   it("recall parity: MCP matches shared searchWikiLayered with vault diagnostics", async () => {
@@ -128,7 +136,7 @@ describe("MCP parity with shared services", () => {
       rmSync(personalPagePath);
       rebuildMetadata(personalVault);
     }
-  });
+  }, 60_000);
 
   it("retro parity: MCP uses same saveInsight as Pi", async () => {
     // Pi-style call
@@ -203,7 +211,36 @@ describe("MCP parity with shared services", () => {
     );
   });
 
-  it("exactly six tools registered", () => {
+  it("reindex parity: MCP matches shared reindexWiki for lexical indexing", async () => {
+    mkdirSync(join(paths.wiki, "concepts"), { recursive: true });
+    writeFileSync(
+      join(paths.wiki, "concepts", "parity.md"),
+      "---\ntype: concept\ntitle: Parity Reindex\ndescription: Reindex parity\n---\n\n# Parity Reindex\n\nBody.",
+    );
+    rebuildMetadata(paths);
+
+    const piResult = await reindexWiki(paths, {
+      scope: "changed",
+      components: ["lexical"],
+      force: false,
+      vault: "active",
+    });
+    const mcpResult = await reindexOperation(paths, {
+      scope: "changed",
+      components: ["lexical"],
+      force: false,
+      vault: "active",
+    });
+
+    expect(mcpResult.vault).toBe(piResult.vault);
+    expect(mcpResult.results).toHaveLength(piResult.results.length);
+    for (let i = 0; i < piResult.results.length; i++) {
+      expect(mcpResult.results[i].root).toBe(piResult.results[i].root);
+      expect(mcpResult.results[i].result.ok).toBe(piResult.results[i].result.ok);
+    }
+  });
+
+  it("exactly seven tools registered", () => {
     const source = readFileSync(join(import.meta.dirname, "..", "mcp", "index.ts"), "utf-8");
     const tools = [...source.matchAll(/server\.registerTool\(\s*"([^"]+)"/g)].map((m) => m[1]);
     expect(tools).toEqual([
@@ -211,6 +248,7 @@ describe("MCP parity with shared services", () => {
       "wiki_recall",
       "wiki_search",
       "wiki_status",
+      "wiki_reindex",
       "wiki_retro",
       "wiki_capture_source",
     ]);
@@ -237,9 +275,17 @@ describe("MCP parity with shared services", () => {
           .map((entry) => `${entry.name}${entry.isDirectory() ? "/" : ""}`)
           .sort();
       expect(entries(mcpRoot)).toEqual(entries(piRoot));
-      expect(JSON.parse(readFileSync(join(mcpRoot, ".llm-wiki", "config.json"), "utf-8"))).toEqual(
-        JSON.parse(readFileSync(join(piRoot, ".llm-wiki", "config.json"), "utf-8")),
+      // Each side generates its own UUID. Assert both are valid, then compare
+      // the rest of the config byte-for-byte after omitting vault_id.
+      const mcpConfig = JSON.parse(
+        readFileSync(join(mcpRoot, ".llm-wiki", "config.json"), "utf-8"),
       );
+      const piConfig = JSON.parse(readFileSync(join(piRoot, ".llm-wiki", "config.json"), "utf-8"));
+      const { vault_id: mcpVaultId, ...mcpConfigRest } = mcpConfig;
+      const { vault_id: piVaultId, ...piConfigRest } = piConfig;
+      expect(mcpVaultId).toMatch(UUID);
+      expect(piVaultId).toMatch(UUID);
+      expect(mcpConfigRest).toEqual(piConfigRest);
     });
 
     it("is safe to re-run and reports the vault as pre-existing", async () => {

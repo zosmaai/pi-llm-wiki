@@ -16,12 +16,14 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { parseKnowledgeDocument } from "../extensions/llm-wiki/lib/knowledge-document.js";
 import { repairLegacyKnowledgeDocuments } from "../extensions/llm-wiki/lib/legacy-repair.js";
 import { rebuildMetadata } from "../extensions/llm-wiki/lib/metadata.js";
+import { reindexQmdVault } from "../extensions/llm-wiki/lib/qmd-indexing.js";
 import { registerWikiLint, registerWikiStatus } from "../extensions/llm-wiki/lib/tools.js";
 import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
+import { getWikiStatus } from "../extensions/llm-wiki/lib/wiki-service.js";
 
 type TestTool = {
   execute: (...args: unknown[]) => Promise<{
@@ -380,4 +382,129 @@ it("resumes a checkpointed legacy repair after interruption", () => {
       "concepts/second.md",
     ).ok,
   ).toBe(true);
+});
+
+describe("QMD status and lint diagnostics", () => {
+  it("reports a ready QMD index with canonical and evidence counts after reindex", async () => {
+    const paths = getVaultPaths(root);
+    ensureVaultStructure(paths);
+    writeFileSync(
+      join(paths.dotWiki, "config.json"),
+      JSON.stringify({ topic: "Q", mode: "personal" }),
+    );
+    mkdirSync(join(paths.wiki, "concepts"), { recursive: true });
+    mkdirSync(join(paths.wiki, "sources"), { recursive: true });
+    writeFileSync(
+      join(paths.wiki, "concepts", "a.md"),
+      "---\ntype: concept\n---\n\nCanonical concept.\n",
+    );
+    writeFileSync(
+      join(paths.wiki, "sources", "s.md"),
+      "---\ntype: source\n---\n\nEvidence source.\n",
+    );
+
+    const res = await reindexQmdVault(paths, { scope: "changed", components: ["lexical"] });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    const status = await getWikiStatus(paths);
+    expect(status.qmd).toMatchObject({
+      state: "ready",
+      totalDocuments: 2,
+      canonicalDocuments: 1,
+      evidenceDocuments: 1,
+      hasVectorIndex: false,
+      qmdVersion: "2.5.3",
+    });
+  });
+
+  it("reports a stale QMD index in lint with the exact repair command", async () => {
+    const paths = getVaultPaths(root);
+    ensureVaultStructure(paths);
+    writeFileSync(
+      join(paths.dotWiki, "config.json"),
+      JSON.stringify({ topic: "Q", mode: "personal" }),
+    );
+    mkdirSync(join(paths.wiki, "concepts"), { recursive: true });
+    writeFileSync(
+      join(paths.wiki, "concepts", "a.md"),
+      "---\ntype: concept\n---\n\nCanonical concept.\n",
+    );
+
+    const res = await reindexQmdVault(paths, { scope: "changed", components: ["lexical"] });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    // Make the index stale: add a phantom manifest entry so the hash differs.
+    const manifest = JSON.parse(readFileSync(paths.qmdManifest, "utf8"));
+    manifest.entries["documents/canonical/concepts/fake.md"] = {
+      sourcePath: join(paths.wiki, "concepts", "fake.md"),
+      vaultId: manifest.vaultId,
+      pageId: "concepts/fake",
+      contentHash: "b".repeat(64),
+      role: "canonical",
+      type: "concept",
+    };
+    writeFileSync(paths.qmdManifest, JSON.stringify(manifest, null, 2));
+
+    const status = await getWikiStatus(paths);
+    expect(status.qmd.state).toBe("stale");
+
+    let lintTool: TestTool | undefined;
+    registerWikiLint({
+      registerTool: (definition: unknown) => {
+        lintTool = definition as TestTool;
+      },
+    } as unknown as ExtensionAPI);
+    if (!lintTool) throw new Error("wiki_lint was not registered");
+    const result = await lintTool.execute("test", { auto_fix: false }, undefined, undefined, {
+      cwd: root,
+      hasUI: false,
+    });
+    expect(result.content[0].text).toContain("QMD index stale");
+    expect(result.content[0].text).toContain(
+      'wiki_reindex(scope="changed", components=["lexical"], vault="active")',
+    );
+    expect(result.content[0].text).not.toContain('components=["lexical, vectors"]');
+  });
+
+  it("suggests vectors repair when the embedding model changed", async () => {
+    const paths = getVaultPaths(root);
+    ensureVaultStructure(paths);
+    writeFileSync(
+      join(paths.dotWiki, "config.json"),
+      JSON.stringify({ topic: "Q", mode: "personal" }),
+    );
+    mkdirSync(join(paths.wiki, "concepts"), { recursive: true });
+    writeFileSync(
+      join(paths.wiki, "concepts", "a.md"),
+      "---\ntype: concept\n---\n\nCanonical concept.\n",
+    );
+
+    const res = await reindexQmdVault(paths, { scope: "changed", components: ["lexical"] });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    // Simulate an embedding model change in the recorded state.
+    const statePath = join(paths.qmdCurrent, "index-state.json");
+    const state = JSON.parse(readFileSync(statePath, "utf8"));
+    state.models.embed = "text-embedding-3-large";
+    writeFileSync(statePath, JSON.stringify(state));
+
+    let lintTool: TestTool | undefined;
+    registerWikiLint({
+      registerTool: (definition: unknown) => {
+        lintTool = definition as TestTool;
+      },
+    } as unknown as ExtensionAPI);
+    if (!lintTool) throw new Error("wiki_lint was not registered");
+    const result = await lintTool.execute("test", { auto_fix: false }, undefined, undefined, {
+      cwd: root,
+      hasUI: false,
+    });
+    expect(result.content[0].text).toContain(
+      'wiki_reindex(scope="changed", components=["vectors"], vault="active")',
+    );
+    expect(result.content[0].text).not.toContain('components=["lexical, vectors"]');
+  });
 });

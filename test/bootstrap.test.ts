@@ -42,7 +42,28 @@ function extensionHarness() {
   return { handlers, tools };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 describe("bootstrap", () => {
+  it("creates a stable vault_id and QMD paths", () => {
+    const paths = getVaultPaths(root());
+    const first = bootstrapVault(paths, { topic: "Identity", mode: "personal" });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const firstConfig = JSON.parse(readFileSync(join(paths.dotWiki, "config.json"), "utf8"));
+    expect(firstConfig.vault_id).toMatch(UUID);
+
+    bootstrapVault(paths, { topic: "Renamed", mode: "personal" });
+    const secondConfig = JSON.parse(readFileSync(join(paths.dotWiki, "config.json"), "utf8"));
+    expect(secondConfig.vault_id).toBe(firstConfig.vault_id);
+
+    expect(paths.qmd).toBe(join(paths.meta, "qmd"));
+    expect(paths.qmdCurrent).toBe(join(paths.meta, "qmd", "current"));
+    expect(paths.qmdDocuments).toBe(join(paths.meta, "qmd", "documents"));
+    expect(paths.qmdManifest).toBe(join(paths.meta, "qmd", "manifest.json"));
+    expect(paths.qmdSwap).toBe(join(paths.meta, "qmd", "swap.json"));
+  });
+
   it("silently bootstraps an OKF vault through the real session seam", async () => {
     const cwd = root();
     mkdirSync(cwd, { recursive: true });

@@ -430,6 +430,9 @@ describe("OKF integration", () => {
     expect(existsSync(join(paths.meta, "events.jsonl"))).toBe(false);
     expect(statuses.some((status) => status.includes("setup blocked"))).toBe(false);
     expect(harness.messages.length).toBeGreaterThan(0);
+    // Drain the fire-and-forget qmd-recovery task before the vault is removed
+    // in teardown; otherwise it warns about the deleted index directory.
+    await harness.emit("session_shutdown");
   });
 
   it("blocks an existing invalid vault before status notices or lifecycle writes", async () => {
@@ -455,6 +458,30 @@ describe("OKF integration", () => {
     expect(harness.messages).toEqual([]);
     expect(readFileSync(join(paths.dotWiki, "config.json"), "utf8")).toBe(config);
     expect(existsSync(join(paths.meta, "events.jsonl"))).toBe(false);
+    await harness.emit("session_shutdown");
+  });
+
+  it("does not warn about QMD recovery when shutdown drains before teardown", async () => {
+    const root = join(import.meta.dirname, "..", "tmp", `okf-drain-${Date.now()}`);
+    vaultRoots.push(root);
+    const paths = getVaultPaths(root);
+    ensureVaultStructure(paths);
+    writeFileSync(join(paths.dotWiki, "config.json"), JSON.stringify({ name: "Drain" }));
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: unknown[]) => warnings.push(args.join(" "));
+    try {
+      const harness = registerFullExtensionHarness(root);
+      await harness.emit(
+        "session_start",
+        {},
+        { cwd: root, hasUI: true, ui: { setStatus: () => {} }, model: { id: "test" } },
+      );
+      await harness.emit("session_shutdown");
+    } finally {
+      console.warn = originalWarn;
+    }
+    expect(warnings.some((w) => w.includes("QMD index recovery failed"))).toBe(false);
   });
 
   it("only registers Foundation-required tools", () => {

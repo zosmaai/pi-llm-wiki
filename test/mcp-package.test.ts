@@ -48,7 +48,7 @@ async function request(
   return nextMessage(child);
 }
 
-it("starts the published MCP command, exposes six tools, and invokes operations", async () => {
+it("starts the published MCP command, exposes seven tools, and invokes operations", async () => {
   const pkg = JSON.parse(readFile(join(rootDir, "package.json"))) as {
     pi: { mcpservers: Record<string, string> };
   };
@@ -96,6 +96,7 @@ it("starts the published MCP command, exposes six tools, and invokes operations"
       "wiki_bootstrap",
       "wiki_capture_source",
       "wiki_recall",
+      "wiki_reindex",
       "wiki_retro",
       "wiki_search",
       "wiki_status",
@@ -119,6 +120,23 @@ it("starts the published MCP command, exposes six tools, and invokes operations"
       },
     });
     expect((retro.result as { isError?: boolean }).isError).not.toBe(true);
+
+    const reindex = await request(child, {
+      jsonrpc: "2.0",
+      id: 5,
+      method: "tools/call",
+      params: {
+        name: "wiki_reindex",
+        arguments: {
+          scope: "changed",
+          components: ["lexical"],
+          force: false,
+          vault: "active",
+        },
+      },
+    });
+    expect((reindex.result as { isError?: boolean }).isError).not.toBe(true);
+    expect(existsSync(join(paths.meta, "qmd", "current", "index.sqlite"))).toBe(true);
   } finally {
     child.stdin.end();
     if (!child.killed) child.kill();

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetIndexingState,
   indexLabel,
@@ -10,6 +10,12 @@ import {
 import { saveObservation } from "../extensions/llm-wiki/lib/observation.js";
 import { Runtime } from "../extensions/llm-wiki/lib/runtime.js";
 import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
+
+const qmdMocks = vi.hoisted(() => ({
+  reindexQmdVault: vi.fn(async () => ({ ok: true, errors: [], warnings: [] })),
+  invalidateQmdAfterProjectionFailure: vi.fn(async () => {}),
+}));
+vi.mock("../extensions/llm-wiki/lib/qmd-indexing.js", () => qmdMocks);
 
 // ── vault scaffolding ─────────────────────────────────────
 function makeVault(tmpDir: string): string {
@@ -91,6 +97,8 @@ describe("scheduleReindex", () => {
 
   beforeEach(() => {
     __resetIndexingState();
+    qmdMocks.reindexQmdVault.mockClear();
+    qmdMocks.invalidateQmdAfterProjectionFailure.mockClear();
     tmpDir = join(
       import.meta.dirname,
       "..",
@@ -101,6 +109,8 @@ describe("scheduleReindex", () => {
   });
   afterEach(() => {
     __resetIndexingState();
+    qmdMocks.reindexQmdVault.mockClear();
+    qmdMocks.invalidateQmdAfterProjectionFailure.mockClear();
     try {
       rmSync(tmpDir, { recursive: true, force: true });
     } catch {}
@@ -279,5 +289,119 @@ describe("wiki_observe tool backgrounds its rebuild", () => {
 
     const afterKey = Object.keys(readRegistry(vaultDir).pages).find((k) => k.includes("tool-obs"));
     expect(afterKey).toBeDefined();
+  });
+});
+
+describe("scheduleReindex QMD chaining (phase 2)", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    __resetIndexingState();
+    qmdMocks.reindexQmdVault.mockClear();
+    qmdMocks.invalidateQmdAfterProjectionFailure.mockClear();
+    tmpDir = join(
+      import.meta.dirname,
+      "..",
+      "tmp",
+      `indexing-qmd-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    mkdirSync(tmpDir, { recursive: true });
+  });
+  afterEach(() => {
+    __resetIndexingState();
+    qmdMocks.reindexQmdVault.mockClear();
+    qmdMocks.invalidateQmdAfterProjectionFailure.mockClear();
+    try {
+      rmSync(tmpDir, { recursive: true, force: true });
+    } catch {}
+  });
+
+  it("schedules exactly one coalesced lexical QMD pass after a successful projection", async () => {
+    const vaultDir = makeVault(tmpDir);
+    const paths = getVaultPaths(vaultDir);
+    const rt = new Runtime();
+    writePage(vaultDir, "a");
+    writePage(vaultDir, "b");
+    scheduleReindex(rt, CTX, paths);
+    scheduleReindex(rt, CTX, paths);
+    await rt.awaitAll();
+    expect(qmdMocks.reindexQmdVault).toHaveBeenCalledTimes(1);
+    expect(qmdMocks.reindexQmdVault).toHaveBeenCalledWith(
+      paths,
+      expect.objectContaining({ scope: "changed", components: ["lexical"], force: false }),
+    );
+  });
+
+  it("never triggers an automatic vector pass", async () => {
+    const vaultDir = makeVault(tmpDir);
+    const paths = getVaultPaths(vaultDir);
+    const rt = new Runtime();
+    writePage(vaultDir, "a");
+    scheduleReindex(rt, CTX, paths);
+    await rt.awaitAll();
+    expect(qmdMocks.reindexQmdVault).toHaveBeenCalledTimes(1);
+    const call = qmdMocks.reindexQmdVault.mock.calls[0] as unknown as [
+      unknown,
+      { components: string[] },
+    ];
+    expect(call[1]).toMatchObject({ components: ["lexical"] });
+    expect(call[1].components).not.toContain("vectors");
+  });
+
+  it("does not lose a write arriving during QMD work (one trailing pass)", async () => {
+    const vaultDir = makeVault(tmpDir);
+    const paths = getVaultPaths(vaultDir);
+    const rt = new Runtime();
+    // A write lands DURING the first QMD pass, so the drain loop must fold it
+    // into a trailing pass instead of losing it. Fire only once.
+    qmdMocks.reindexQmdVault.mockImplementationOnce(async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      writePage(vaultDir, "trailing");
+      scheduleReindex(rt, CTX, paths);
+      return { ok: true, errors: [], warnings: [] };
+    });
+    writePage(vaultDir, "first");
+    const p1 = scheduleReindex(rt, CTX, paths);
+    await p1;
+    await rt.awaitAll();
+    expect(qmdMocks.reindexQmdVault).toHaveBeenCalledTimes(2);
+    expect(readRegistry(vaultDir).pages["concepts/first"]).toBeDefined();
+    expect(readRegistry(vaultDir).pages["concepts/trailing"]).toBeDefined();
+  });
+
+  it("QMD failure does not reject the page write", async () => {
+    const vaultDir = makeVault(tmpDir);
+    const paths = getVaultPaths(vaultDir);
+    const rt = new Runtime();
+    qmdMocks.reindexQmdVault.mockRejectedValueOnce(new Error("qmd boom"));
+    writePage(vaultDir, "a");
+    await expect(scheduleReindex(rt, CTX, paths)).resolves.toBeUndefined();
+    await rt.awaitAll();
+    // The authoritative write still lands despite the QMD failure.
+    expect(readRegistry(vaultDir).pages["concepts/a"]).toBeDefined();
+    expect(qmdMocks.reindexQmdVault).toHaveBeenCalled();
+  });
+
+  it("does not reconcile or index valid additions on a blocking projection failure", async () => {
+    const vaultDir = makeVault(tmpDir);
+    const paths = getVaultPaths(vaultDir);
+    writeFileSync(join(paths.wiki, "concepts", "bad.md"), "not frontmatter\n");
+    const rt = new Runtime();
+    scheduleReindex(rt, CTX, paths);
+    await rt.awaitAll();
+    expect(qmdMocks.invalidateQmdAfterProjectionFailure).toHaveBeenCalledWith(paths);
+    expect(qmdMocks.reindexQmdVault).not.toHaveBeenCalled();
+  });
+
+  it("uses only unsafe-entry invalidation when the projection blocks", async () => {
+    const vaultDir = makeVault(tmpDir);
+    const paths = getVaultPaths(vaultDir);
+    writeFileSync(join(paths.wiki, "concepts", "bad.md"), "not frontmatter\n");
+    const rt = new Runtime();
+    scheduleReindex(rt, CTX, paths);
+    await rt.awaitAll();
+    // Only the safety path is called; no full reconciliation on this vault.
+    expect(qmdMocks.invalidateQmdAfterProjectionFailure).toHaveBeenCalledTimes(1);
+    expect(qmdMocks.reindexQmdVault).not.toHaveBeenCalled();
   });
 });

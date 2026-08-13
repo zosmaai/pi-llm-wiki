@@ -25,6 +25,7 @@
 
 import { reindexEmbeddings, resolveEmbedder } from "./embeddings.js";
 import { rebuildMetadataLight } from "./metadata.js";
+import { invalidateQmdAfterProjectionFailure, reindexQmdVault } from "./qmd-indexing.js";
 import type { LaunchCtx, Runtime } from "./runtime.js";
 import type { VaultPaths } from "./utils.js";
 
@@ -65,7 +66,29 @@ export function scheduleReindex(
       while (dirty.has(root)) {
         dirty.delete(root);
         const projection = rebuildMetadataLight(paths);
-        if (!projection.ok) continue;
+        if (!projection.ok) {
+          // Generated QMD search state is repairable and must not fail the
+          // authoritative write. On a projection failure, only invalidate unsafe
+          // QMD entries (never index valid additions).
+          try {
+            await invalidateQmdAfterProjectionFailure(paths);
+          } catch {
+            // Best-effort safety pass; a busy/transient lock must not abort the
+            // metadata drain loop.
+          }
+          continue;
+        }
+
+        try {
+          // Post-projection lexical QMD pass. Model-free and repairable.
+          await reindexQmdVault(paths, {
+            scope: "changed",
+            components: ["lexical"],
+            force: false,
+          });
+        } catch {
+          // Generated search indexing is repairable and must not fail the write.
+        }
 
         // Refresh embeddings only after metadata is consistent. Stale-aware and
         // a no-op unless an embedder is configured.

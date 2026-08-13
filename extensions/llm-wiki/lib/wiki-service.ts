@@ -2,13 +2,24 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { KnowledgeDiagnostic } from "./knowledge-document.js";
 import type { Registry } from "./metadata.js";
-import { readJson } from "./utils.js";
+import {
+  type QmdGeneratedStatus,
+  type QmdIndexProgress,
+  type QmdIndexState,
+  type QmdReindexResult,
+  awaitQmdIndexQueue,
+  readQmdIndexStatus,
+  reindexQmdVault,
+} from "./qmd-indexing.js";
+import { QMD_PACKAGE_VERSION, resolveQmdModels } from "./qmd-store.js";
+import { getPersonalWikiPaths, isPersonalVault, readJson } from "./utils.js";
 import type { VaultPaths } from "./utils.js";
 import type { KnowledgeFormat } from "./vault-format.js";
 import {
   compareCodePoint,
   discoverKnowledgeDocuments,
   inspectVaultFormat,
+  inspectWritableVault,
 } from "./vault-format.js";
 
 /**
@@ -29,6 +40,7 @@ export interface WikiStatusSnapshot {
   byType: Record<string, number>;
   blockingDiagnostics: KnowledgeDiagnostic[];
   lastUpdated: string;
+  qmd: QmdGeneratedStatus;
 }
 
 /**
@@ -146,9 +158,10 @@ function matchesField(id: string, entry: Record<string, unknown>, query: string)
 /**
  * Get a status snapshot of the wiki.
  *
- * Reports resolved knowledge_format, page counts, and blocking diagnostics.
+ * Reports resolved knowledge_format, page counts, blocking diagnostics, and
+ * generated QMD index status (read without opening any QMD store).
  */
-export function getWikiStatus(paths: VaultPaths): WikiStatusSnapshot {
+export async function getWikiStatus(paths: VaultPaths): Promise<WikiStatusSnapshot> {
   const vaultState = inspectVaultFormat(paths);
   const diagnostics = [...vaultState.diagnostics];
 
@@ -179,5 +192,132 @@ export function getWikiStatus(paths: VaultPaths): WikiStatusSnapshot {
     byType,
     blockingDiagnostics: diagnostics.filter((d) => d.severity === "error"),
     lastUpdated: registry?.last_updated || "",
+    qmd: await readQmdIndexStatus(paths),
   };
+}
+
+// ─── Shared QMD reindex operation ─────────────────────────
+
+export type WikiReindexVault = "active" | "personal" | "project" | "all";
+
+export interface WikiReindexInput {
+  scope?: "changed" | "all";
+  components?: Array<"lexical" | "vectors">;
+  force?: boolean;
+  vault?: WikiReindexVault;
+  signal?: AbortSignal;
+  onProgress?: (progress: { vault: string; progress: QmdIndexProgress }) => void;
+}
+
+export interface WikiReindexResult {
+  vault: WikiReindexVault;
+  results: Array<{
+    root: string;
+    label: "active" | "personal" | "project";
+    result: QmdReindexResult;
+  }>;
+}
+
+function blockedReindexResult(
+  scope: "changed" | "all",
+  components: Array<"lexical" | "vectors">,
+  code: string,
+  message: string,
+): QmdReindexResult {
+  return {
+    ok: false,
+    scope,
+    components,
+    documents: { indexed: 0, updated: 0, unchanged: 0, removed: 0 },
+    vectors: { generated: 0, skipped: 0, errors: 0 },
+    elapsedMs: 0,
+    status: {
+      state: "error" as QmdIndexState,
+      qmdVersion: QMD_PACKAGE_VERSION,
+      models: resolveQmdModels(),
+      totalDocuments: 0,
+      canonicalDocuments: 0,
+      evidenceDocuments: 0,
+      needsEmbedding: 0,
+      hasVectorIndex: false,
+      repairComponents: [],
+      issues: [{ code, message }],
+    },
+    warnings: [],
+    errors: [{ code, message }],
+  };
+}
+
+/**
+ * Reindex QMD stores for selected vaults, sequentially. Validates each vault
+ * immediately before work. One vault's failure does not prevent the others.
+ */
+export async function reindexWiki(
+  activePaths: VaultPaths,
+  input: WikiReindexInput,
+): Promise<WikiReindexResult> {
+  const scope = input.scope ?? "changed";
+  const components = input.components ?? ["lexical", "vectors"];
+  const force = input.force ?? false;
+  const vault = input.vault ?? "active";
+  const signal = input.signal;
+  const onProgress = input.onProgress;
+
+  const personalPaths = getPersonalWikiPaths();
+  const activeIsPersonal = isPersonalVault(activePaths);
+
+  const targets: Array<{ paths: VaultPaths; label: "active" | "personal" | "project" }> = [];
+  switch (vault) {
+    case "active":
+      targets.push({ paths: activePaths, label: activeIsPersonal ? "personal" : "active" });
+      break;
+    case "personal":
+      targets.push({ paths: personalPaths, label: "personal" });
+      break;
+    case "project":
+      if (!activeIsPersonal) targets.push({ paths: activePaths, label: "project" });
+      break;
+    case "all":
+      if (!activeIsPersonal) targets.push({ paths: activePaths, label: "project" });
+      targets.push({ paths: personalPaths, label: "personal" });
+      break;
+  }
+
+  const seen = new Set<string>();
+  const results: WikiReindexResult["results"] = [];
+  for (const target of targets) {
+    if (seen.has(target.paths.root)) continue;
+    seen.add(target.paths.root);
+
+    const check = inspectWritableVault(target.paths);
+    if (!check.ok) {
+      results.push({
+        root: target.paths.root,
+        label: target.label,
+        result: blockedReindexResult(
+          scope,
+          components,
+          check.diagnostics[0]?.code ?? "config_invalid_knowledge_format",
+          check.diagnostics[0]?.message ?? "Vault is not writable",
+        ),
+      });
+      continue;
+    }
+
+    const result = await reindexQmdVault(target.paths, {
+      scope,
+      components,
+      force,
+      signal,
+      onProgress: (p) => onProgress?.({ vault: target.paths.root, progress: p }),
+    });
+    results.push({ root: target.paths.root, label: target.label, result });
+  }
+
+  return { vault, results };
+}
+
+/** Test-only: drain/await in-process QMD reindex queue work for a vault root. */
+export function awaitWikiQmdIndexQueue(root: string): Promise<unknown> {
+  return awaitQmdIndexQueue(root);
 }
