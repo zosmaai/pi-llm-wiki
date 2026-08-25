@@ -187,4 +187,132 @@ describe("QMD normalized index store adapter", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("exposes the three normalized search methods", async () => {
+    const root = mkdtempSync(join(tmpdir(), "pi-llm-wiki-qmd-adapter-"));
+    const documentsPath = join(root, "documents");
+    const dbPath = join(root, "index.sqlite");
+    try {
+      mkdirSync(join(documentsPath, "canonical"), { recursive: true });
+      const handle = await openQmdIndexStore({ dbPath, documentsPath });
+      await handle.update();
+      expect(typeof handle.searchLex).toBe("function");
+      expect(typeof handle.searchTyped).toBe("function");
+      expect(typeof handle.searchExpanded).toBe("function");
+      await handle.close();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("searchLex returns per-collection hits with normalized scores and no model load", async () => {
+    const root = mkdtempSync(join(tmpdir(), "pi-llm-wiki-qmd-adapter-"));
+    const documentsPath = join(root, "documents");
+    const dbPath = join(root, "index.sqlite");
+    try {
+      mkdirSync(join(documentsPath, "canonical", "concepts"), { recursive: true });
+      mkdirSync(join(documentsPath, "evidence"), { recursive: true });
+      writeFileSync(
+        join(documentsPath, "canonical", "concepts", "rag.md"),
+        "# RAG\n\nRetrieval augmented generation with signed access tokens.\n",
+      );
+      writeFileSync(
+        join(documentsPath, "evidence", "source.md"),
+        "# Source\n\nRaw evidence about signed access tokens.\n",
+      );
+      const beforeModels = modelFiles();
+      const handle = await openQmdIndexStore({ dbPath, documentsPath });
+      await handle.update();
+      const hits = await handle.searchLex("signed access tokens", 40);
+      expect(hits.length).toBeGreaterThan(0);
+      for (const hit of hits) {
+        expect(hit.score).toBeGreaterThanOrEqual(0);
+        expect(hit.score).toBeLessThanOrEqual(1);
+        expect(["canonical", "evidence"]).toContain(hit.collection);
+      }
+      expect(Math.max(...hits.map((h) => h.score))).toBe(1);
+      // files under documents/canonical/ → "canonical", documents/evidence/ → "evidence"
+      const canonicalFiles = hits.filter((h) => h.collection === "canonical").map((h) => h.file);
+      const evidenceFiles = hits.filter((h) => h.collection === "evidence").map((h) => h.file);
+      expect(canonicalFiles).toContain("qmd://canonical/concepts/rag.md");
+      expect(evidenceFiles).toContain("qmd://evidence/source.md");
+      expect(modelFiles()).toEqual(beforeModels);
+      await handle.close();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.runIf(process.env.QMD_MODEL_SMOKE === "1")(
+    "searchTyped returns fused hybrid hits with normalized scores",
+    async () => {
+      const root = mkdtempSync(join(tmpdir(), "pi-llm-wiki-qmd-adapter-"));
+      const documentsPath = join(root, "documents");
+      const dbPath = join(root, "index.sqlite");
+      try {
+        mkdirSync(join(documentsPath, "canonical", "concepts"), { recursive: true });
+        mkdirSync(join(documentsPath, "evidence"), { recursive: true });
+        writeFileSync(
+          join(documentsPath, "canonical", "concepts", "rag.md"),
+          "# RAG\n\nRetrieval augmented generation with signed access tokens.\n",
+        );
+        writeFileSync(
+          join(documentsPath, "evidence", "source.md"),
+          "# Source\n\nRaw evidence about signed access tokens.\n",
+        );
+        const handle = await openQmdIndexStore({ dbPath, documentsPath });
+        await handle.update();
+        await handle.embed({ force: true });
+        const hits = await handle.searchTyped("signed access tokens", 10);
+        expect(hits.length).toBeGreaterThan(0);
+        for (const hit of hits) {
+          expect(hit.score).toBeGreaterThan(0);
+          expect(hit.score).toBeLessThanOrEqual(1);
+          expect(typeof hit.body).toBe("string");
+        }
+        await handle.close();
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+    1_200_000,
+  );
+
+  it.runIf(process.env.QMD_MODEL_SMOKE === "1")(
+    "searchExpanded returns reranked hits with intent",
+    async () => {
+      const root = mkdtempSync(join(tmpdir(), "pi-llm-wiki-qmd-adapter-"));
+      const documentsPath = join(root, "documents");
+      const dbPath = join(root, "index.sqlite");
+      try {
+        mkdirSync(join(documentsPath, "canonical", "concepts"), { recursive: true });
+        mkdirSync(join(documentsPath, "evidence"), { recursive: true });
+        writeFileSync(
+          join(documentsPath, "canonical", "concepts", "rag.md"),
+          "# RAG\n\nRetrieval augmented generation with signed access tokens.\n",
+        );
+        writeFileSync(
+          join(documentsPath, "evidence", "source.md"),
+          "# Source\n\nRaw evidence about signed access tokens.\n",
+        );
+        const handle = await openQmdIndexStore({ dbPath, documentsPath });
+        await handle.update();
+        await handle.embed({ force: true });
+        const hits = await handle.searchExpanded(
+          "signed access tokens",
+          "Authentication documentation",
+          10,
+        );
+        expect(hits.length).toBeGreaterThan(0);
+        for (const hit of hits) {
+          expect(hit.score).toBeGreaterThan(0);
+          expect(hit.score).toBeLessThanOrEqual(1);
+        }
+        await handle.close();
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+    1_200_000,
+  );
 });

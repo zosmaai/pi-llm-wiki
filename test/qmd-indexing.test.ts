@@ -88,6 +88,9 @@ function fakeFactory(opts: {
       evidenceDocuments: total - 1,
     }),
     close: async () => {},
+    searchLex: async () => [],
+    searchTyped: async () => [],
+    searchExpanded: async () => [],
   });
   return { factory, embed, update };
 }
@@ -294,6 +297,9 @@ describe("QMD vault reindexing", () => {
         throw new Error("nope");
       },
       close: async () => {},
+      searchLex: async () => [],
+      searchTyped: async () => [],
+      searchExpanded: async () => [],
     });
 
     const result = await reindexQmdVault(
@@ -708,6 +714,9 @@ describe("QMD staging cleanup", () => {
         throw new Error("nope");
       },
       close: async () => {},
+      searchLex: async () => [],
+      searchTyped: async () => [],
+      searchExpanded: async () => [],
     });
 
     const result = await reindexQmdVault(
@@ -762,6 +771,9 @@ describe("QMD staging cleanup", () => {
         evidenceDocuments: 0,
       }),
       close: async () => {},
+      searchLex: async () => [],
+      searchTyped: async () => [],
+      searchExpanded: async () => [],
     });
 
     const result = await reindexQmdVault(

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { type QMDStore, createStore } from "@tobilu/qmd";
+import { type HybridQueryResult, type QMDStore, type SearchResult, createStore } from "@tobilu/qmd";
 
 /**
  * Package-private normalized adapter over the pinned @tobilu/qmd SDK.
@@ -64,8 +64,71 @@ export interface QmdIndexStore {
     }) => void;
   }): Promise<QmdStoreEmbedResult>;
   status(): Promise<QmdStoreStatus>;
+  /** lexical: store.searchLex(query, { limit }) — BM25 only, no model load. */
+  searchLex(query: string, limit?: number): Promise<QmdSearchHit[]>;
+  /** hybrid + adaptive-initial: typed lex/vec queries, NO LLM expansion, NO rerank. */
+  searchTyped(query: string, limit?: number): Promise<QmdSearchHit[]>;
+  /** adaptive-uncertain + quality: plain query, LLM expansion + rerank, with intent. */
+  searchExpanded(
+    query: string,
+    intent: string | undefined,
+    limit?: number,
+  ): Promise<QmdSearchHit[]>;
   close(): Promise<void>;
 }
+
+/**
+ * Normalized, SDK-free retrieval hit. `score` is 0..1 relative to this result
+ * list's max (within-store confidence only — never comparable across stores).
+ */
+export interface QmdSearchHit {
+  /** Mirror collection the hit came from ("canonical" | "evidence"). */
+  collection: "canonical" | "evidence";
+  /** Mirror-relative file, e.g. "qmd://canonical/concepts/rag.md". */
+  file: string;
+  title: string;
+  /** 0..1, normalized to this result list's max. Within-store confidence only. */
+  score: number;
+  source: "fts" | "vec";
+  /** Best chunk body when the SDK returned one (hybrid results). */
+  body?: string;
+}
+
+/**
+ * Mirror collection a hit came from: the SDK reports virtual paths
+ * "qmd://<collection>/<path>.md", and the mirror layout is
+ * ".../documents/<role>/<pageId>.md". Either form resolves the role.
+ */
+function roleFromFile(file: string): QmdSearchHit["collection"] {
+  return /(?:^|\/)documents\/canonical\/|^qmd:\/\/canonical\//.test(file)
+    ? "canonical"
+    : "evidence";
+}
+
+type RawHit = Omit<QmdSearchHit, "score"> & { raw: number };
+
+/** Normalize raw within-store scores to 0..1 against this list's max. */
+function withNormalizedScores(hits: RawHit[]): QmdSearchHit[] {
+  const max = Math.max(...hits.map((h) => h.raw), 1e-9);
+  return hits.map(({ raw, ...rest }) => ({ ...rest, score: raw / max }));
+}
+
+const mapLexHit = (r: SearchResult): RawHit => ({
+  collection: roleFromFile(r.filepath),
+  file: r.filepath,
+  title: r.title,
+  source: r.source,
+  raw: r.score,
+});
+
+const mapHybridHit = (r: HybridQueryResult): RawHit => ({
+  collection: roleFromFile(r.file),
+  file: r.file,
+  title: r.title,
+  source: "fts" as const,
+  body: r.bestChunk,
+  raw: r.score,
+});
 
 export type QmdStoreFactory = (input: {
   dbPath: string;
@@ -116,6 +179,36 @@ export async function openQmdIndexStore(input: {
       };
     },
     close: () => store.close(),
+    searchLex: async (query, limit = 40) =>
+      withNormalizedScores((await store.searchLex(query, { limit })).map(mapLexHit)),
+    searchTyped: async (query, limit = 10) =>
+      withNormalizedScores(
+        (
+          await store.search({
+            queries: [
+              { type: "lex", query },
+              { type: "vec", query },
+            ],
+            rerank: false,
+            candidateLimit: 40,
+            limit,
+            explain: true,
+          })
+        ).map(mapHybridHit),
+      ),
+    searchExpanded: async (query, intent, limit = 10) =>
+      withNormalizedScores(
+        (
+          await store.search({
+            query,
+            intent,
+            rerank: true,
+            candidateLimit: 40,
+            limit,
+            explain: true,
+          })
+        ).map(mapHybridHit),
+      ),
   };
 }
 

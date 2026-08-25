@@ -83,6 +83,9 @@ function harness(): Harness {
       close: async () => {
         open--;
       },
+      searchLex: async () => [],
+      searchTyped: async () => [],
+      searchExpanded: async () => [],
     };
   };
 
