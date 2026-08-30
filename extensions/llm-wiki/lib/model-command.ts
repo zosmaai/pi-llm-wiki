@@ -1,4 +1,13 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, Theme } from "@mariozechner/pi-coding-agent";
+import {
+  Container,
+  type SelectItem,
+  SelectList,
+  type SelectListTheme,
+  Spacer,
+  Text,
+  matchesKey,
+} from "@mariozechner/pi-tui";
 import type { Runtime } from "./runtime.js";
 import { type TaskConfig, parseModelRef, persistTaskModel } from "./task-config.js";
 
@@ -25,6 +34,12 @@ interface ModelLike {
 /** Words that clear the override and revert to the session model. */
 const CLEAR_WORDS = new Set(["session", "default", "reset", "clear", "none", "unset"]);
 
+/** Sentinel value for the "use session model" picker row — not a valid provider/id. */
+const SESSION_VALUE = "__session__";
+
+/** Same window size as pi's built-in `/model` picker. */
+const MAX_VISIBLE = 10;
+
 /** The status-bar key for the active-model label (so we can update it in place). */
 export const MODEL_STATUS_KEY = "llm-wiki-model";
 
@@ -41,6 +56,85 @@ export function formatActiveModelLabel(config: TaskConfig, sessionModelId?: stri
 /** "provider/id" ref for a model. */
 function modelRef(m: ModelLike): string {
   return `${m.provider}/${m.id}`;
+}
+
+function buildSelectTheme(theme: Theme): SelectListTheme {
+  return {
+    selectedPrefix: (text) => theme.fg("accent", text),
+    selectedText: (text) => theme.fg("accent", text),
+    description: (text) => theme.fg("dim", text),
+    scrollInfo: (text) => theme.fg("dim", text),
+    noMatch: (text) => theme.fg("muted", text),
+  };
+}
+
+function buildPickerItems(
+  pool: ModelLike[],
+  currentRef: string | undefined,
+): { items: SelectItem[]; selectedIndex: number } {
+  const items: SelectItem[] = [
+    {
+      value: SESSION_VALUE,
+      label: "↩ Use session model (clear override)",
+      description: currentRef ? undefined : "current",
+    },
+  ];
+  let selectedIndex = 0;
+  for (const m of pool) {
+    const ref = modelRef(m);
+    const isCurrent = currentRef === ref;
+    items.push({
+      value: ref,
+      label: ref,
+      description: isCurrent ? "current" : undefined,
+    });
+    if (isCurrent) selectedIndex = items.length - 1;
+  }
+  return { items, selectedIndex };
+}
+
+/** Editor-dock picker; `ui.custom` without overlay replaces the input slot like `/model`. */
+class ModelPickerScreen extends Container {
+  private list: SelectList;
+  private doneFn: (result?: string) => void;
+  private closed = false;
+
+  constructor(
+    title: string,
+    items: SelectItem[],
+    selectedIndex: number,
+    theme: Theme,
+    done: (result?: string) => void,
+  ) {
+    super();
+    this.doneFn = done;
+    this.addChild(new Text(title, 0, 0));
+    this.addChild(new Spacer(1));
+    this.list = new SelectList(
+      items,
+      Math.min(MAX_VISIBLE, Math.max(items.length, 1)),
+      buildSelectTheme(theme),
+    );
+    this.list.setSelectedIndex(selectedIndex);
+    this.list.onSelect = (item) => this.finish(item.value);
+    this.list.onCancel = () => this.finish(undefined);
+    this.addChild(this.list);
+  }
+
+  handleInput(data: string): void {
+    // matchesKey covers kitty CSI-u Esc; SelectList cancel is the fallback.
+    if (matchesKey(data, "escape")) {
+      this.finish(undefined);
+      return;
+    }
+    this.list.handleInput(data);
+  }
+
+  private finish(result?: string): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.doneFn(result);
+  }
 }
 
 /**
@@ -108,15 +202,31 @@ export function registerWikiModelCommand(pi: ExtensionAPI, runtime: Runtime): vo
         return;
       }
 
+      if (typeof ctx.ui.custom !== "function") {
+        ctx.ui.notify(
+          `LLM Wiki: this host does not support the model picker. Pass provider/id (e.g. anthropic/claude-haiku) or "session". Active: ${current}.`,
+          "warning",
+        );
+        return;
+      }
+
       const available = (ctx.modelRegistry.getAvailable() as ModelLike[]) ?? [];
       const pool = available.length > 0 ? available : (ctx.modelRegistry.getAll() as ModelLike[]);
-      const sessionOption = "↩ Use session model (clear override)";
-      const options = [sessionOption, ...pool.map(modelRef)];
+      const currentRef = runtime.config.taskModel ? modelRef(runtime.config.taskModel) : undefined;
+      const { items, selectedIndex } = buildPickerItems(pool, currentRef);
 
-      const picked = await ctx.ui.select(`Wiki background model (current: ${current})`, options);
+      const picked = await ctx.ui.custom<string | undefined>((_tui, theme, _keybindings, done) => {
+        return new ModelPickerScreen(
+          `Wiki background model (current: ${current})`,
+          items,
+          selectedIndex,
+          theme,
+          done,
+        );
+      });
       if (picked === undefined) return; // cancelled
 
-      if (picked === sessionOption) {
+      if (picked === SESSION_VALUE) {
         apply(undefined);
         return;
       }
