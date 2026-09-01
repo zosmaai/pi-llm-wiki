@@ -93,7 +93,7 @@
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
-    "@mariozechner/pi-tui": "0.70.6",
+    "@mariozechner/pi-tui": "0.73.1",
     "@modelcontextprotocol/server": "^2.0.0",
     "mdast-util-from-markdown": "^2.0.3",
     "node-html-markdown": "^2.0.0",
