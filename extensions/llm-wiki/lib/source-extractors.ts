@@ -270,8 +270,8 @@ async function extractWithMarkItDown(
     if (!(await hasMarkItDown(pi, signal))) return "";
     const mdResult = await exec(
       pi,
-      "sh",
-      ["-c", `uvx --from 'markitdown[docx,pdf]' markitdown "${source}" 2>/dev/null || echo ""`],
+      "uvx",
+      ["--from", "markitdown[docx,pdf]", "markitdown", source],
       { signal, timeout: markitdownTimeoutMs() },
     );
     return mdResult.stdout.trim() ? mdResult.stdout : "";
@@ -281,13 +281,21 @@ async function extractWithMarkItDown(
 }
 
 async function hasMarkItDown(pi: ExecApi, signal?: AbortSignal): Promise<boolean> {
-  const markitdown = await exec(
-    pi,
-    "sh",
-    ["-c", `which uvx >/dev/null 2>&1 && echo "yes" || echo "no"`],
-    { signal },
-  );
-  return markitdown.stdout.trim() === "yes";
+  // Probe without shell to avoid CWE-78; try which/where then uvx --version
+  try {
+    await exec(pi, "which", ["uvx"], { signal });
+    return true;
+  } catch {}
+  try {
+    await exec(pi, "where", ["uvx"], { signal });
+    return true;
+  } catch {}
+  try {
+    await exec(pi, "uvx", ["--version"], { signal });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function fetchTextUrl(pi: ExecApi, url: string, signal?: AbortSignal): Promise<string> {
