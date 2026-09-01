@@ -51,9 +51,9 @@ fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf-8");
 // Update CHANGELOG
 const changelogPath = path.join(__dirname, "..", "CHANGELOG.md");
 let changelog = "";
-if (fs.existsSync(changelogPath)) {
+try {
   changelog = fs.readFileSync(changelogPath, "utf-8");
-}
+} catch {}
 const today = new Date().toISOString().split("T")[0];
 const newSection = `## [${next}] - ${today}\n\n### Added\n- Release ${next}\n`;
 if (changelog.includes("## [Unreleased]")) {
