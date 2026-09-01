@@ -104,7 +104,7 @@
   "devDependencies": {
     "@astrojs/starlight": "^0.41.10",
     "@biomejs/biome": "^1.9.4",
-    "@mariozechner/pi-agent-core": "^0.70.2",
+    "@mariozechner/pi-agent-core": "^0.73.1",
     "@mariozechner/pi-ai": "^0.70.2",
     "@mariozechner/pi-coding-agent": "^0.70.2",
     "@mermaid-js/mermaid-cli": "^11.12.0",
