@@ -70,15 +70,21 @@ export function mockPiWithMarkItDown(markdownOutput: string) {
   return {
     exec: async (command: string, args: string[]) => {
       // Fixed direct exec (no shell) — primary path
-      if (command === "which" && args[0] === "uvx") return { stdout: "/usr/local/bin/uvx\n", stderr: "", code: 0, killed: false } as never;
-      if (command === "where" && args[0] === "uvx") return { stdout: "C:\\uvx.exe\n", stderr: "", code: 0, killed: false } as never;
-      if (command === "uvx" && args[0] === "--version") return { stdout: "uvx 0.5.0\n", stderr: "", code: 0, killed: false } as never;
-      if (command === "uvx" && args.includes("markitdown")) return { stdout: markdownOutput, stderr: "", code: 0, killed: false } as never;
+      if (command === "which" && args[0] === "uvx")
+        return { stdout: "/usr/local/bin/uvx\n", stderr: "", code: 0, killed: false } as never;
+      if (command === "where" && args[0] === "uvx")
+        return { stdout: "C:\\uvx.exe\n", stderr: "", code: 0, killed: false } as never;
+      if (command === "uvx" && args[0] === "--version")
+        return { stdout: "uvx 0.5.0\n", stderr: "", code: 0, killed: false } as never;
+      if (command === "uvx" && args.includes("markitdown"))
+        return { stdout: markdownOutput, stderr: "", code: 0, killed: false } as never;
       // Legacy sh -c path (kept for backward compat with any remaining callers)
       if (command === "sh") {
         const cmd = args[1] ?? "";
-        if (cmd.includes("which uvx")) return { stdout: "yes\n", stderr: "", code: 0, killed: false } as never;
-        if (cmd.includes("markitdown")) return { stdout: markdownOutput, stderr: "", code: 0, killed: false } as never;
+        if (cmd.includes("which uvx"))
+          return { stdout: "yes\n", stderr: "", code: 0, killed: false } as never;
+        if (cmd.includes("markitdown"))
+          return { stdout: markdownOutput, stderr: "", code: 0, killed: false } as never;
       }
       if (command === "cp") return { stdout: "", stderr: "", code: 0, killed: false } as never;
       throw new Error(`Unexpected command: ${command} ${JSON.stringify(args)}`);
@@ -94,7 +100,8 @@ export function mockPi(stdout?: string, writeOriginal = true) {
       if (command === "which" && args[0] === "uvx") throw new Error("which uvx not found");
       if (command === "where" && args[0] === "uvx") throw new Error("where uvx not found");
       if (command === "uvx" && args[0] === "--version") throw new Error("uvx not found");
-      if (command === "uvx" && args.includes("markitdown")) throw new Error("uvx markitdown not available");
+      if (command === "uvx" && args.includes("markitdown"))
+        throw new Error("uvx markitdown not available");
       // Legacy sh -c path (kept for backward compat)
       if (command === "sh") return { stdout: "no\n", stderr: "", code: 0, killed: false } as never;
       if (command === "curl" && args.includes("-o")) {
@@ -104,7 +111,8 @@ export function mockPi(stdout?: string, writeOriginal = true) {
         }
         return { stdout: "", stderr: "", code: 0, killed: false } as never;
       }
-      if (command === "curl") return { stdout: stdout ?? html, stderr: "", code: 0, killed: false } as never;
+      if (command === "curl")
+        return { stdout: stdout ?? html, stderr: "", code: 0, killed: false } as never;
       throw new Error(`Unexpected command: ${command} ${JSON.stringify(args)}`);
     },
   };

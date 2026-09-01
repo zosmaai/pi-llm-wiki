@@ -49,14 +49,16 @@ function makeRecordingPi(opts: {
         return { stdout: "", stderr: "", code: 0, killed: false };
       }
       if (command === "uvx") {
-        // Direct uvx invocation — args include source as last element
-        // Check if source arg contains shell metachars — should be passed as-is, NOT interpreted
-        const source = args[args.length - 1] ?? "";
-        // Simulate that direct exec does NOT interpret shell metachars
+        // Direct uvx invocation — args include source as last element; NOT shell-interpreted
         return { stdout: opts.markitdownOutput ?? "", stderr: "", code: 0, killed: false };
       }
       if (command === "curl") {
-        return { stdout: opts.curlOutput ?? "<html><title>Fallback</title><body>hello</body></html>", stderr: "", code: 0, killed: false };
+        return {
+          stdout: opts.curlOutput ?? "<html><title>Fallback</title><body>hello</body></html>",
+          stderr: "",
+          code: 0,
+          killed: false,
+        };
       }
       throw new Error(`Unexpected command: ${command} ${JSON.stringify(args)}`);
     },
@@ -78,7 +80,10 @@ const INJECTION_PAYLOADS = [
 describe("source-extractors security — #185 OS Command Injection", () => {
   for (const payload of INJECTION_PAYLOADS) {
     it(`should NOT interpolate url payload ${JSON.stringify(payload)} into sh -c`, async () => {
-      const { pi, calls } = makeRecordingPi({ hasUvX: true, markitdownOutput: "# Title\n\nextracted" });
+      const { pi, calls } = makeRecordingPi({
+        hasUvX: true,
+        markitdownOutput: "# Title\n\nextracted",
+      });
 
       // Should not throw, should safely handle malicious url
       const result = await extractUrlContent(pi, payload);
@@ -102,7 +107,9 @@ describe("source-extractors security — #185 OS Command Injection", () => {
       ).toEqual([]);
 
       // Should have probed uvx without shell
-      const uvxProbe = calls.filter((c) => (c.command === "which" || c.command === "uvx") && c.args.includes("uvx"));
+      const uvxProbe = calls.filter(
+        (c) => (c.command === "which" || c.command === "uvx") && c.args.includes("uvx"),
+      );
       expect(uvxProbe.length, "should probe uvx availability without shell").toBeGreaterThan(0);
 
       // Should have called uvx directly with payload as a single arg (not interpreted)
@@ -135,7 +142,11 @@ describe("source-extractors security — #185 OS Command Injection", () => {
 
   it("should fallback to curl safely when markitdown returns empty, without shell interpolation", async () => {
     const payload = '";echo INJECTED;# ';
-    const { pi, calls } = makeRecordingPi({ hasUvX: true, markitdownOutput: "", curlOutput: "<html><title>Hi</title><body>ok</body></html>" });
+    const { pi, calls } = makeRecordingPi({
+      hasUvX: true,
+      markitdownOutput: "",
+      curlOutput: "<html><title>Hi</title><body>ok</body></html>",
+    });
     const result = await extractUrlContent(pi, payload);
     // Should have fallen back to curl with payload as separate arg
     const curlCalls = calls.filter((c) => c.command === "curl");
@@ -150,7 +161,11 @@ describe("source-extractors security — #185 OS Command Injection", () => {
 
   it("should return empty/fallback when uvx not available, without using sh -c payload", async () => {
     const payload = '";echo INJECTED;# ';
-    const { pi, calls } = makeRecordingPi({ hasUvX: false, markitdownOutput: "should not reach", curlOutput: "<html><body>fallback</body></html>" });
+    const { pi, calls } = makeRecordingPi({
+      hasUvX: false,
+      markitdownOutput: "should not reach",
+      curlOutput: "<html><body>fallback</body></html>",
+    });
     const result = await extractUrlContent(pi, payload);
     // Should not have called sh -c with payload
     expect(calls.filter((c) => c.command === "sh" && c.args[1]?.includes(payload))).toEqual([]);
@@ -165,6 +180,8 @@ describe("source-extractors security — #185 OS Command Injection", () => {
     const uvxCalls = calls.filter((c) => c.command === "uvx" && c.args.includes("markitdown"));
     expect(uvxCalls.length).toBeGreaterThan(0);
     expect(uvxCalls[0].args).toContain("https://example.com/page.html");
-    expect(calls.filter((c) => c.command === "sh" && c.args[1]?.includes("markitdown"))).toEqual([]);
+    expect(calls.filter((c) => c.command === "sh" && c.args[1]?.includes("markitdown"))).toEqual(
+      [],
+    );
   });
 });
