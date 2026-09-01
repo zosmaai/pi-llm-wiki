@@ -1,8 +1,8 @@
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KnowledgeDiagnostic } from "./knowledge-document.js";
-import { type ProjectionResult, appendEvent, rebuildMetadata } from "./metadata.js";
-import { type VaultPaths, ensureVaultStructure, fmtDate, writeJson } from "./utils.js";
+import { appendEvent, type ProjectionResult, rebuildMetadata } from "./metadata.js";
+import { ensureVaultStructure, fmtDate, type VaultPaths, writeJson } from "./utils.js";
 import { inspectWritableVault, readVaultConfig } from "./vault-format.js";
 
 export const WIKI_SCHEMA = [

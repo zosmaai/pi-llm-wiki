@@ -7,7 +7,7 @@
  * Single source of truth: docs/*.md. This script is the only thing
  * that touches src/content/docs/ (aside from index.md).
  */
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 const docsDir = join(import.meta.dirname, "..", "docs");

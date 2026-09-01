@@ -11,11 +11,11 @@ import {
 } from "@mariozechner/pi-tui";
 import type { Runtime } from "./runtime.js";
 import {
-  type SettingScope,
   loadTaskConfig,
   loadTaskConfigSources,
   parseModelRef,
   persistSetting,
+  type SettingScope,
   trajectoriesEnabled,
 } from "./task-config.js";
 

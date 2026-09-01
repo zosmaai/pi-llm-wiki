@@ -2,8 +2,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { parse as parseYaml } from "yaml";
 import {
-  type HostKind,
   detectHost,
+  type HostKind,
   listGlobalSettingsFiles,
   listProjectSettingsFiles,
   resolveGlobalSettingsPath,

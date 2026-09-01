@@ -7,7 +7,7 @@ import { parseKnowledgeDocument } from "./knowledge-document.js";
 import type { Registry } from "./metadata.js";
 import type { LaunchCtx, Runtime } from "./runtime.js";
 import type { TaskConfig } from "./task-config.js";
-import { type VaultPaths, readJson, writeJson } from "./utils.js";
+import { readJson, type VaultPaths, writeJson } from "./utils.js";
 import { assertWritableVault } from "./vault-format.js";
 
 /**

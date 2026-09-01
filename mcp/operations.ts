@@ -10,20 +10,20 @@ import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { bootstrapVault } from "../extensions/llm-wiki/lib/bootstrap.js";
 import {
-  type WikilinkValidationMode,
   applyWikilinkGate,
   buildWikilinkIndex,
+  type WikilinkValidationMode,
 } from "../extensions/llm-wiki/lib/knowledge-links.js";
 import { type ProjectionResult, rebuildMetadata } from "../extensions/llm-wiki/lib/metadata.js";
 import { type RecallResult, searchWikiLayered } from "../extensions/llm-wiki/lib/recall.js";
 import { saveInsight } from "../extensions/llm-wiki/lib/retro.js";
 import { captureFile, captureText, captureUrl } from "../extensions/llm-wiki/lib/source-packet.js";
 import { resolveWikilinkValidation } from "../extensions/llm-wiki/lib/task-config.js";
-import { type VaultPaths, readJson } from "../extensions/llm-wiki/lib/utils.js";
+import { readJson, type VaultPaths } from "../extensions/llm-wiki/lib/utils.js";
 import {
-  VaultWriteError,
   inspectVaultFormat,
   inspectWritableVault,
+  VaultWriteError,
 } from "../extensions/llm-wiki/lib/vault-format.js";
 import { getWikiStatus, searchRegistry } from "../extensions/llm-wiki/lib/wiki-service.js";
 

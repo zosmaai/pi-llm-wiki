@@ -129,7 +129,7 @@ export function resolveProjectSettingsPath(cwd: string, host: HostKind = detectH
  *
  * Always writes to `settings.json` inside the agent dir — both hosts read it.
  */
-export function resolveGlobalSettingsPath(host: HostKind = detectHost()): string {
+export function resolveGlobalSettingsPath(_host: HostKind = detectHost()): string {
   let agentDir = "";
   try {
     agentDir = getAgentDir();

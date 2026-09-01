@@ -2,13 +2,13 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  type EmbeddingStore,
   buildEmbeddingText,
   chunkByBudget,
   contentHash,
   cosineSimilarity,
-  embedPages,
+  type EmbeddingStore,
   embeddingStorePath,
+  embedPages,
   isStale,
   normalizeVector,
   parseEmbeddingResponse,
@@ -19,9 +19,9 @@ import {
 import { rebuildMetadataLight } from "../extensions/llm-wiki/lib/metadata.js";
 import type { TaskConfig } from "../extensions/llm-wiki/lib/task-config.js";
 import {
-  type VaultPaths,
   ensureVaultStructure,
   getVaultPaths,
+  type VaultPaths,
 } from "../extensions/llm-wiki/lib/utils.js";
 
 // ── deterministic mock embedder (NO network) ──────────────

@@ -2,27 +2,27 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 import type { Api, Model } from "@mariozechner/pi-ai";
-import { Type } from "typebox";
 import type { Static } from "typebox";
+import { Type } from "typebox";
 import {
+  createKnowledgeDocument,
   type KnowledgeDiagnostic,
   type KnowledgeDocument,
-  createKnowledgeDocument,
   patchKnowledgeDocument,
   readKnowledgeDocumentFile,
   serializeKnowledgeDocument,
   writeKnowledgeDocumentFile,
 } from "./knowledge-document.js";
 import {
-  type WikilinkValidationMode,
   auditWikilinks,
   buildWikilinkIndex,
+  type WikilinkValidationMode,
 } from "./knowledge-links.js";
 import { appendEvent, rebuildMetadataLight } from "./metadata.js";
 import { runSubAgent } from "./subagent.js";
 import { resolveWikilinkValidation } from "./task-config.js";
-import { type VaultPaths, fmtDate, readJson, slugify } from "./utils.js";
-import { VaultWriteError, assertWritableVault } from "./vault-format.js";
+import { fmtDate, readJson, slugify, type VaultPaths } from "./utils.js";
+import { assertWritableVault, VaultWriteError } from "./vault-format.js";
 
 /**
  * Background ingest synthesis (issue #65, part of epic #63).

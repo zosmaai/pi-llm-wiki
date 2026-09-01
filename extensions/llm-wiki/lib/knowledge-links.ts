@@ -225,7 +225,7 @@ function resolveMarkdownTarget(
   // Convert decoded backslashes to /
   const normalized = decoded.map((s) => s.replace(/\\/g, "/")).join("/");
 
-  const sourceDir = sourceId.replace(/[^\/]*$/, ""); // directory of source
+  const sourceDir = sourceId.replace(/[^/]*$/, ""); // directory of source
   const parts = normalized.split("/");
   const isRootRelative = normalized.startsWith("/");
 

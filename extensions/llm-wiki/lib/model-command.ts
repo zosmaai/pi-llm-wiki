@@ -1,15 +1,15 @@
 import type { ExtensionAPI, Theme } from "@mariozechner/pi-coding-agent";
 import {
   Container,
+  matchesKey,
   type SelectItem,
   SelectList,
   type SelectListTheme,
   Spacer,
   Text,
-  matchesKey,
 } from "@mariozechner/pi-tui";
 import type { Runtime } from "./runtime.js";
-import { type TaskConfig, parseModelRef, persistTaskModel } from "./task-config.js";
+import { parseModelRef, persistTaskModel, type TaskConfig } from "./task-config.js";
 
 /**
  * Model selection surface for the wiki background lane (issue #69, epic #63).

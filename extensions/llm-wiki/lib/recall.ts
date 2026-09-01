@@ -3,9 +3,9 @@ import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 import {
+  cosineSimilarity,
   type Embedder,
   type EmbeddingStore,
-  cosineSimilarity,
   normalizeVector,
   readEmbeddingStore,
   resolveEmbedder,
@@ -15,11 +15,11 @@ import type { Registry } from "./metadata.js";
 import type { Runtime } from "./runtime.js";
 import type { TaskConfig } from "./task-config.js";
 import {
-  type VaultPaths,
   getPersonalWikiPaths,
   isPersonalVault,
   readJson,
   resolveVaultPaths,
+  type VaultPaths,
 } from "./utils.js";
 import { inspectVaultFormat } from "./vault-format.js";
 
@@ -111,7 +111,7 @@ function normalizeText(value: unknown): string {
   return flattenSearchValue(value)
     .toLowerCase()
     .normalize("NFKC")
-    .replace(/[\-_./\\]+/g, " ")
+    .replace(/[-_./\\]+/g, " ")
     .replace(/[\p{P}\p{S}]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -333,7 +333,7 @@ function chunkPreview(heading: string, content: string): string {
 function extractExpansionTerms(
   scored: Scored[],
   originalQuery: string,
-  paths: VaultPaths,
+  _paths: VaultPaths,
   maxTerms = 6,
 ): string[] {
   const topResults = scored.slice(0, Math.min(3, scored.length));

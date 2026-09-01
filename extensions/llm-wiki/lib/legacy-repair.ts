@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  constants,
   chmodSync,
   closeSync,
+  constants,
   existsSync,
   fstatSync,
   fsyncSync,
@@ -10,8 +10,8 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   renameSync,
   unlinkSync,
   utimesSync,
@@ -19,14 +19,14 @@ import {
 } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
+  createKnowledgeDocument,
   type DiagnosticCode,
   type KnowledgeDiagnostic,
-  createKnowledgeDocument,
   parseKnowledgeDocument,
   parseMarkdownFrontmatter,
   serializeKnowledgeDocument,
 } from "./knowledge-document.js";
-import { type VaultPaths, readJson } from "./utils.js";
+import { readJson, type VaultPaths } from "./utils.js";
 import { discoverKnowledgeDocuments, inspectVaultFormat } from "./vault-format.js";
 
 const RECOVERABLE = new Set<DiagnosticCode>([

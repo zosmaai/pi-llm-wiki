@@ -2,8 +2,8 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { KnowledgeDiagnostic } from "./knowledge-document.js";
 import type { Registry } from "./metadata.js";
-import { readJson } from "./utils.js";
 import type { VaultPaths } from "./utils.js";
+import { readJson } from "./utils.js";
 import type { KnowledgeFormat } from "./vault-format.js";
 import {
   compareCodePoint,

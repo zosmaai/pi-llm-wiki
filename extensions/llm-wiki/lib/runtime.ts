@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { TASK_DEFAULTS, type TaskConfig, loadTaskConfig, noticesEnabled } from "./task-config.js";
+import { loadTaskConfig, noticesEnabled, TASK_DEFAULTS, type TaskConfig } from "./task-config.js";
 
 /**
  * Background-task runtime for the LLM Wiki (issue #64, part of #63).

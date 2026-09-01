@@ -7,7 +7,7 @@ import { applyWikilinkGate, buildWikilinkIndex } from "./knowledge-links.js";
 import { appendEvent, rebuildMetadataLight } from "./metadata.js";
 import type { Runtime } from "./runtime.js";
 import { loadTaskConfig, resolveWikilinkValidation } from "./task-config.js";
-import { type VaultPaths, fmtDate, readJson, resolveVaultPaths } from "./utils.js";
+import { fmtDate, readJson, resolveVaultPaths, type VaultPaths } from "./utils.js";
 import { assertWritableVault, inspectWritableVault } from "./vault-format.js";
 
 // ─── Public API ────────────────────────────────────────

@@ -149,6 +149,7 @@ describe("wiki_ensure_page wikilink gate", () => {
     expect(text).toContain("[[ghost]]");
   });
 });
+
 import { registerWikiRetro } from "../extensions/llm-wiki/lib/retro.js";
 
 describe("wiki_retro wikilink gate", () => {

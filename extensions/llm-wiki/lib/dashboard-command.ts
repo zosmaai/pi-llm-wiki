@@ -7,8 +7,8 @@
  * text through a Container + Text.
  */
 import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
-import { Container, Text, matchesKey } from "@mariozechner/pi-tui";
-import { type DashboardStats, collectDashboardStats } from "./dashboard.js";
+import { Container, matchesKey, Text } from "@mariozechner/pi-tui";
+import { collectDashboardStats, type DashboardStats } from "./dashboard.js";
 import type { Runtime } from "./runtime.js";
 
 type App = ExtensionAPI;

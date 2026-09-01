@@ -2,9 +2,9 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  type SynthesisData,
   buildIngestedSourcePage,
   commitSynthesis,
+  type SynthesisData,
 } from "../extensions/llm-wiki/lib/ingest-worker.js";
 import { parseKnowledgeDocument } from "../extensions/llm-wiki/lib/knowledge-document.js";
 import { rebuildMetadata } from "../extensions/llm-wiki/lib/metadata.js";

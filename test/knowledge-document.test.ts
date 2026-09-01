@@ -2,8 +2,8 @@ import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  FRONTMATTER_MAX_BYTES,
   createKnowledgeDocument,
+  FRONTMATTER_MAX_BYTES,
   parseKnowledgeDocument,
   patchKnowledgeDocument,
   readKnowledgeDocumentFile,

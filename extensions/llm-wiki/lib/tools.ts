@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
@@ -17,18 +17,18 @@ import {
   buildWikilinkIndex,
 } from "./knowledge-links.js";
 import { repairLegacyKnowledgeDocuments } from "./legacy-repair.js";
-import { type Registry, appendEvent, rebuildMetadata, rebuildMetadataLight } from "./metadata.js";
+import { appendEvent, type Registry, rebuildMetadata, rebuildMetadataLight } from "./metadata.js";
 import type { Runtime } from "./runtime.js";
 import { captureFile, captureText, captureUrl } from "./source-packet.js";
 import { loadTaskConfig, parseModelRef, resolveWikilinkValidation } from "./task-config.js";
 import {
-  type VaultPaths,
   detectVaultFormat,
   fmtDate,
   getVaultPaths,
   readJson,
   resolveVaultPaths,
   slugify,
+  type VaultPaths,
   writeJson,
 } from "./utils.js";
 import {

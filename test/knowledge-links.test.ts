@@ -250,6 +250,7 @@ describe("auditWikilinks", () => {
     expect(r.changed).toBe(false);
   });
 });
+
 import { applyWikilinkGate } from "../extensions/llm-wiki/lib/knowledge-links.js";
 
 const gateIdx = buildWikilinkIndex(["concepts/transformer"]);

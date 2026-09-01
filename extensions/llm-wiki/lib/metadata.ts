@@ -3,8 +3,8 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -12,11 +12,11 @@ import {
 import { dirname, join } from "node:path";
 import type { KnowledgeDiagnostic, KnowledgeDocument } from "./knowledge-document.js";
 import {
-  type WikilinkIndex,
   buildResolvedBacklinks,
   buildWikilinkIndex,
+  type WikilinkIndex,
 } from "./knowledge-links.js";
-import { type VaultPaths, isPathWithin, readJson } from "./utils.js";
+import { isPathWithin, readJson, type VaultPaths } from "./utils.js";
 import {
   assertWritableVault,
   compareCodePoint,

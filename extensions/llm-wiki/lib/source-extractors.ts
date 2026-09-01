@@ -1,5 +1,4 @@
 import { open } from "node:fs/promises";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { NodeHtmlMarkdown } from "node-html-markdown";
 import { type ExecApi, exec } from "./utils.js";
 
@@ -358,7 +357,8 @@ function decodeHtmlEntities(text: string): string {
     };
     const lower = entity.toLowerCase();
     if (map[lower]) return map[lower];
-    if (lower.startsWith("&#")) return String.fromCodePoint(Number.parseInt(entity.slice(2, -1)));
+    if (lower.startsWith("&#"))
+      return String.fromCodePoint(Number.parseInt(entity.slice(2, -1), 10));
     return entity;
   });
 }
@@ -377,7 +377,7 @@ function xmlToMarkdown(xml: string): string {
   let prev = "";
   while (prev !== text) {
     prev = text;
-    text = text.replace(/<[a-zA-Z\/!?][^>]*>/g, "");
+    text = text.replace(/<[a-zA-Z/!?][^>]*>/g, "");
   }
   text = text.replace(/</g, "");
 

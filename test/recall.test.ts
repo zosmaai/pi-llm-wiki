@@ -9,14 +9,14 @@ import {
 } from "../extensions/llm-wiki/lib/embeddings.js";
 import { rebuildMetadata, rebuildMetadataLight } from "../extensions/llm-wiki/lib/metadata.js";
 import {
+  __clearQueryEmbeddingCache,
   DEFAULT_RECALL_LINKS_THRESHOLD,
   DEFAULT_SEMANTIC_WEIGHT,
-  SEMANTIC_SCALE,
-  type SemanticContext,
-  __clearQueryEmbeddingCache,
   formatRecallContext,
   fuseScores,
   registerWikiRecall,
+  SEMANTIC_SCALE,
+  type SemanticContext,
   searchWiki,
   searchWikiHybrid,
   searchWikiLayered,
