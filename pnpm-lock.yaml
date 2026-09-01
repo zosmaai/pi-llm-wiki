@@ -25,7 +25,7 @@ importers:
         version: 2.0.0
       typebox:
         specifier: ^1.1.34
-        version: 1.3.0
+        version: 1.3.20
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
@@ -41,13 +41,13 @@ importers:
         version: 1.9.4
       '@mariozechner/pi-agent-core':
         specifier: ^0.70.2
-        version: 0.70.6(ws@8.21.0)(zod@4.4.3)
+        version: 0.70.6(ws@8.21.3)(zod@4.4.3)
       '@mariozechner/pi-ai':
         specifier: ^0.70.2
-        version: 0.70.6(ws@8.21.0)(zod@4.4.3)
+        version: 0.70.6(ws@8.21.3)(zod@4.4.3)
       '@mariozechner/pi-coding-agent':
         specifier: ^0.70.2
-        version: 0.70.6(ws@8.21.0)(zod@4.4.3)
+        version: 0.70.6(ws@8.21.3)(zod@4.4.3)
       '@mermaid-js/mermaid-cli':
         specifier: ^11.12.0
         version: 11.15.0(puppeteer@24.43.1(typescript@5.9.3))(tailwindcss@4.3.1)
@@ -2008,32 +2008,28 @@ packages:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
     engines: {node: 18 || 20 || >=22}
 
-  bare-events@2.9.1:
-    resolution: {integrity: sha512-Z0oHEHAFDZkffN8Qc39zNZjQlMDkPJRyyyZieU1VH7u8c5S+qHZ2S8ixdKIAxEjfHO7FJxXmJWgteOghVanIsg==}
+  bare-events@2.9.2:
+    resolution: {integrity: sha512-AIPKioV7/Y/8KfZ3AAhjPJxLLbY49S64Ym5DakZlUg75qQiTgUq9hEJoEwa4eUezPUlXRy/i5NpsKvo9jgKmoA==}
     peerDependencies:
       bare-abort-controller: '*'
     peerDependenciesMeta:
       bare-abort-controller:
         optional: true
 
-  bare-fs@4.7.2:
-    resolution: {integrity: sha512-aTvMFUWkBmjzKtEQMDGGDNF8bkfpD5N1b/FCwt7A3wrU4t1o/e/85Wzkluh6JlODCjqVESYCkQCdTXqZ9G7VFg==}
-    engines: {bare: '>=1.16.0'}
+  bare-fs@4.8.1:
+    resolution: {integrity: sha512-N1nnXdHZAOSstz0XiHikGS4HGMH4CnSwhqWdGQQMqqdvp4Jybm9sE3R1WVnpWVd4SFkc8ryPDBLViNLwiEqECg==}
+    engines: {bare: '>=1.28.0'}
     peerDependencies:
       bare-buffer: '*'
     peerDependenciesMeta:
       bare-buffer:
         optional: true
 
-  bare-os@3.9.1:
-    resolution: {integrity: sha512-6M5XjcnsygQNPMCMPXSK379xrJFiZ/AEMNBmFEmQW8d/789VQATvriyi5r0HYTL9TkQ26rn3kgdTG3aisbrXkQ==}
-    engines: {bare: '>=1.14.0'}
+  bare-path@3.1.2:
+    resolution: {integrity: sha512-ZyKbsuuqK6Ag0K8pX6V5Txq6XeJRvY+wXucnFGRjiyVYP9YWDpIQugk/b+enRYrEYBJaqLzghRQpXPMR7341Nw==}
 
-  bare-path@3.0.1:
-    resolution: {integrity: sha512-ghj2DSK/2e99a1anTVPCV4m4YIYtrbXhfM7V3D7XZLOTsybnYyaJloymGqssQc8l/or0UoDyRtNQkmkEF/ysgQ==}
-
-  bare-stream@2.13.3:
-    resolution: {integrity: sha512-Kc+brLqvEqGkjyfiwJmImAOqLZL7OsoLKuavx+hJjgVV3nLTOjloJyPMFxjUPerGGHrNH0fLU06jjykMLWrERQ==}
+  bare-stream@2.13.4:
+    resolution: {integrity: sha512-PcrQ8lVLbiJscNm1Kez+Yp4Gy4AHGcN1lzwjvf5NybWen7VvEgUfyfnXYJ2zNqWnzOfCb1Abq6lH8ti0syQszA==}
     peerDependencies:
       bare-abort-controller: '*'
       bare-buffer: '*'
@@ -2046,8 +2042,8 @@ packages:
       bare-events:
         optional: true
 
-  bare-url@2.4.5:
-    resolution: {integrity: sha512-K+y9xF1tN+CdPu4qWwr0QiK1Al07eFPGYK5M2pDXcmHdMdgC/tT/bpmMe1hrmRHaidKLkXrC+cRNYf3XVDUhSQ==}
+  bare-url@2.5.3:
+    resolution: {integrity: sha512-3absfEzoyFosWT8v83ZcJgbTJxv+S/sI7jBfeCMlUVatSaefRmwweqBhFpMllQv+HTxs/FbbToVOw1c05NORkQ==}
 
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
@@ -3863,8 +3859,8 @@ packages:
   stream-replace-string@2.0.0:
     resolution: {integrity: sha512-TlnjJ1C0QrmxRNrON00JvaFFlNh5TTG00APw23j74ET7gkQpTASi6/L2fuiav8pzK715HXtUeClpBTw2NPSn6w==}
 
-  streamx@2.28.0:
-    resolution: {integrity: sha512-1Yowhzjf0ivGMrTIkY9hav5TxobO9qIVqUE41fiCGMGgc3CLlf4MY+9AHmZqBWgDTue0fY9zWjYFVyf6Diuobw==}
+  streamx@2.28.1:
+    resolution: {integrity: sha512-zEzXb0s5Cds7tqMH6rhZ05lcJydCWiQPEwiNngVqzsxCc962vLY4Uw+mW7od8kDH258k2Uz/JrOkdIAAhSh9VA==}
 
   string-width@4.2.3:
     resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==}
@@ -3919,11 +3915,11 @@ packages:
   tailwindcss@4.3.1:
     resolution: {integrity: sha512-hk+TB1m+K8CYNrP6rjQaq/Y+4Zylwpa87mLYBKCunwnnQ9p+fHb7kmSfGqyEJoxF/O6CDyABWVFEafNSYKll+Q==}
 
-  tar-fs@3.1.2:
-    resolution: {integrity: sha512-QGxxTxxyleAdyM3kpFs14ymbYmNFrfY+pHj7Z8FgtbZ7w2//VAgLMac7sT6nRpIHjppXO2AwwEOg0bPFVRcmXw==}
+  tar-fs@3.1.3:
+    resolution: {integrity: sha512-/hU4AXnIdZu+Gvl1pk0oI5f5HxWsCJRtY2aFaJdk9VvyL48DWU6iU5WAIPG+wIi1YvWA6eTJvIviP/tMAZZNwQ==}
 
-  tar-stream@3.2.0:
-    resolution: {integrity: sha512-ojzvCvVaNp6aOTFmG7jaRD0meowIAuPc3cMMhSgKiVWws1GyHbGd/xvnyuRKcKlMpt3qvxx6r0hreCNITP9hIg==}
+  tar-stream@3.2.1:
+    resolution: {integrity: sha512-nqsEO8zLZJvrOMdEwkA0QdCLFbetHMn95Zqu4fKwX+hkaTWJPZZOrxx/PwtxoK0MMGQmBQNRW3CPs8IFYQz4cQ==}
 
   teex@1.0.1:
     resolution: {integrity: sha512-eYE6iEI62Ni1H8oIa7KlDU6uQBtqr4Eajni3wX7rpfXD8ysFx8z0+dri+KWEPWpBsxXfxu58x/0jvTVT1ekOSg==}
@@ -3995,8 +3991,8 @@ packages:
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
-  typebox@1.3.0:
-    resolution: {integrity: sha512-3HaX5iZ13wSzcLSflDH1UJwaXnRghtc8LhQtKnq8qnlcnZvmGOpBOM6rY9PdyPBKNOYBpDHfE9r6BmI41fvp4g==}
+  typebox@1.3.20:
+    resolution: {integrity: sha512-qAQnoUNakcqjoTqwDzvqcg5e/+i3FHnltXFmKAbc0tpTPKT86bVOUPuevp/vYQguWUMC7YsVTmk1FT5UpjB/wg==}
 
   typed-query-selector@2.12.2:
     resolution: {integrity: sha512-EOPFbyIub4ngnEdqi2yOcNeDLaX/0jcE1JoAXQDDMIthap7FoN795lc/SHfIq2d416VufXpM8z/lD+WRm2gfOQ==}
@@ -4313,6 +4309,18 @@ packages:
 
   ws@8.21.0:
     resolution: {integrity: sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
+  ws@8.21.3:
+    resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -5400,10 +5408,10 @@ snapshots:
       std-env: 3.10.0
       yoctocolors: 2.1.2
 
-  '@mariozechner/pi-agent-core@0.70.6(ws@8.21.0)(zod@4.4.3)':
+  '@mariozechner/pi-agent-core@0.70.6(ws@8.21.3)(zod@4.4.3)':
     dependencies:
-      '@mariozechner/pi-ai': 0.70.6(ws@8.21.0)(zod@4.4.3)
-      typebox: 1.3.0
+      '@mariozechner/pi-ai': 0.70.6(ws@8.21.3)(zod@4.4.3)
+      typebox: 1.3.20
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - '@opentelemetry/api'
@@ -5413,17 +5421,17 @@ snapshots:
       - ws
       - zod
 
-  '@mariozechner/pi-ai@0.70.6(ws@8.21.0)(zod@4.4.3)':
+  '@mariozechner/pi-ai@0.70.6(ws@8.21.3)(zod@4.4.3)':
     dependencies:
       '@anthropic-ai/sdk': 0.90.0(zod@4.4.3)
       '@aws-sdk/client-bedrock-runtime': 3.1075.0
       '@google/genai': 1.52.0
       '@mistralai/mistralai': 2.2.6
       chalk: 5.6.2
-      openai: 6.26.0(ws@8.21.0)(zod@4.4.3)
+      openai: 6.26.0(ws@8.21.3)(zod@4.4.3)
       partial-json: 0.1.7
       proxy-agent: 6.5.0
-      typebox: 1.3.0
+      typebox: 1.3.20
       undici: 7.28.0
       zod-to-json-schema: 3.25.2(zod@4.4.3)
     transitivePeerDependencies:
@@ -5435,11 +5443,11 @@ snapshots:
       - ws
       - zod
 
-  '@mariozechner/pi-coding-agent@0.70.6(ws@8.21.0)(zod@4.4.3)':
+  '@mariozechner/pi-coding-agent@0.70.6(ws@8.21.3)(zod@4.4.3)':
     dependencies:
       '@mariozechner/jiti': 2.6.5
-      '@mariozechner/pi-agent-core': 0.70.6(ws@8.21.0)(zod@4.4.3)
-      '@mariozechner/pi-ai': 0.70.6(ws@8.21.0)(zod@4.4.3)
+      '@mariozechner/pi-agent-core': 0.70.6(ws@8.21.3)(zod@4.4.3)
+      '@mariozechner/pi-ai': 0.70.6(ws@8.21.3)(zod@4.4.3)
       '@mariozechner/pi-tui': 0.70.6
       '@silvia-odwyer/photon-node': 0.3.4
       chalk: 5.6.2
@@ -5454,7 +5462,7 @@ snapshots:
       minimatch: 10.2.5
       proper-lockfile: 4.1.2
       strip-ansi: 7.2.0
-      typebox: 1.3.0
+      typebox: 1.3.20
       undici: 7.28.0
       uuid: 14.0.1
       yaml: 2.9.0
@@ -5690,7 +5698,7 @@ snapshots:
       progress: 2.0.3
       proxy-agent: 6.5.0
       semver: 7.8.5
-      tar-fs: 3.1.2
+      tar-fs: 3.1.3
       yargs: 17.7.3
     transitivePeerDependencies:
       - bare-abort-controller
@@ -6397,38 +6405,34 @@ snapshots:
 
   balanced-match@4.0.4: {}
 
-  bare-events@2.9.1: {}
+  bare-events@2.9.2: {}
 
-  bare-fs@4.7.2:
+  bare-fs@4.8.1:
     dependencies:
-      bare-events: 2.9.1
-      bare-path: 3.0.1
-      bare-stream: 2.13.3(bare-events@2.9.1)
-      bare-url: 2.4.5
+      bare-events: 2.9.2
+      bare-path: 3.1.2
+      bare-stream: 2.13.4(bare-events@2.9.2)
+      bare-url: 2.5.3
       fast-fifo: 1.3.2
     transitivePeerDependencies:
       - bare-abort-controller
       - react-native-b4a
 
-  bare-os@3.9.1: {}
+  bare-path@3.1.2: {}
 
-  bare-path@3.0.1:
-    dependencies:
-      bare-os: 3.9.1
-
-  bare-stream@2.13.3(bare-events@2.9.1):
+  bare-stream@2.13.4(bare-events@2.9.2):
     dependencies:
       b4a: 1.8.1
-      streamx: 2.28.0
+      streamx: 2.28.1
       teex: 1.0.1
     optionalDependencies:
-      bare-events: 2.9.1
+      bare-events: 2.9.2
     transitivePeerDependencies:
       - react-native-b4a
 
-  bare-url@2.4.5:
+  bare-url@2.5.3:
     dependencies:
-      bare-path: 3.0.1
+      bare-path: 3.1.2
 
   base64-js@1.5.1: {}
 
@@ -6572,7 +6576,7 @@ snapshots:
     dependencies:
       env-paths: 2.2.1
       import-fresh: 3.3.1
-      js-yaml: 4.2.0
+      js-yaml: 4.3.2
       parse-json: 5.2.0
     optionalDependencies:
       typescript: 5.9.3
@@ -7040,7 +7044,7 @@ snapshots:
 
   events-universal@1.0.1:
     dependencies:
-      bare-events: 2.9.1
+      bare-events: 2.9.2
     transitivePeerDependencies:
       - bare-abort-controller
 
@@ -8241,9 +8245,9 @@ snapshots:
       regex: 6.1.0
       regex-recursion: 6.0.2
 
-  openai@6.26.0(ws@8.21.0)(zod@4.4.3):
+  openai@6.26.0(ws@8.21.3)(zod@4.4.3):
     optionalDependencies:
-      ws: 8.21.0
+      ws: 8.21.3
       zod: 4.4.3
 
   p-limit@6.2.0:
@@ -8457,7 +8461,7 @@ snapshots:
       devtools-protocol: 0.0.1608973
       typed-query-selector: 2.12.2
       webdriver-bidi-protocol: 0.4.1
-      ws: 8.21.0
+      ws: 8.21.3
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -8896,7 +8900,7 @@ snapshots:
 
   stream-replace-string@2.0.0: {}
 
-  streamx@2.28.0:
+  streamx@2.28.1:
     dependencies:
       events-universal: 1.0.1
       fast-fifo: 1.3.2
@@ -8968,24 +8972,24 @@ snapshots:
 
   tailwindcss@4.3.1: {}
 
-  tar-fs@3.1.2:
+  tar-fs@3.1.3:
     dependencies:
       pump: 3.0.4
-      tar-stream: 3.2.0
+      tar-stream: 3.2.1
     optionalDependencies:
-      bare-fs: 4.7.2
-      bare-path: 3.0.1
+      bare-fs: 4.8.1
+      bare-path: 3.1.2
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
       - react-native-b4a
 
-  tar-stream@3.2.0:
+  tar-stream@3.2.1:
     dependencies:
       b4a: 1.8.1
-      bare-fs: 4.7.2
+      bare-fs: 4.8.1
       fast-fifo: 1.3.2
-      streamx: 2.28.0
+      streamx: 2.28.1
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -8993,7 +8997,7 @@ snapshots:
 
   teex@1.0.1:
     dependencies:
-      streamx: 2.28.0
+      streamx: 2.28.1
     transitivePeerDependencies:
       - bare-abort-controller
       - react-native-b4a
@@ -9055,7 +9059,7 @@ snapshots:
 
   tslib@2.8.1: {}
 
-  typebox@1.3.0: {}
+  typebox@1.3.20: {}
 
   typed-query-selector@2.12.2: {}
 
@@ -9299,6 +9303,8 @@ snapshots:
   wrappy@1.0.2: {}
 
   ws@8.21.0: {}
+
+  ws@8.21.3: {}
 
   xxhash-wasm@1.1.0: {}
 
