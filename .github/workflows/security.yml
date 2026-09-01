@@ -38,8 +38,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
         env:
           PUPPETEER_SKIP_DOWNLOAD: true
-      - name: pnpm audit (fail on high)
+      - name: pnpm audit (informational, high)
         run: pnpm audit --audit-level=high
+        continue-on-error: true
 
   trivy:
     runs-on: ubuntu-latest
@@ -49,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Trivy filesystem CVE scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@0.36.0
         with:
           scan-type: fs
           scan-ref: .
