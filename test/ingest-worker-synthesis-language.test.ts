@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { INGEST_SYSTEM } from "../extensions/llm-wiki/lib/ingest-worker.js";
-import { type VaultPaths, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
+import { getVaultPaths, type VaultPaths } from "../extensions/llm-wiki/lib/utils.js";
 
 // We test the language instruction is appended to the system prompt by
 // spying on runSubAgent and inspecting what systemPrompt it receives.

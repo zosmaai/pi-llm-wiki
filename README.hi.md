@@ -9,6 +9,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@zosmaai/pi-llm-wiki)](https://www.npmjs.com/package/@zosmaai/pi-llm-wiki)
 [![Coverage](https://img.shields.io/badge/coverage-85.09%25-brightgreen.svg)](https://codecov.io/gh/zosmaai/pi-llm-wiki)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-online-blue.svg)](https://zosmaai.github.io/pi-llm-wiki/)
 [![CodeQL](https://github.com/zosmaai/pi-llm-wiki/actions/workflows/codeql.yml/badge.svg)](https://github.com/zosmaai/pi-llm-wiki/actions/workflows/codeql.yml)
 [![GitHub Repo Stars](https://img.shields.io/github/stars/zosmaai/pi-llm-wiki?style=social)](https://github.com/zosmaai/pi-llm-wiki/stargazers)
 
@@ -125,7 +126,9 @@ The extension will proactively suggest creating a wiki on your first session. Al
 | `wiki_search` | Search the generated wiki registry |
 | `wiki_lint` | Deterministic health checks (orphans, gaps, contradictions, auto-fix) |
 | `wiki_status` | Show counts, source states, and recent activity |
+| `wiki_observe` | चालू session की timestamped, search-able observations को wiki में दर्ज करें |
 | `wiki_rebuild_meta` | Force a full metadata rebuild (registry, backlinks, index, log) |
+| `wiki_reindex_embeddings` | नई/पुरानी pages के semantic embeddings को refresh करें (बिना embedding provider के no-op) |
 | `wiki_log_event` | Append a structured event to the wiki activity log |
 | `wiki_watch` | Print a `crontab` line for automatic wiki updates (daily / weekly / hourly) — does not install it |
 | `wiki_capture_trajectory` _(opt-in)_ | Capture the completed task's tool-call trajectory (agent working-memory) |
@@ -147,10 +150,16 @@ The extension will proactively suggest creating a wiki on your first session. Al
 | `/wiki-status` | Show a concise operational summary |
 | `/wiki-digest [--period daily\|weekly]` | Generate a digest of recent activity |
 | `/wiki-retro` | Save atomic insights from completed tasks |
+| `/wiki-model [provider/id | session]` | Background-task model set करें (बिना argument: interactive picker) |
 | `/wiki-req <concept>` | Decompose a concept into atomic, traceable requirement pages |
 | `/wiki-trajectories <on\|off>` | Enable/disable agent working-memory (opt-in, off by default) |
 | `/wiki-record <title>` | Capture the completed task's trajectory (requires trajectories enabled) |
 | `/wiki-skills [query]` | Search distilled skills + past cases (requires trajectories enabled) |
+| `/wiki-settings` | Interactive settings screen — saare `llm-wiki` settings ko project ya global scope में dekh/change करें |
+| `/wiki-dashboard` | केवल-पठन vault dashboard — पेज count/types, freshness, 7-दिवसीय activity, ingest queue, zero-backlink pages, embedding coverage |
+
+<img src="./assets/wiki-dashboard.png" alt="wiki-dashboard: vault dashboard" width="100%" />
+
 
 ---
 

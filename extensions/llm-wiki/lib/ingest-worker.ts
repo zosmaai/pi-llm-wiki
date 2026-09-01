@@ -2,21 +2,27 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 import type { Api, Model } from "@mariozechner/pi-ai";
-import { Type } from "typebox";
 import type { Static } from "typebox";
+import { Type } from "typebox";
 import {
+  createKnowledgeDocument,
   type KnowledgeDiagnostic,
   type KnowledgeDocument,
-  createKnowledgeDocument,
   patchKnowledgeDocument,
   readKnowledgeDocumentFile,
   serializeKnowledgeDocument,
   writeKnowledgeDocumentFile,
 } from "./knowledge-document.js";
+import {
+  auditWikilinks,
+  buildWikilinkIndex,
+  type WikilinkValidationMode,
+} from "./knowledge-links.js";
 import { appendEvent, rebuildMetadataLight } from "./metadata.js";
 import { runSubAgent } from "./subagent.js";
-import { type VaultPaths, fmtDate, slugify } from "./utils.js";
-import { VaultWriteError, assertWritableVault } from "./vault-format.js";
+import { resolveWikilinkValidation } from "./task-config.js";
+import { fmtDate, readJson, slugify, type VaultPaths } from "./utils.js";
+import { assertWritableVault, VaultWriteError } from "./vault-format.js";
 
 /**
  * Background ingest synthesis (issue #65, part of epic #63).
@@ -84,6 +90,8 @@ export interface CommitResult {
   entitiesLinked: string[];
   conceptsLinked: string[];
   contradictions: number;
+  /** Wikilink gate diagnostics from `commitSynthesis` (warn/normalize modes). */
+  wikilinkDiagnostics?: KnowledgeDiagnostic[];
 }
 
 export type CommitSynthesisOutcome =
@@ -186,42 +194,22 @@ function getHeadings(lang?: string): Record<string, string> {
   };
 }
 
-function buildEntityPageBody(
-  title: string,
-  description: string,
-  sourceId: string,
-  lang?: string,
-): string {
+function buildEntityPageBody(title: string, description: string, sourceId: string): string {
   const desc = description.trim() || "One-line description.";
-  const h = getHeadings(lang);
   return `# ${title}
 
 ${desc}
-
-## ${h.overview}
-
-[Key facts]
 
 ## Links
 
 - [${sourceId}](/sources/${sourceId}.md)`;
 }
 
-function buildConceptPageBody(
-  title: string,
-  definition: string,
-  sourceId: string,
-  lang?: string,
-): string {
+function buildConceptPageBody(title: string, definition: string, sourceId: string): string {
   const def = definition.trim() || "One-line definition.";
-  const h = getHeadings(lang);
   return `# ${title}
 
 ${def}
-
-## ${h.definition}
-
-[Clear explanation]
 
 ## Links
 
@@ -322,6 +310,28 @@ export function buildIngestedSourcePage(
 }
 
 /**
+ * Build the wikilink index used by the pre-write gate: every existing page id
+ * (from the registry) plus the page ids this commit is about to create, so a
+ * link to a sibling created in the same ingest resolves instead of
+ * false-positiving as missing.
+ */
+function buildIngestAuditIndex(
+  paths: VaultPaths,
+  sourceId: string,
+  data: SynthesisData,
+): ReturnType<typeof buildWikilinkIndex> {
+  const registry = readJson<{ pages: Record<string, unknown> }>(join(paths.meta, "registry.json"), {
+    pages: {},
+  });
+  const newIds = [
+    `sources/${sourceId}`,
+    ...data.entities.filter((e) => slugify(e.title)).map((e) => `entities/${slugify(e.title)}`),
+    ...data.concepts.filter((c) => slugify(c.title)).map((c) => `concepts/${slugify(c.title)}`),
+  ];
+  return buildWikilinkIndex([...Object.keys(registry.pages), ...newIds]);
+}
+
+/**
  * Persist a synthesis deterministically: rewrite the source page (status →
  * ingested), create missing entity/concept pages (existing pages are linked,
  * never overwritten), and log the event. Pure file I/O — no LLM, no network.
@@ -333,6 +343,7 @@ export function commitSynthesis(
   data: SynthesisData,
   date: string = fmtDate(),
   lang?: string,
+  wikilinkValidation?: WikilinkValidationMode,
 ): CommitSynthesisOutcome {
   const result: CommitResult = {
     sourceId,
@@ -353,6 +364,24 @@ export function commitSynthesis(
     throw error;
   }
 
+  // Pre-write wikilink gate (issue #172, Layer 2). Applies only to the
+  // model-authored source body; entity/concept pages are generated templates.
+  const mode = resolveWikilinkValidation({ wikilinkValidation });
+  let sourceBody = buildIngestedSourcePageBody(manifest, data, date, lang);
+  if (mode !== "off") {
+    const audit = auditWikilinks(
+      sourceBody,
+      buildIngestAuditIndex(paths, sourceId, data),
+      sourceId,
+      mode,
+    );
+    if (mode === "strict" && audit.diagnostics.length > 0) {
+      return { ok: false, sourceId, diagnostics: audit.diagnostics };
+    }
+    if (mode === "normalize") sourceBody = audit.body;
+    if (audit.diagnostics.length > 0) result.wikilinkDiagnostics = audit.diagnostics;
+  }
+
   // Patch existing documents so unknown fields, legacy sources, and titles survive.
   let sourceDocument: KnowledgeDocument;
   if (existsSync(result.sourcePage)) {
@@ -360,7 +389,7 @@ export function commitSynthesis(
     if (!parsed.ok) return { ok: false, sourceId, diagnostics: parsed.diagnostics };
     sourceDocument = patchKnowledgeDocument(parsed.document, {
       fields: { status: "ingested", updated: date },
-      body: buildIngestedSourcePageBody(manifest, data, date, lang),
+      body: sourceBody,
     });
   } else {
     sourceDocument = createKnowledgeDocument(
@@ -375,7 +404,7 @@ export function commitSynthesis(
         status: "ingested",
         updated: date,
       },
-      buildIngestedSourcePageBody(manifest, data, date, lang),
+      sourceBody,
     );
   }
   mkdirSync(join(paths.wiki, "sources"), { recursive: true });
@@ -399,7 +428,7 @@ export function commitSynthesis(
           created: date,
           updated: date,
         },
-        buildEntityPageBody(e.title, e.description, sourceId, lang),
+        buildEntityPageBody(e.title, e.description, sourceId),
         [{ id: sourceId, resource: `/sources/${sourceId}.md` }],
       );
       writeKnowledgeDocumentFile(pagePath, entityDoc);
@@ -425,7 +454,7 @@ export function commitSynthesis(
           created: date,
           updated: date,
         },
-        buildConceptPageBody(c.title, c.definition, sourceId, lang),
+        buildConceptPageBody(c.title, c.definition, sourceId),
         [{ id: sourceId, resource: `/sources/${sourceId}.md` }],
       );
       writeKnowledgeDocumentFile(pagePath, conceptDoc);
@@ -475,6 +504,10 @@ export interface RunIngestSynthesisArgs {
   signal?: AbortSignal;
   /** BCP 47 language tag for narrative content (issue #124). */
   synthesisLanguage?: string;
+  /** Max output tokens for synthesizer sub-agent (issue #160). Default 16384. */
+  synthesisMaxTokens?: number;
+  /** Wikilink write-gate mode for the ingested source body (issue #172). */
+  wikilinkValidation?: WikilinkValidationMode;
 }
 
 /**
@@ -496,6 +529,8 @@ export async function runIngestSynthesis(
     maxChars,
     signal,
     synthesisLanguage,
+    synthesisMaxTokens,
+    wikilinkValidation,
   } = args;
   const content = extracted.slice(0, maxChars ?? 24_000);
   if (!content.trim()) return undefined;
@@ -521,6 +556,7 @@ export async function runIngestSynthesis(
         params,
         undefined,
         synthesisLanguage,
+        wikilinkValidation,
       );
       if (!outcome.ok) {
         return {
@@ -549,6 +585,7 @@ export async function runIngestSynthesis(
     systemPrompt,
     userPrompt,
     tools: [commitTool as AgentTool],
+    maxTokens: synthesisMaxTokens ?? 16384,
     signal,
   });
 

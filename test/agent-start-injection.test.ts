@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildAgentStartInjection,
   WIKI_RECALL_MESSAGE_TYPE,
   WIKI_STATUS_BLOCK,
-  buildAgentStartInjection,
 } from "../extensions/llm-wiki/lib/inject.js";
 
 /**

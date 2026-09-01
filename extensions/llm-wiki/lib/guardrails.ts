@@ -1,10 +1,10 @@
-import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
 import { scheduleReindex } from "./indexing.js";
 import { rebuildMetadataLight } from "./metadata.js";
 import type { Runtime } from "./runtime.js";
-import { isPathWithin, isProtectedPath, resolveVaultPaths } from "./utils.js";
 import type { VaultPaths } from "./utils.js";
+import { isPathWithin, isProtectedPath, resolveVaultPaths } from "./utils.js";
 import { inspectVaultFormat, isGeneratedOkfPath } from "./vault-format.js";
 
 /**
@@ -79,12 +79,34 @@ function parseMoveDestination(line: string): string | undefined {
 function scanPatchString(input: string): MutationScan {
   const paths: string[] = [];
   let sawHeader = false;
+  let sawApplyPatchHeader = false;
+  let applyPatchComplete = true;
   let sectionHasMove = false;
   let complete = true;
   const stripped = input.startsWith("\uFEFF") ? input.slice(1) : input;
 
   for (const line of stripped.split("\n")) {
-    const trimmed = line.replace(/\r$/, "").trim();
+    const raw = line.replace(/\r$/, "");
+    // apply_patch envelope headers (#162): matched on the raw (untrimmed)
+    // line so body rows (space/+/- prefixed) that quote the envelope shape
+    // are never mistaken for headers.
+    const fileOp = /^\*{3}\s+(?:update|add|delete)\s+file:\s*(\S.*)$/i.exec(raw);
+    if (fileOp) {
+      sawApplyPatchHeader = true;
+      const path = normalizeMutationPath(fileOp[1]);
+      if (path) paths.push(path);
+      else applyPatchComplete = false;
+      continue;
+    }
+    const moveTo = /^\*{3}\s+move\s+to:\s*(\S.*)$/i.exec(raw);
+    if (moveTo) {
+      sawApplyPatchHeader = true;
+      const destination = normalizeMutationPath(moveTo[1]);
+      if (destination) paths.push(destination);
+      else applyPatchComplete = false;
+      continue;
+    }
+    const trimmed = raw.trim();
     if (trimmed.startsWith("[")) {
       sawHeader = true;
       sectionHasMove = false;
@@ -102,6 +124,9 @@ function scanPatchString(input: string): MutationScan {
     }
   }
 
+  if (sawApplyPatchHeader) {
+    return { paths, complete: applyPatchComplete && paths.length > 0 };
+  }
   return { paths, complete: sawHeader && complete };
 }
 

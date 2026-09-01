@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { type HybridQueryResult, type QMDStore, type SearchResult, createStore } from "@tobilu/qmd";
+import { createStore, type HybridQueryResult, type QMDStore, type SearchResult } from "@tobilu/qmd";
 
 /**
  * Package-private normalized adapter over the pinned @tobilu/qmd SDK.

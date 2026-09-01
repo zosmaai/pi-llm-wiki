@@ -63,7 +63,7 @@ export function detectHost(): HostKind {
     if (segments.includes(".pi")) return "pi";
   }
 
-  if (process.env.OMP_PROFILE !== undefined) return "omp";
+  if (process.env.OMP_PROFILE) return "omp";
   return "pi";
 }
 
@@ -122,4 +122,24 @@ export function resolveProjectSettingsPath(cwd: string, host: HostKind = detectH
   if (existsSync(foreign)) return join(foreign, "settings.json");
 
   return join(native, "settings.json");
+}
+
+/**
+ * The global (user-level) settings file this extension writes to.
+ *
+ * Always writes to `settings.json` inside the agent dir — both hosts read it.
+ */
+export function resolveGlobalSettingsPath(_host: HostKind = detectHost()): string {
+  let agentDir = "";
+  try {
+    agentDir = getAgentDir();
+  } catch {
+    agentDir = "";
+  }
+  if (!agentDir) {
+    // Fallback: ~/.pi/agent/settings.json
+    const home = process.env.HOME || "~";
+    return join(home, ".pi", "agent", "settings.json");
+  }
+  return join(agentDir, "settings.json");
 }

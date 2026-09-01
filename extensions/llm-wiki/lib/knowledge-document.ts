@@ -21,6 +21,7 @@ export type DiagnosticCode =
   | "okf_version_mismatch"
   | "link_path_escape"
   | "link_unresolved"
+  | "link_ambiguous"
   | "event_source_missing"
   | "event_source_unreadable"
   | "event_invalid_json"
@@ -595,6 +596,22 @@ export function serializeKnowledgeDocument(document: KnowledgeDocument): string 
   return body ? `---\n${yaml}---\n\n${body}\n` : `---\n${yaml}---\n`;
 }
 
+/** Escape wikilink alias pipes so generated content remains valid in Markdown tables. */
+function escapeWikilinkAliasPipes(body: string): string {
+  let inFence = false;
+  return body
+    .split("\n")
+    .map((line) => {
+      if (/^\s*(`{3,}|~{3,})/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
+      if (inFence) return line;
+      return line.replace(/\[\[([^\]\n]*?)(?<!\\)\|([^\]\n]*?)\]\]/g, "[[$1\\|$2]]");
+    })
+    .join("\n");
+}
+
 export function createKnowledgeDocument<T extends KnowledgeCreationFields>(
   path: string,
   fields: T & NoInfer<KnowledgeCreationFields>,
@@ -621,7 +638,7 @@ export function createKnowledgeDocument<T extends KnowledgeCreationFields>(
     ? { kind: "canonical" as const, value: sources }
     : { kind: "absent" as const };
 
-  const normalizedBody = body.replace(/\r\n?/g, "\n").replace(/\n*$/, "");
+  const normalizedBody = escapeWikilinkAliasPipes(body.replace(/\r\n?/g, "\n")).replace(/\n*$/, "");
 
   return {
     id: path.replace(/\.md$/, ""),
@@ -650,7 +667,9 @@ export function patchKnowledgeDocument(
     }
   }
 
-  const newBody = patch.body ?? document.body;
+  const newBody = patch.body
+    ? escapeWikilinkAliasPipes(patch.body.replace(/\r\n?/g, "\n"))
+    : document.body;
 
   return {
     ...document,

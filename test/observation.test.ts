@@ -334,14 +334,18 @@ describe("registerObservationReminder — retry deduplication", () => {
     const state = createReminderState();
     registerObservationReminder(pi, state, { turnsBetweenReminders: 1 });
 
-    // 1 turn fires reminder
+    // 1 turn fires reminder (counter resets after queueing)
     await emit("agent_end", {});
     expect(messages).toHaveLength(1);
 
-    // Counter stays at 1, compact resets it
+    // Compaction happens mid-retry within the same user turn — it must not
+    // re-arm the reminder on its own.
     await emit("session_compact");
+    await emit("agent_end", {});
+    expect(messages).toHaveLength(1);
 
-    // Counter = 0, next turn = 1 → fires again
+    // A new user turn re-arms the reminder
+    await emit("message_start", { message: { role: "user" } });
     await emit("agent_end", {});
     expect(messages).toHaveLength(2);
   });
@@ -354,6 +358,44 @@ describe("registerObservationReminder — retry deduplication", () => {
     // event without willRetry field at all
     await emit("agent_end", {});
     expect(messages).toHaveLength(1);
+  });
+
+  it("queues at most one reminder per user turn on retry storms (no willRetry field)", async () => {
+    const { pi, emit, messages } = createMockPi();
+    const state = createReminderState();
+    registerObservationReminder(pi, state, { turnsBetweenReminders: 1 });
+
+    // One user turn: original run + 4 rate-limit retries = 5 agent_end events.
+    // pi never forwards willRetry to extensions (zosmaai/pi-llm-wiki#151), so
+    // each event looks like a normal turn end.
+    await emit("message_start", { message: { role: "user" } });
+    for (let i = 0; i < 5; i++) await emit("agent_end", {});
+    expect(messages).toHaveLength(1);
+
+    // The next user turn queues fresh
+    await emit("message_start", { message: { role: "user" } });
+    await emit("agent_end", {});
+    expect(messages).toHaveLength(2);
+  });
+
+  it("re-queues only after REMINDER_INTERVAL user turns, not on the next agent_end", async () => {
+    const { pi, emit, messages } = createMockPi();
+    const state = createReminderState();
+    registerObservationReminder(pi, state, { turnsBetweenReminders: 2 });
+
+    const userTurn = async () => {
+      await emit("message_start", { message: { role: "user" } });
+      await emit("agent_end", {});
+    };
+
+    await userTurn();
+    expect(messages).toHaveLength(0);
+    await userTurn(); // 2nd user turn crosses the interval
+    expect(messages).toHaveLength(1);
+    await userTurn(); // counter reset after queueing — must not re-queue
+    expect(messages).toHaveLength(1);
+    await userTurn(); // interval elapsed again
+    expect(messages).toHaveLength(2);
   });
 
   it("respects display option (false = silent injection)", async () => {
@@ -382,10 +424,14 @@ describe("registerObservationReminder — retry deduplication", () => {
     expect(messages[0].msg.display).toBe(true);
 
     noticesOn = false;
-    await emit("agent_end", {}); // next interval cycle would need reset
-    // For this test, we manually reset to trigger again
-    await emit("session_start");
+    // Same user turn: a retry-style agent_end must not re-queue
     await emit("agent_end", {});
-    expect(messages[2].msg.display).toBe(false);
+    expect(messages).toHaveLength(1);
+
+    // A new user turn re-arms, and display is re-resolved
+    await emit("message_start", { message: { role: "user" } });
+    await emit("agent_end", {});
+    expect(messages).toHaveLength(2);
+    expect(messages[1].msg.display).toBe(false);
   });
 });

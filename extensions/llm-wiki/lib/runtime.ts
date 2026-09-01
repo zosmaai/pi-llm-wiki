@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { TASK_DEFAULTS, type TaskConfig, loadTaskConfig, noticesEnabled } from "./task-config.js";
+import { loadTaskConfig, noticesEnabled, TASK_DEFAULTS, type TaskConfig } from "./task-config.js";
 
 /**
  * Background-task runtime for the LLM Wiki (issue #64, part of #63).
@@ -133,11 +133,11 @@ export class Runtime {
     }
 
     const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-    if (!auth.ok || !auth.apiKey) {
+    if (!auth.ok) {
       const provider = (model as { provider?: string }).provider ?? "unknown";
       return { ok: false, reason: `no API key for provider "${provider}"` };
     }
-    return { ok: true, model, apiKey: auth.apiKey, headers: auth.headers };
+    return { ok: true, model, apiKey: auth.apiKey ?? "", headers: auth.headers };
   }
 
   /**

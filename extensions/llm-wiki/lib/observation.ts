@@ -1,11 +1,11 @@
 import { join } from "node:path";
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 import { scheduleReindex } from "./indexing.js";
 import { createKnowledgeDocument, writeKnowledgeDocumentFile } from "./knowledge-document.js";
 import { appendEvent, rebuildMetadataLight } from "./metadata.js";
 import type { Runtime } from "./runtime.js";
-import { type VaultPaths, fmtDate, resolveVaultPaths } from "./utils.js";
+import { fmtDate, resolveVaultPaths, type VaultPaths } from "./utils.js";
 import { assertWritableVault, inspectWritableVault } from "./vault-format.js";
 
 // ─── Types ─────────────────────────────────────────────
@@ -345,10 +345,12 @@ export function registerObservationReminder(
     return true;
   };
   let turnsSinceLastReminder = 0;
+  let agentEndsInUserTurn = 0;
 
   pi.on("session_start", async () => {
     turnsSinceLastReminder = 0;
     reminderState.observeDoneThisSession = false;
+    agentEndsInUserTurn = 0;
   });
 
   // After compaction, reset turn counter so reminders resume
@@ -358,10 +360,18 @@ export function registerObservationReminder(
     turnsSinceLastReminder = 0;
   });
 
+  // A retry re-runs the agent within the same user turn, and pi does not
+  // forward `willRetry` to extensions (zosmaai/pi-llm-wiki#151). Only the
+  // user-role message_start separates real user turns from retried agent
+  // runs, so the per-turn agent_end count resets there.
+  pi.on("message_start", async (event) => {
+    if (event.message.role === "user") agentEndsInUserTurn = 0;
+  });
+
   pi.on("agent_end", async (event, _ctx) => {
-    // Skip reminder on retries — willRetry means pi will re-run the agent,
-    // and queuing another reminder would duplicate them (issue: connection
-    // errors cause multiple retries, each firing agent_end).
+    // Legacy guard: this pi build does not forward `willRetry` to extension
+    // events, but keep the check in case a future one does. The dedup that
+    // actually works is the per-turn agent_end count below.
     if ("willRetry" in event && (event as { willRetry?: boolean }).willRetry) return;
 
     // No wiki applies here: never nag, and never accumulate a pending reminder
@@ -371,6 +381,12 @@ export function registerObservationReminder(
     turnsSinceLastReminder++;
     if (turnsSinceLastReminder < REMINDER_INTERVAL) return;
     if (reminderState.observeDoneThisSession) return;
+
+    // One agent_end per user turn may queue a reminder. A rate-limit storm
+    // re-runs the agent several times within the same turn, each firing
+    // agent_end, so count them and let only the first through.
+    agentEndsInUserTurn++;
+    if (agentEndsInUserTurn > 1) return;
 
     pi.sendMessage(
       {
@@ -382,5 +398,9 @@ export function registerObservationReminder(
         deliverAs: "nextTurn",
       },
     );
+
+    // Reset the interval counter after queueing: without it the count stays
+    // at/above the threshold and every later agent_end queues a reminder.
+    turnsSinceLastReminder = 0;
   });
 }

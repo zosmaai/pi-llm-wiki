@@ -1,23 +1,22 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { copyFile } from "node:fs/promises";
 import { extname, join } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { createKnowledgeDocument, serializeKnowledgeDocument } from "./knowledge-document.js";
 import { appendEvent } from "./metadata.js";
 import {
-  type ExtractedContent,
   binaryExtractionFailureMessage,
   detectBinaryMagicBytes,
+  type ExtractedContent,
   extractUrlContent,
   fileExtractorFor,
 } from "./source-extractors.js";
 import {
   type ExecApi,
-  type VaultPaths,
   exec,
   fmtDate,
   nextSourceId,
   readText,
+  type VaultPaths,
   writeJson,
 } from "./utils.js";
 import { assertWritableVault } from "./vault-format.js";

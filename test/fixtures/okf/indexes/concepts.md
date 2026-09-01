@@ -2,7 +2,7 @@
 
 ## Directories
 
-- [nested/](nested/)
+- [nested/](nested/index.md)
 
 ## Concepts
 

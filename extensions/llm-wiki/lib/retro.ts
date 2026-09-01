@@ -1,11 +1,13 @@
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
 import { scheduleReindex } from "./indexing.js";
 import { createKnowledgeDocument, writeKnowledgeDocumentFile } from "./knowledge-document.js";
+import { applyWikilinkGate, buildWikilinkIndex } from "./knowledge-links.js";
 import { appendEvent, rebuildMetadataLight } from "./metadata.js";
 import type { Runtime } from "./runtime.js";
-import { type VaultPaths, fmtDate, resolveVaultPaths } from "./utils.js";
+import { loadTaskConfig, resolveWikilinkValidation } from "./task-config.js";
+import { fmtDate, readJson, resolveVaultPaths, type VaultPaths } from "./utils.js";
 import { assertWritableVault, inspectWritableVault } from "./vault-format.js";
 
 // ─── Public API ────────────────────────────────────────
@@ -150,9 +152,44 @@ export function registerWikiRetro(pi: ExtensionAPI, runtime?: Runtime): void {
         };
       }
 
+      // Pre-write wikilink gate (#172): validate/normalize caller-supplied body.
+      const mode = resolveWikilinkValidation(loadTaskConfig(ctx.cwd ?? process.cwd()));
+      let body = params.body;
+      let wikilinkIssues: string[] = [];
+      if (mode !== "off") {
+        const registry = readJson<{ pages: Record<string, unknown> }>(
+          join(paths.meta, "registry.json"),
+          { pages: {} },
+        );
+        const gate = applyWikilinkGate(
+          body,
+          buildWikilinkIndex(Object.keys(registry.pages)),
+          `sources/${params.slug}`,
+          mode,
+        );
+        wikilinkIssues = gate.diagnostics.map((d) => d.message);
+        if (!gate.ok) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Rejected write — unresolved/ambiguous wikilinks:\n${wikilinkIssues
+                  .map((m) => `- ${m}`)
+                  .join("\n")}`,
+              },
+            ],
+            details: { error: "link_validation", issues: wikilinkIssues } as Record<
+              string,
+              unknown
+            >,
+            isError: true,
+          };
+        }
+        if (mode === "normalize") body = gate.body;
+      }
       let result: RetroResult;
       try {
-        result = saveInsight(paths, params.slug, params.title, params.body, params.category, {
+        result = saveInsight(paths, params.slug, params.title, body, params.category, {
           rebuild: !runtime,
         });
       } catch (error: unknown) {
@@ -169,6 +206,9 @@ export function registerWikiRetro(pi: ExtensionAPI, runtime?: Runtime): void {
         scheduleReindex(runtime, { hasUI: ctx.hasUI, ui: ctx.ui }, paths);
       }
 
+      const gateNote = wikilinkIssues.length
+        ? `\n\n⚠️ ${wikilinkIssues.length} wikilink issue(s):\n${wikilinkIssues.map((m) => `- ${m}`).join("\n")}`
+        : "";
       return {
         content: [
           {
@@ -179,13 +219,17 @@ export function registerWikiRetro(pi: ExtensionAPI, runtime?: Runtime): void {
               `- Page: \`${result.sourcePagePath}\``,
               "",
               "This insight will be auto-surfaced by wiki_recall in future sessions.",
-            ].join("\n"),
+              gateNote,
+            ]
+              .filter(Boolean)
+              .join("\n"),
           },
         ],
         details: {
           slug: params.slug,
           title: params.title,
           category: params.category || null,
+          wikilinkIssues,
         } as Record<string, unknown>,
       };
     },

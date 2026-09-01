@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { bootstrapVault } from "./lib/bootstrap.js";
+import { registerWikiDashboardCommand } from "./lib/dashboard-command.js";
 import { installGuardrails } from "./lib/guardrails.js";
 import { buildAgentStartInjection, normalizeSystemPrompt } from "./lib/inject.js";
 import { registerWikiModelCommand } from "./lib/model-command.js";
@@ -21,6 +22,7 @@ import {
 } from "./lib/recall.js";
 import { registerWikiRetro } from "./lib/retro.js";
 import { registerBackgroundRuntime } from "./lib/runtime.js";
+import { registerWikiSettingsCommand } from "./lib/settings-command.js";
 import {
   loadTaskConfig,
   noticesEnabled,
@@ -134,6 +136,8 @@ export default function (pi: ExtensionAPI) {
   // background task model. The taskModel config field + resolveModel already
   // exist; this exposes them to the user (default stays the session model).
   registerWikiModelCommand(pi, runtime);
+  registerWikiSettingsCommand(pi, runtime);
+  registerWikiDashboardCommand(pi, runtime);
   const reminderState = createReminderState();
   registerWikiObserve(pi, runtime, reminderState);
   // Visible observe/retro reminder by default (issue #77); silenced when the

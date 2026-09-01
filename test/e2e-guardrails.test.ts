@@ -14,8 +14,11 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { isProtectedPath } from "../extensions/llm-wiki/lib/utils.js";
-import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
+import {
+  ensureVaultStructure,
+  getVaultPaths,
+  isProtectedPath,
+} from "../extensions/llm-wiki/lib/utils.js";
 
 const tmpDir = join(import.meta.dirname, "..", "tmp", `e2e-guardrails-${Date.now()}`);
 

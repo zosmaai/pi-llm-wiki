@@ -1,7 +1,7 @@
 {
   "name": "@zosmaai/pi-llm-wiki",
   "version": "0.6.3",
-  "description": "Self-maintaining LLM Wiki for Pi — Karpathy-pattern knowledge base with immutable source capture, automated ingestion, search, linting, and Obsidian-compatible vault. auto-updating personal & company wiki.",
+  "description": "Self-maintaining LLM Wiki for Pi \u2014 Karpathy-pattern knowledge base with immutable source capture, automated ingestion, search, linting, and Obsidian-compatible vault. auto-updating personal & company wiki.",
   "keywords": [
     "pi",
     "pi-package",
@@ -63,57 +63,74 @@
     "prepack": "node scripts/build-commands.js && node scripts/build-mcp.js",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
-    "lint:fix": "biome check --apply .",
+    "lint:fix": "biome check --write .",
     "release:patch": "node scripts/release.js patch",
     "release:minor": "node scripts/release.js minor",
     "release:major": "node scripts/release.js major",
     "release:push": "git push origin main --tags",
     "benchmark:retrieval": "vitest run test/retrieval-benchmark.test.ts --reporter=verbose",
-    "benchmark:retrieval:update": "node scripts/update-retrieval-baseline.mjs"
+    "benchmark:retrieval:update": "node scripts/update-retrieval-baseline.mjs",
+    "docs:sync": "node scripts/sync-docs.js",
+    "docs:dev": "astro dev",
+    "docs:build": "node scripts/sync-docs.js && astro build"
   },
   "pi": {
-    "extensions": ["./extensions"],
-    "skills": ["./skills"],
-    "prompts": ["./prompts"],
+    "extensions": [
+      "./extensions"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "prompts": [
+      "./prompts"
+    ],
     "image": "https://raw.githubusercontent.com/zosmaai/pi-llm-wiki/main/assets/screenshot.png",
     "mcpservers": {
       "llm-wiki": "node ./dist/mcp/index.js"
     }
   },
   "omp": {
-    "extensions": ["./extensions/llm-wiki/index.ts"]
+    "extensions": [
+      "./extensions/llm-wiki/index.ts"
+    ]
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
-    "typebox": "*"
+    "@mariozechner/pi-coding-agent": "*"
   },
   "packageManager": "pnpm@9.15.4",
   "engines": {
     "node": ">=22.0.0"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": ["better-sqlite3", "node-llama-cpp", "sqlite-vec"]
-  },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
+    "@mariozechner/pi-tui": "0.73.1",
     "@modelcontextprotocol/server": "^2.0.0",
     "@tobilu/qmd": "2.5.3",
     "mdast-util-from-markdown": "^2.0.3",
     "node-html-markdown": "^2.0.0",
+    "typebox": "^1.1.34",
     "yaml": "^2.9.0",
     "zod": "^4.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "@mariozechner/pi-agent-core": "^0.70.2",
-    "@mariozechner/pi-ai": "^0.70.2",
+    "@astrojs/starlight": "^0.41.10",
+    "@biomejs/biome": "^2.5.11",
+    "@mariozechner/pi-agent-core": "^0.73.1",
+    "@mariozechner/pi-ai": "^0.73.1",
     "@mariozechner/pi-coding-agent": "^0.70.2",
     "@mermaid-js/mermaid-cli": "^11.12.0",
     "@types/mdast": "^4.0.4",
-    "@types/node": "^22",
+    "@types/node": "^26",
     "@vitest/coverage-v8": "^3.2.4",
-    "typebox": "^1.1.34",
-    "typescript": "^5.9.3",
+    "astro": "^7.2.9",
+    "typescript": "^7.0.2",
     "vitest": "^3.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "node-llama-cpp",
+      "sqlite-vec"
+    ]
   }
 }

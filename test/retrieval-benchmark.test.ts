@@ -11,8 +11,8 @@ import {
   benchmarkPages,
   benchmarkQueries,
 } from "./fixtures/retrieval-benchmark/fixture.js";
-import { rootDir } from "./helpers.js";
 import { type BenchmarkRun, evaluateBenchmark } from "./helpers/retrieval-metrics.js";
+import { rootDir } from "./helpers.js";
 
 const baselinePath = join(
   rootDir,

@@ -6,18 +6,25 @@
  * registry entries, or builds page strings itself.
  */
 
+import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { bootstrapVault } from "../extensions/llm-wiki/lib/bootstrap.js";
+import {
+  applyWikilinkGate,
+  buildWikilinkIndex,
+  type WikilinkValidationMode,
+} from "../extensions/llm-wiki/lib/knowledge-links.js";
 import { type ProjectionResult, rebuildMetadata } from "../extensions/llm-wiki/lib/metadata.js";
 import { reindexQmdVault } from "../extensions/llm-wiki/lib/qmd-indexing.js";
 import { type RecallResult, searchWikiLayered } from "../extensions/llm-wiki/lib/recall.js";
 import { saveInsight } from "../extensions/llm-wiki/lib/retro.js";
 import { captureFile, captureText, captureUrl } from "../extensions/llm-wiki/lib/source-packet.js";
-import type { VaultPaths } from "../extensions/llm-wiki/lib/utils.js";
+import { resolveWikilinkValidation } from "../extensions/llm-wiki/lib/task-config.js";
+import { readJson, type VaultPaths } from "../extensions/llm-wiki/lib/utils.js";
 import {
-  VaultWriteError,
   inspectVaultFormat,
   inspectWritableVault,
+  VaultWriteError,
 } from "../extensions/llm-wiki/lib/vault-format.js";
 import {
   getWikiStatus,
@@ -171,6 +178,7 @@ export async function retroOperation(
   title: string,
   body: string,
   category?: string,
+  wikilinkValidation?: WikilinkValidationMode,
 ): Promise<
   | { ok: true; slug: string; sourcePagePath: string }
   | { ok: false; diagnostics: Array<{ code: string; message: string }> }
@@ -182,8 +190,30 @@ export async function retroOperation(
       diagnostics: vaultCheck.diagnostics.map((d) => ({ code: d.code, message: d.message })),
     };
   }
+  // Pre-write wikilink gate (#172): validate/normalize caller-supplied body.
+  const mode = resolveWikilinkValidation({ wikilinkValidation });
+  let gateBody = body;
+  if (mode !== "off") {
+    const registry = readJson<{ pages: Record<string, unknown> }>(
+      join(paths.meta, "registry.json"),
+      { pages: {} },
+    );
+    const gate = applyWikilinkGate(
+      body,
+      buildWikilinkIndex(Object.keys(registry.pages)),
+      `sources/${slug}`,
+      mode,
+    );
+    if (!gate.ok) {
+      return {
+        ok: false,
+        diagnostics: gate.diagnostics.map((d) => ({ code: "link_validation", message: d.message })),
+      };
+    }
+    if (mode === "normalize") gateBody = gate.body;
+  }
   try {
-    const result = saveInsight(paths, slug, title, body, category, { rebuild: false });
+    const result = saveInsight(paths, slug, title, gateBody, category, { rebuild: false });
     const projection = projectionOutcome(rebuildMetadata(paths));
     if (!projection.ok) return projection;
     await scheduleLexicalQmd(paths);

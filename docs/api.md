@@ -2,7 +2,7 @@
 
 All tools registered by the extension. Parameters marked `?` are optional.
 
-13 tools are always registered. The 3 agent-trajectory tools
+14 tools are always registered. The 3 agent-trajectory tools
 (`wiki_capture_trajectory`, `wiki_distill_skills`, `wiki_recall_skill`) are **opt-in,
 off by default** (issue #80) — they are only registered when `llm-wiki.trajectories`
 is `true`; enable with `/wiki-trajectories on`.
@@ -497,6 +497,29 @@ details: {
 
 Returns empty `matches: []` with a hint to capture work via `wiki_capture_trajectory` /
 `wiki_distill_skills` when nothing matches.
+
+---
+
+## wiki_reindex_embeddings
+
+Backfill or refresh semantic embeddings for the vault. Embeds pages that are new or stale
+(content changed); pass `force` to re-embed everything. No-op when no embedding provider is
+configured — set `llm-wiki.embeddingProvider` first (see `docs/configuration.md`).
+
+**Parameters**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `force` | `boolean` | — | Re-embed every page, ignoring staleness (default: `false`) |
+
+**Returns**
+
+```
+details: { enabled: true, model: string, embedded: number, skipped: number, pruned: number }
+```
+
+Fails soft with `details: { enabled: false }` plus a hint to configure `embeddingProvider` when
+no embedding provider is set.
 
 ---
 

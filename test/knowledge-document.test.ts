@@ -2,8 +2,8 @@ import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  FRONTMATTER_MAX_BYTES,
   createKnowledgeDocument,
+  FRONTMATTER_MAX_BYTES,
   parseKnowledgeDocument,
   patchKnowledgeDocument,
   readKnowledgeDocumentFile,
@@ -54,6 +54,16 @@ describe("KnowledgeDocument", () => {
   it("accepts CRLF and emits LF with one final newline", () => {
     const doc = parsed("---\r\ntype: concept\r\n---\r\n\r\nBody\r\n");
     expect(serializeKnowledgeDocument(doc)).toBe("---\ntype: concept\n---\n\nBody\n");
+  });
+
+  it("escapes aliased wikilinks in generated Markdown without changing fenced code", () => {
+    const doc = createKnowledgeDocument(
+      "concepts/table.md",
+      { type: "concept" },
+      "| Name |\n| --- |\n| [[entities/gildan|Gildan]] |\n\n```md\n[[entities/raw|Raw]]\n```",
+    );
+    expect(doc.body).toContain("[[entities/gildan\\|Gildan]]");
+    expect(doc.body).toContain("[[entities/raw|Raw]]");
   });
 
   it.each([

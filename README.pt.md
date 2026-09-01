@@ -9,6 +9,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@zosmaai/pi-llm-wiki)](https://www.npmjs.com/package/@zosmaai/pi-llm-wiki)
 [![Coverage](https://img.shields.io/badge/coverage-85.09%25-brightgreen.svg)](https://codecov.io/gh/zosmaai/pi-llm-wiki)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-online-blue.svg)](https://zosmaai.github.io/pi-llm-wiki/)
 [![CodeQL](https://github.com/zosmaai/pi-llm-wiki/actions/workflows/codeql.yml/badge.svg)](https://github.com/zosmaai/pi-llm-wiki/actions/workflows/codeql.yml)
 [![GitHub Repo Stars](https://img.shields.io/github/stars/zosmaai/pi-llm-wiki?style=social)](https://github.com/zosmaai/pi-llm-wiki/stargazers)
 
@@ -125,7 +126,9 @@ O resultado é um wiki que se acumula conforme você captura fontes, faz pergunt
 | `wiki_search` | Search the generated wiki registry |
 | `wiki_lint` | Deterministic health checks (orphans, gaps, contradictions, auto-fix) |
 | `wiki_status` | Show counts, source states, and recent activity |
+| `wiki_observe` | Registra observações datadas e pesquisáveis da sessão atual no wiki |
 | `wiki_rebuild_meta` | Force a full metadata rebuild (registry, backlinks, index, log) |
+| `wiki_reindex_embeddings` | Atualiza os embeddings semânticos de páginas novas ou desatualizadas (no-op sem provedor de embeddings) |
 | `wiki_log_event` | Append a structured event to the wiki activity log |
 | `wiki_watch` | Print a `crontab` line for automatic wiki updates (daily / weekly / hourly) — does not install it |
 | `wiki_capture_trajectory` _(opt-in)_ | Capture the completed task's tool-call trajectory (agent working-memory) |
@@ -147,10 +150,16 @@ O resultado é um wiki que se acumula conforme você captura fontes, faz pergunt
 | `/wiki-status` | Show a concise operational summary |
 | `/wiki-digest [--period daily\|weekly]` | Generate a digest of recent activity |
 | `/wiki-retro` | Save atomic insights from completed tasks |
+| `/wiki-model [provider/id | session]` | Define o modelo das tarefas em segundo plano (sem argumento: seletor interativo) |
 | `/wiki-req <concept>` | Decompose a concept into atomic, traceable requirement pages |
 | `/wiki-trajectories <on\|off>` | Enable/disable agent working-memory (opt-in, off by default) |
 | `/wiki-record <title>` | Capture the completed task's trajectory (requires trajectories enabled) |
 | `/wiki-skills [query]` | Search distilled skills + past cases (requires trajectories enabled) |
+| `/wiki-settings` | Tela interativa de ajustes — ver/mudar todos os ajustes `llm-wiki` em escopo de projeto ou global |
+| `/wiki-dashboard` | Painel somente leitura do vault — páginas por tipo, frescor, atividade de 7 dias, fila de ingestão, páginas sem backlinks, cobertura de embeddings |
+
+<img src="./assets/wiki-dashboard.png" alt="wiki-dashboard: painel do vault" width="100%" />
+
 
 ---
 

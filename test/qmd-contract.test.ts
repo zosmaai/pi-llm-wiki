@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { type ExpandedQuery, type QMDStore, type SearchOptions, createStore } from "@tobilu/qmd";
+import { createStore, type ExpandedQuery, type QMDStore, type SearchOptions } from "@tobilu/qmd";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { openQmdIndexStore } from "../extensions/llm-wiki/lib/qmd-store.js";
 

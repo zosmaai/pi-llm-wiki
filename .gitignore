@@ -10,3 +10,9 @@ coverage/
 dist/
 .llm-wiki/
 tmp/
+.astro/
+src/content/docs/api.md
+src/content/docs/architecture.md
+src/content/docs/commands.md
+src/content/docs/configuration.md
+src/content/docs/obsidian.md

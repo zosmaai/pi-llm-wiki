@@ -33,4 +33,5 @@ $ARGUMENTS
 **Rules:**
 - Never modify files in `raw/` — source packets are immutable after capture.
 - Never fabricate information — always cite sources with `[[sources/SRC-...]]`.
+- Inside Markdown table cells, write aliased wikilinks as `[[target\|alias]]`, never `[[target|alias]]`.
 - The extension auto-updates metadata — you do NOT need to manually edit `meta/` files.

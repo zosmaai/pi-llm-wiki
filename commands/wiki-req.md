@@ -53,3 +53,4 @@ Read the LLM Wiki skill at `.pi/skills/llm-wiki/SKILL.md` first to understand th
 - Use status values: `draft` → `clarified` → `active` → `implemented` → `deferred` → `rejected`
 - Use priority values: `p0` (blocking), `p1` (critical), `p2` (important), `p3` (nice-to-have)
 - Do not create requirements in `raw/` — that layer is for external source artifacts only
+- Inside Markdown table cells, write aliased wikilinks as `[[target\|alias]]`, never `[[target|alias]]`.

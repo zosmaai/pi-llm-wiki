@@ -9,6 +9,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@zosmaai/pi-llm-wiki)](https://www.npmjs.com/package/@zosmaai/pi-llm-wiki)
 [![Coverage](https://img.shields.io/badge/coverage-85.09%25-brightgreen.svg)](https://codecov.io/gh/zosmaai/pi-llm-wiki)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-online-blue.svg)](https://zosmaai.github.io/pi-llm-wiki/)
 [![CodeQL](https://github.com/zosmaai/pi-llm-wiki/actions/workflows/codeql.yml/badge.svg)](https://github.com/zosmaai/pi-llm-wiki/actions/workflows/codeql.yml)
 [![GitHub Repo Stars](https://img.shields.io/github/stars/zosmaai/pi-llm-wiki?style=social)](https://github.com/zosmaai/pi-llm-wiki/stargazers)
 
@@ -124,8 +125,10 @@ The result is a wiki that **compounds** as you capture sources, ask questions, a
 | `wiki_search` | Search the generated wiki registry |
 | `wiki_lint` | Deterministic health checks (orphans, gaps, contradictions, auto-fix) |
 | `wiki_status` | Show counts, source states, and recent activity |
+| `wiki_observe` | Record timestamped, searchable observations from the current session (decisions, findings, constraints) — later distilled into pages |
 | `wiki_rebuild_meta` | Force a full metadata rebuild (registry, backlinks, index, log) |
 | `wiki_reindex` | Rebuild/repair the generated QMD search index at `meta/qmd` (lexical is model-free; vectors may download ~2 GB) |
+| `wiki_reindex_embeddings` | Refresh semantic embeddings for new or stale pages (no-op if no embedding provider is configured) |
 | `wiki_log_event` | Append a structured event to the wiki activity log |
 | `wiki_watch` | Print a `crontab` line for automatic wiki updates (daily / weekly / hourly) — does not install it |
 | `wiki_capture_trajectory` _(opt-in)_ | Capture the completed task's tool-call trajectory (agent working-memory) |
@@ -147,10 +150,16 @@ The result is a wiki that **compounds** as you capture sources, ask questions, a
 | `/wiki-status` | Show a concise operational summary |
 | `/wiki-digest [--period daily\|weekly]` | Generate a digest of recent activity |
 | `/wiki-retro` | Save atomic insights from completed tasks |
+| `/wiki-model [provider/id | session]` | Set the background-task model (interactive picker when run without arguments) |
 | `/wiki-req <concept>` | Decompose a concept into atomic, traceable requirement pages |
 | `/wiki-trajectories <on\|off>` | Enable/disable agent working-memory (opt-in, off by default) |
 | `/wiki-record <title>` | Capture the completed task's trajectory (requires trajectories enabled) |
 | `/wiki-skills [query]` | Search distilled skills + past cases (requires trajectories enabled) |
+| `/wiki-settings` | Interactive settings screen — view and change all `llm-wiki` settings in project or global scope |
+| `/wiki-dashboard` | Read-only vault dashboard — page counts/types, freshness, 7-day activity, ingest queue, zero-backlink pages, embedding coverage |
+
+<img src="./assets/wiki-dashboard.png" alt="wiki-dashboard: read-only vault health screen" width="100%" />
+
 
 ---
 
@@ -286,21 +295,7 @@ my-wiki/
 | `.llm-wiki/meta/events.jsonl` | Extension / tool | Authoritative append-only state; back up for activity continuity |
 | `.llm-wiki/meta/log.md` | Extension | Generated from events |
 | `.llm-wiki/meta/lint-report.md` | Extension | Generated |
-| `.llm-wiki/meta/qmd/**` | Extension | Generated QMD search index (mirrors + SQLite); local, rebuildable with `wiki_reindex` |
 | `.llm-wiki/WIKI_SCHEMA.md` | Human + explicit request | Operating manual |
-
-### Generated QMD search index (phase 2)
-
-`.llm-wiki/meta/qmd/**` is extension-owned, generated, local, and **rebuildable** with `wiki_reindex`.
-
-- `.llm-wiki/wiki/**` remains authoritative and user editable; QMD never scans it directly.
-- `manifest.json` maps validated mirrors back to stable `(vault_id, page_id)` identities.
-- `documents/{canonical,evidence}/**` hold parser-valid mirrors that QMD indexes; the two collections never overlap.
-- `current/index.sqlite` is the live store. Do **not** copy, partially restore, or edit individual SQLite/WAL/SHM files inside `current` — restore the whole generated directory or rebuild with `wiki_reindex`.
-- Ordinary write-triggered updates are **lexical and model-free**. Selecting `vectors` may download approximately 2 GB of models on first use.
-- Cancellation and failures retain the last usable `current` store; stale/error/recovering state is repaired with `wiki_reindex`.
-- Full-vault backups include the generated searchable text (`meta/qmd`); OKF-only exports do not.
-- **Active recall still uses the legacy heuristic until Phase 3.** QMD indexing is observable and repairable, but no recall path depends on it yet.
 
 ### Activity history, backup, and portability
 
@@ -609,6 +604,13 @@ Thanks to everyone who has contributed! This list is regenerated automatically b
                     <img src="https://avatars.githubusercontent.com/u/152369481?v=4" width="64;" alt="deestax"/>
                     <br />
                     <sub><b>Superdao</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/wooksong">
+                    <img src="https://avatars.githubusercontent.com/u/2772376?v=4" width="64;" alt="wooksong"/>
+                    <br />
+                    <sub><b>wooksong</b></sub>
                 </a>
             </td>
             <td align="center">

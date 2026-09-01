@@ -33,13 +33,15 @@ const CONFIG_MODEL = { provider: "cfg-prov", id: "cfg-model" };
 function makeRegistry(opts: {
   found?: unknown;
   authOk?: boolean;
-  apiKey?: string;
+  apiKey?: string | undefined;
+  _apiKeySet?: boolean;
 }) {
+  const apiKeyExplicit = opts._apiKeySet ?? false;
   return {
     find: (_p: string, _i: string) => opts.found,
     getApiKeyAndHeaders: async (_m: unknown) => ({
       ok: opts.authOk ?? true,
-      apiKey: opts.apiKey ?? (opts.authOk === false ? undefined : "key-123"),
+      apiKey: apiKeyExplicit ? opts.apiKey : opts.authOk === false ? undefined : "key-123",
       headers: { "x-test": "1" },
     }),
   };
@@ -179,6 +181,23 @@ describe("Runtime.resolveModel", () => {
     const res = await rt.resolveModel({ model: SESSION_MODEL, modelRegistry: reg, hasUI: false });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.reason).toMatch(/no API key/);
+  });
+
+  it("accepts a keyless provider (authOk, no apiKey)", async () => {
+    const rt = new Runtime();
+    const reg = makeRegistry({
+      found: undefined,
+      authOk: true,
+      apiKey: undefined,
+      _apiKeySet: true,
+    });
+    const res = await rt.resolveModel({ model: SESSION_MODEL, modelRegistry: reg, hasUI: false });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.model).toBe(SESSION_MODEL);
+      expect(res.apiKey).toBe("");
+      expect(res.headers).toEqual({ "x-test": "1" });
+    }
   });
 });
 

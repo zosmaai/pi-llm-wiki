@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WIKI_STATUS_BLOCK, appendWikiStatus } from "../extensions/llm-wiki/lib/inject.js";
+import { appendWikiStatus, WIKI_STATUS_BLOCK } from "../extensions/llm-wiki/lib/inject.js";
 
 // Regression test for issue #87: context injection must be idempotent.
 //

@@ -1,6 +1,6 @@
 ---
 name: llm-wiki
-description: Build and maintain a persistent, interlinked Obsidian-compatible markdown wiki using Karpathy's LLM Wiki pattern. Extension-backed with auto-generated metadata, guardrails, and 13 custom tools (+3 opt-in agent-trajectory tools).
+description: Build and maintain a persistent, interlinked Obsidian-compatible markdown wiki using Karpathy's LLM Wiki pattern. Extension-backed with auto-generated metadata, guardrails, and 14 custom tools (+3 opt-in agent-trajectory tools).
 whenToUse: Call wiki_recall at task start to find relevant wiki pages. Call wiki_retro at task end to save new insights. When agent-trajectory working-memory is enabled (opt-in, /wiki-trajectories on), also call wiki_recall_skill at task start to find reusable skills / past cases ("have I done this before?") and wiki_capture_trajectory after non-trivial tasks to record how you solved them. The extension injects a brief status line, but explicit calls with task-specific terms get better results.
 ---
 
@@ -183,6 +183,16 @@ The choice is persisted to project settings (`.pi/settings.json` under `llm-wiki
 ```
 wiki_ingest(model="anthropic/claude-haiku")
 ```
+
+### Settings Screen (`/wiki-settings`)
+
+**Interactive settings:** run `/wiki-settings` to open a persistent settings screen. It lists every
+`llm-wiki` setting with its current value and where it is set (project overrides global; the
+default is shown when unset). Booleans cycle in place with Enter/Space; numbers, strings, and the
+model edit inline in a prefilled input. Every change persists immediately to the chosen scope
+(project or global). Setting the model to `session` clears `llm-wiki.taskModel` (back to the session model).
+
+### Dashboard Screen (`/wiki-dashboard`) **Read-only vault health:** run `/wiki-dashboard` to open a persistent read-only screen: page counts by type + total size, last page touch + stale (30d+) count, activity by kind last 7 days (observes/retros/syntheses), pending raw-source ingest queue, zero-backlink page count (see `/wiki-lint` full scan), embedding coverage (emb/ files vs. pages). All values computed from existing on-disk state — no writes, no LLM calls. Esc closes.
 
 ### Auto-Bootstrap (One-Time)
 

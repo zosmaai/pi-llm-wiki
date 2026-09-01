@@ -3,17 +3,17 @@ import { join } from "node:path";
 import type { KnowledgeDiagnostic } from "./knowledge-document.js";
 import type { Registry } from "./metadata.js";
 import {
+  awaitQmdIndexQueue,
   type QmdGeneratedStatus,
   type QmdIndexProgress,
   type QmdIndexState,
   type QmdReindexResult,
-  awaitQmdIndexQueue,
   readQmdIndexStatus,
   reindexQmdVault,
 } from "./qmd-indexing.js";
 import { QMD_PACKAGE_VERSION, resolveQmdModels } from "./qmd-store.js";
-import { getPersonalWikiPaths, isPersonalVault, readJson } from "./utils.js";
 import type { VaultPaths } from "./utils.js";
+import { getPersonalWikiPaths, isPersonalVault, readJson } from "./utils.js";
 import type { KnowledgeFormat } from "./vault-format.js";
 import {
   compareCodePoint,

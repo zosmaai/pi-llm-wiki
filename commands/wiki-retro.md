@@ -32,3 +32,4 @@ Read the LLM Wiki skill at `.pi/skills/llm-wiki/SKILL.md` first to understand th
 - One atomic insight per `wiki_retro` call. Use multiple calls for multiple insights.
 - Don't save obvious things. Save non-obvious patterns, tradeoffs, and design decisions.
 - Always add `[[wikilinks]]` to connect the new insight with existing wiki knowledge.
+- Inside Markdown table cells, write aliased wikilinks as `[[target\|alias]]`, never `[[target|alias]]`.

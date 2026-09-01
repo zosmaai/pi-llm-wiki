@@ -2,12 +2,14 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { parse as parseYaml } from "yaml";
 import {
-  type HostKind,
   detectHost,
+  type HostKind,
   listGlobalSettingsFiles,
   listProjectSettingsFiles,
+  resolveGlobalSettingsPath,
   resolveProjectSettingsPath,
 } from "./host.js";
+import type { WikilinkValidationMode } from "./knowledge-links.js";
 
 /**
  * Configuration for the background-task lane (issue #64, part of #63).
@@ -139,6 +141,34 @@ export interface TaskConfig {
    * source content and technical identifiers remain unchanged.
    */
   synthesisLanguage?: string;
+
+  /**
+   * Max output tokens for the synthesizer sub-agent (issue #160). Default 16384.
+   * Reasoning models consume tokens on thinking, so 4096 is too low — the
+   * response truncates before commit_synthesis can be called.
+   */
+  synthesisMaxTokens?: number;
+
+  /**
+   * Wikilink gate applied to the ingested source body before pages are
+   * written (issue #172, Layer 2). Reuses the Layer 1 resolver.
+   *   - "off"       : no-op.
+   *   - "warn"      : write proceeds; unresolved/ambiguous links are reported.
+   *   - "strict"    : block the write (commit returns ok:false) if any link is unresolvable.
+   *   - "normalize" : rewrite resolvable links to their canonical id, then write.
+   * Default "warn". See `resolveWikilinkValidation`.
+   */
+  wikilinkValidation?: WikilinkValidationMode;
+
+  /**
+   * User-defined page types for wiki_ensure_page (issue #169). Merges with
+   * the 7 built-in types (entity, concept, synthesis, analysis, requirement,
+   * skill, case). Each key is the type name; each value is the folder name
+   * inside wiki/. Example: { "decision": "decisions", "metric": "metrics" }
+   * → wiki_ensure_page(type="decision") creates wiki/decisions/<slug>.md.
+   * Custom types use a generic page template (no per-type templates).
+   */
+  customTypes?: Record<string, string>;
 }
 
 export const TASK_DEFAULTS: TaskConfig = {};
@@ -149,6 +179,24 @@ export const TASK_DEFAULTS: TaskConfig = {};
  */
 export function noticesEnabled(config: TaskConfig | undefined): boolean {
   return config?.notices !== false;
+}
+
+const WIKILINK_VALIDATION_MODES: readonly WikilinkValidationMode[] = [
+  "off",
+  "warn",
+  "strict",
+  "normalize",
+];
+
+/**
+ * Resolve the wikilink write-gate mode (issue #172, Layer 2). Defaults to
+ * `warn` — ingest always writes and reports; only an explicit `strict` blocks.
+ * Unknown values fall back to `warn` rather than failing the ingest.
+ */
+export function resolveWikilinkValidation(config: TaskConfig | undefined): WikilinkValidationMode {
+  const v = config?.wikilinkValidation;
+  if (v && (WIKILINK_VALIDATION_MODES as readonly string[]).includes(v)) return v;
+  return "warn";
 }
 
 /**
@@ -238,6 +286,28 @@ function readNamespacedConfig(path: string): Partial<TaskConfig> {
       if (canonical) out.synthesisLanguage = canonical;
     }
 
+    const maxTokens = section.synthesisMaxTokens;
+    if (typeof maxTokens === "number" && Number.isFinite(maxTokens) && maxTokens > 0) {
+      out.synthesisMaxTokens = Math.floor(maxTokens);
+    }
+
+    const wl = section.wikilinkValidation;
+    if (typeof wl === "string" && (WIKILINK_VALIDATION_MODES as readonly string[]).includes(wl)) {
+      out.wikilinkValidation = wl as WikilinkValidationMode;
+    }
+
+    const ct = section.customTypes;
+    if (ct && typeof ct === "object" && !Array.isArray(ct)) {
+      const entries = Object.entries(ct as Record<string, unknown>);
+      const valid: Record<string, string> = {};
+      for (const [k, v] of entries) {
+        if (typeof k === "string" && typeof v === "string" && k && v) {
+          valid[k] = v;
+        }
+      }
+      if (Object.keys(valid).length) out.customTypes = valid;
+    }
+
     return out;
   } catch {
     return {};
@@ -302,6 +372,24 @@ function readSettingsObject(path: string): Record<string, unknown> {
     // Missing or corrupt settings file: start from an empty object.
   }
   return {};
+}
+
+/**
+ * Rewrite the `llm-wiki` section of the global settings file.
+ */
+function updateGlobalSection(mutate: (section: Record<string, unknown>) => void): void {
+  const settingsPath = resolveGlobalSettingsPath();
+  const raw = readSettingsObject(settingsPath);
+
+  const existing = raw[SETTINGS_KEY];
+  const section: Record<string, unknown> =
+    existing && typeof existing === "object" ? { ...(existing as Record<string, unknown>) } : {};
+
+  mutate(section);
+  raw[SETTINGS_KEY] = section;
+
+  mkdirSync(dirname(settingsPath), { recursive: true });
+  writeFileSync(settingsPath, `${JSON.stringify(raw, null, 2)}\n`, "utf-8");
 }
 
 /**
@@ -382,4 +470,77 @@ export function loadTaskConfig(cwd: string): TaskConfig {
     Object.assign(config, readNamespacedConfig(path));
   }
   return config;
+}
+
+// ── Settings source tracking (for /wiki-settings TUI) ──────────
+
+export type SettingScope = "default" | "global" | "project";
+
+/**
+ * Resolve where each setting is defined: project > global > default.
+ */
+/** All known setting keys — needed because TASK_DEFAULTS is {} (zero-config). */
+const KNOWN_KEYS = [
+  "taskModel",
+  "embeddingProvider",
+  "embeddingModel",
+  "embeddingBaseUrl",
+  "embeddingApiKey",
+  "embeddingApiKeyEnv",
+  "semanticWeight",
+  "recallLinksThreshold",
+  "recallSkillInlineMax",
+  "notices",
+  "ambientPersonalVault",
+  "trajectories",
+  "synthesisLanguage",
+  "synthesisMaxTokens",
+  "wikilinkValidation",
+  "customTypes",
+] as const;
+
+export function loadTaskConfigSources(
+  cwd: string,
+): Record<string, { value: unknown; source: SettingScope }> {
+  const globalResult: Record<string, unknown> = {};
+  for (const path of listGlobalSettingsFiles()) {
+    Object.assign(globalResult, readNamespacedConfig(path));
+  }
+  const projectResult: Record<string, unknown> = {};
+  for (const path of listProjectSettingsFiles(cwd)) {
+    Object.assign(projectResult, readNamespacedConfig(path));
+  }
+  const effective = loadTaskConfig(cwd);
+
+  const out: Record<string, { value: unknown; source: SettingScope }> = {};
+  for (const key of KNOWN_KEYS) {
+    if (key in projectResult) out[key] = { value: projectResult[key], source: "project" };
+    else if (key in globalResult) out[key] = { value: globalResult[key], source: "global" };
+    else out[key] = { value: (effective as Record<string, unknown>)[key], source: "default" };
+  }
+  return out;
+}
+
+/**
+ * Generic setting persist: writes any single setting to the chosen scope.
+ */
+export function persistSetting(
+  cwd: string,
+  scope: SettingScope,
+  key: string,
+  value: unknown,
+): void {
+  const mutate = (section: Record<string, unknown>) => {
+    if (value === undefined || value === null) {
+      delete section[key];
+    } else {
+      section[key] = value;
+    }
+  };
+
+  if (scope === "project") {
+    updateProjectSection(cwd, mutate);
+  } else if (scope === "global") {
+    updateGlobalSection(mutate);
+  }
 }

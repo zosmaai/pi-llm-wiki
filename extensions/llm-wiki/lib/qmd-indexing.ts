@@ -5,8 +5,8 @@ import {
   rename as fsRename,
   rm as fsRm,
   mkdir,
-  readFile,
   readdir,
+  readFile,
   writeFile,
 } from "node:fs/promises";
 import { hostname as osHostname } from "node:os";
@@ -24,7 +24,9 @@ import {
   type QmdStoreFactory,
   resolveQmdModels,
 } from "./qmd-store.js";
+
 export type { QmdStoreFactory } from "./qmd-store.js";
+
 import type { VaultPaths } from "./utils.js";
 
 export type QmdComponent = "lexical" | "vectors";

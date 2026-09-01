@@ -24,11 +24,14 @@ describe("package structure", () => {
     expect(pkg.pi.prompts).toContain("./prompts");
     expect(pkg.peerDependencies).toBeDefined();
     expect(pkg.peerDependencies["@mariozechner/pi-coding-agent"]).toBe("*");
-    expect(pkg.peerDependencies.typebox).toBe("*");
+    // `typebox` is imported at runtime by the dist extension modules, so it
+    // must be a real dependency — a fresh install without the pi host (e.g.
+    // MCP-only, peers omitted) has to resolve it (issue #153).
+    expect(pkg.peerDependencies.typebox).toBeUndefined();
+    expect(pkg.dependencies.typebox).toBeTruthy();
 
     expect(pkg.engines.node).toBe(">=22.0.0");
     expect(pkg.dependencies["@tobilu/qmd"]).toBe("2.5.3");
-    expect(pkg.devDependencies.typescript).toBe("^5.9.3");
     expect(pkg.pnpm.onlyBuiltDependencies).toEqual([
       "better-sqlite3",
       "node-llama-cpp",

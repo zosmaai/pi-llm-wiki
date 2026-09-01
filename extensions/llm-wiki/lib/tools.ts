@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "typebox";
@@ -11,21 +11,25 @@ import {
   serializeKnowledgeDocument,
   writeKnowledgeDocumentFile,
 } from "./knowledge-document.js";
-import { buildResolvedBacklinks } from "./knowledge-links.js";
+import {
+  applyWikilinkGate,
+  buildResolvedBacklinks,
+  buildWikilinkIndex,
+} from "./knowledge-links.js";
 import { repairLegacyKnowledgeDocuments } from "./legacy-repair.js";
-import { type Registry, appendEvent, rebuildMetadata, rebuildMetadataLight } from "./metadata.js";
+import { appendEvent, type Registry, rebuildMetadata, rebuildMetadataLight } from "./metadata.js";
 import { readQmdIndexStatus, reindexQmdVault } from "./qmd-indexing.js";
 import type { Runtime } from "./runtime.js";
 import { captureFile, captureText, captureUrl } from "./source-packet.js";
-import { parseModelRef } from "./task-config.js";
+import { loadTaskConfig, parseModelRef, resolveWikilinkValidation } from "./task-config.js";
 import {
-  type VaultPaths,
   detectVaultFormat,
   fmtDate,
   getVaultPaths,
   readJson,
   resolveVaultPaths,
   slugify,
+  type VaultPaths,
   writeJson,
 } from "./utils.js";
 import {
@@ -416,6 +420,7 @@ export function registerWikiIngest(pi: ExtensionAPI, runtime?: Runtime): void {
                 manifest: s.manifest,
                 extracted: s.extracted,
                 synthesisLanguage: runtime.config.synthesisLanguage,
+                wikilinkValidation: runtime.config.wikilinkValidation,
               });
               if (committed) {
                 // Background semantic embeddings (#66): embed the pages this
@@ -429,8 +434,10 @@ export function registerWikiIngest(pi: ExtensionAPI, runtime?: Runtime): void {
                 ];
                 launchEmbedPages(runtime, launchCtx, paths, pageIds, `embed:ingest:${s.id}`);
               }
+              const wl = committed?.wikilinkDiagnostics?.length ?? 0;
+              const wlNote = wl > 0 ? `, ${wl} wikilink issue${wl === 1 ? "" : "s"}` : "";
               const summary = committed
-                ? `LLM Wiki: ingested ${s.id} → ${committed.entitiesCreated.length} entit${committed.entitiesCreated.length === 1 ? "y" : "ies"}, ${committed.conceptsCreated.length} concept${committed.conceptsCreated.length === 1 ? "" : "s"}`
+                ? `LLM Wiki: ingested ${s.id} → ${committed.entitiesCreated.length} entit${committed.entitiesCreated.length === 1 ? "y" : "ies"}, ${committed.conceptsCreated.length} concept${committed.conceptsCreated.length === 1 ? "" : "s"}${wlNote}`
                 : `LLM Wiki: ${s.id} produced no synthesis`;
               if (ctx.hasUI) {
                 ctx.ui.notify(summary, committed ? "info" : "warning");
@@ -513,7 +520,7 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
     parameters: Type.Object({
       type: Type.String({
         description:
-          "Page type: entity | concept | synthesis | analysis | requirement | skill | case",
+          "Page type: entity | concept | synthesis | analysis | requirement | skill | case (built-in) or any user-defined type from llm-wiki.customTypes config",
       }),
       title: Type.String({ description: "Page title" }),
       content: Type.Optional(
@@ -536,17 +543,8 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
         };
       }
 
-      const type = params.type as
-        | "entity"
-        | "concept"
-        | "synthesis"
-        | "analysis"
-        | "requirement"
-        | "skill"
-        | "case";
-      const slug = slugify(params.title);
-
-      const folderMap: Record<string, string> = {
+      const config = loadTaskConfig(ctx.cwd);
+      const builtInFolderMap: Record<string, string> = {
         entity: "entities",
         concept: "concepts",
         synthesis: "syntheses",
@@ -555,6 +553,9 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
         skill: "skills",
         case: "cases",
       };
+      const folderMap = { ...builtInFolderMap, ...config.customTypes };
+      const type = params.type as string;
+      const slug = slugify(params.title);
       const folder = folderMap[type] || "concepts";
       const pagePath = join(paths.wiki, folder, `${slug}.md`);
 
@@ -566,7 +567,42 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
       }
 
       const today = fmtDate();
-      const body = params.content ?? buildPageBody(type, params.title);
+      let body = params.content ?? buildPageBody(type, params.title);
+
+      // Pre-write wikilink gate (#172): validate/normalize caller-supplied content.
+      const mode = resolveWikilinkValidation(loadTaskConfig(ctx.cwd));
+      let wikilinkIssues: string[] = [];
+      if (mode !== "off") {
+        const registry = readJson<{ pages: Record<string, unknown> }>(
+          join(paths.meta, "registry.json"),
+          { pages: {} },
+        );
+        const gate = applyWikilinkGate(
+          body,
+          buildWikilinkIndex(Object.keys(registry.pages)),
+          `${folder}/${slug}`,
+          mode,
+        );
+        wikilinkIssues = gate.diagnostics.map((d) => d.message);
+        if (!gate.ok) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Rejected write — unresolved/ambiguous wikilinks:\n${wikilinkIssues
+                  .map((m) => `- ${m}`)
+                  .join("\n")}`,
+              },
+            ],
+            details: { error: "link_validation", issues: wikilinkIssues } as Record<
+              string,
+              unknown
+            >,
+            isError: true,
+          };
+        }
+        if (mode === "normalize") body = gate.body;
+      }
       const doc = createKnowledgeDocument(
         `${folder}/${slug}.md`,
         {
@@ -596,9 +632,16 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
         rebuildMetadataLight(paths);
       }
 
+      const gateNote = wikilinkIssues.length
+        ? `\n\n⚠️ ${wikilinkIssues.length} wikilink issue(s):\n${wikilinkIssues.map((m) => `- ${m}`).join("\n")}`
+        : "";
       return {
-        content: [{ type: "text", text: `✅ Created ${type} page: \`${pagePath}\`` }],
-        details: { path: pagePath, created: true } as Record<string, unknown>,
+        content: [{ type: "text", text: `✅ Created ${type} page: \`${pagePath}\`${gateNote}` }],
+        details: {
+          path: pagePath,
+          created: true,
+          wikilinkIssues,
+        } as Record<string, unknown>,
       };
     },
   });
@@ -873,7 +916,7 @@ async function runWikiLint(paths: VaultPaths, autoFix: boolean): Promise<string>
 
   const discovery = discoverKnowledgeDocuments(paths);
   const pages = discovery.documents;
-  const knownIds = new Set(pages.map((page) => page.id));
+  const wikilinkIndex = buildWikilinkIndex(pages.map((page) => page.id));
   const inbound = Object.fromEntries(pages.map((page) => [page.id, 0]));
   const gapSources = new Map<string, Set<string>>();
   const findings: string[] = [];
@@ -881,7 +924,7 @@ async function runWikiLint(paths: VaultPaths, autoFix: boolean): Promise<string>
   let contradictions = 0;
 
   for (const page of pages) {
-    const resolved = buildResolvedBacklinks(page.id, page.body, knownIds);
+    const resolved = buildResolvedBacklinks(page.id, page.body, wikilinkIndex);
     for (const target of resolved.targets) inbound[target]++;
     for (const unresolved of resolved.unresolved) {
       const sources = gapSources.get(unresolved.target) ?? new Set<string>();
@@ -889,6 +932,11 @@ async function runWikiLint(paths: VaultPaths, autoFix: boolean): Promise<string>
       gapSources.set(unresolved.target, sources);
       missingPages++;
       findings.push(`Missing page: ${unresolved.target} (in ${page.id})`);
+    }
+    for (const d of resolved.diagnostics) {
+      if (d.code === "link_ambiguous") {
+        findings.push(d.message.replace("Ambiguous wikilink: ", "Ambiguous: "));
+      }
     }
   }
 
@@ -991,15 +1039,15 @@ async function runWikiLint(paths: VaultPaths, autoFix: boolean): Promise<string>
       qmdStatus.repairComponents.length > 0 ? qmdStatus.repairComponents : ["lexical"],
     );
     qmdFindings.push(
-      `- QMD index stale (${qmdStatus.indexedManifestHash ? "manifest or model changed" : ""}): repair with \`wiki_reindex(scope=\"changed\", components=${components}, vault=\"active\")\``,
+      `- QMD index stale (${qmdStatus.indexedManifestHash ? "manifest or model changed" : ""}): repair with \`wiki_reindex(scope="changed", components=${components}, vault="active")\``,
     );
   } else if (qmdStatus.state === "recovering") {
     qmdFindings.push(
-      `- QMD swap interrupted (${qmdStatus.swapPhase ?? ""}): restart recovery via \`wiki_reindex(vault=\"active\")\``,
+      `- QMD swap interrupted (${qmdStatus.swapPhase ?? ""}): restart recovery via \`wiki_reindex(vault="active")\``,
     );
   } else if (qmdStatus.state === "error") {
     qmdFindings.push(
-      `- QMD index error: ${qmdStatus.issues[0]?.message ?? "repair with wiki_reindex"} — \`wiki_reindex(scope=\"changed\", components=${JSON.stringify(qmdStatus.repairComponents.length > 0 ? qmdStatus.repairComponents : ["lexical"])}, vault=\"active\")\``,
+      `- QMD index error: ${qmdStatus.issues[0]?.message ?? "repair with wiki_reindex"} — \`wiki_reindex(scope="changed", components=${JSON.stringify(qmdStatus.repairComponents.length > 0 ? qmdStatus.repairComponents : ["lexical"])}, vault="active")\``,
     );
   } else if (qmdStatus.state === "missing") {
     qmdFindings.push("- QMD index not built yet (informational): run wiki_reindex to build it");

@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
 import {
   type KnowledgeDiagnostic,
@@ -6,7 +6,7 @@ import {
   parseKnowledgeDocument,
   parseMarkdownFrontmatter,
 } from "./knowledge-document.js";
-import { type VaultPaths, relativePhysicalPath } from "./utils.js";
+import { relativePhysicalPath, type VaultPaths } from "./utils.js";
 
 export type KnowledgeFormat = "legacy" | "okf-0.2";
 

@@ -9,6 +9,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@zosmaai/pi-llm-wiki)](https://www.npmjs.com/package/@zosmaai/pi-llm-wiki)
 [![Coverage](https://img.shields.io/badge/coverage-85.09%25-brightgreen.svg)](https://codecov.io/gh/zosmaai/pi-llm-wiki)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-online-blue.svg)](https://zosmaai.github.io/pi-llm-wiki/)
 [![CodeQL](https://github.com/zosmaai/pi-llm-wiki/actions/workflows/codeql.yml/badge.svg)](https://github.com/zosmaai/pi-llm-wiki/actions/workflows/codeql.yml)
 [![GitHub Repo Stars](https://img.shields.io/github/stars/zosmaai/pi-llm-wiki?style=social)](https://github.com/zosmaai/pi-llm-wiki/stargazers)
 
@@ -111,7 +112,9 @@ El resultado es un wiki que **se acumula** mientras capturas fuentes, haces preg
 | `wiki_search` | Busca en el registro generado del wiki |
 | `wiki_lint` | Comprobaciones de salud deterministas (huérfanos, lagunas, contradicciones, auto-reparación) |
 | `wiki_status` | Muestra conteos, estados de fuentes y actividad reciente |
+| `wiki_observe` | Registra observaciones de la sesión actual con marca de tiempo y buscables |
 | `wiki_rebuild_meta` | Fuerza una reconstrucción completa de metadatos (registro, backlinks, índice, registro) |
+| `wiki_reindex_embeddings` | Refresca los embeddings semánticos de páginas nuevas o desactualizadas (no hace nada sin proveedor de embeddings) |
 | `wiki_log_event` | Adjunta un evento estructurado al registro de actividad del wiki |
 | `wiki_watch` | Imprime una línea `crontab` para actualizaciones automáticas del wiki (diaria / semanal / horaria) — no la instala |
 | `wiki_capture_trajectory` _(opcional)_ | Captura la trayectoria de llamadas de herramientas de la tarea completada (memoria de trabajo del agente) |
@@ -133,10 +136,16 @@ El resultado es un wiki que **se acumula** mientras capturas fuentes, haces preg
 | `/wiki-status` | Muestra un resumen operativo conciso |
 | `/wiki-digest [--period daily\|weekly]` | Genera un resumen de actividad reciente |
 | `/wiki-retro` | Guarda ideas atómicas de tareas completadas |
+| `/wiki-model [provider/id | session]` | Fija el modelo de las tareas en segundo plano (sin argumento: selector interactivo) |
 | `/wiki-req <concept>` | Descompone un concepto en páginas de requisitos atómicas y rastreables |
 | `/wiki-trajectories <on\|off>` | Activa/desactiva la memoria de trabajo del agente (opcional, desactivada por defecto) |
 | `/wiki-record <title>` | Captura la trayectoria de la tarea completada (requiere trayectorias activadas) |
 | `/wiki-skills [query]` | Busca habilidades destiladas + casos pasados (requiere trayectorias activadas) |
+| `/wiki-settings` | Pantalla interactiva de ajustes — ver/cambiar todos los ajustes `llm-wiki` en alcance de proyecto o global |
+| `/wiki-dashboard` | Panel de solo lectura del vault — páginas por tipo, frescura, actividad de 7 días, cola de ingestión, páginas sin backlinks, cobertura de embeddings |
+
+<img src="./assets/wiki-dashboard.png" alt="wiki-dashboard: panel del vault" width="100%" />
+
 
 ---
 
