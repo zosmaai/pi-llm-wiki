@@ -114,7 +114,7 @@
     "@biomejs/biome": "^2.5.11",
     "@mariozechner/pi-agent-core": "^0.73.1",
     "@mariozechner/pi-ai": "^0.73.1",
-    "@mariozechner/pi-coding-agent": "^0.70.2",
+    "@mariozechner/pi-coding-agent": "^0.73.1",
     "@mermaid-js/mermaid-cli": "^11.12.0",
     "@types/mdast": "^4.0.4",
     "@types/node": "^26",
