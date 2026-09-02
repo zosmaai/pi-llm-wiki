@@ -23,7 +23,9 @@ describe("package structure", () => {
     expect(pkg.pi.skills).toContain("./skills");
     expect(pkg.pi.prompts).toContain("./prompts");
     expect(pkg.peerDependencies).toBeDefined();
-    expect(pkg.peerDependencies["@mariozechner/pi-coding-agent"]).toBe("*");
+    // The pi host was rebranded from @mariozechner/* to @earendil-works/* and
+    // the CVE-2026-54328 fix only exists at >=0.78.1 in the new scope (issue #212).
+    expect(pkg.peerDependencies["@earendil-works/pi-coding-agent"]).toBe(">=0.78.1");
     // `typebox` is imported at runtime by the dist extension modules, so it
     // must be a real dependency — a fresh install without the pi host (e.g.
     // MCP-only, peers omitted) has to resolve it (issue #153).

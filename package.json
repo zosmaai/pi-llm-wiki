@@ -93,7 +93,12 @@
     ]
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": ">=0.78.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "undici": "8.10.1"
+    }
   },
   "packageManager": "pnpm@9.15.4",
   "engines": {
@@ -101,7 +106,7 @@
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
-    "@mariozechner/pi-tui": "0.73.1",
+    "@earendil-works/pi-tui": "0.84.4",
     "@modelcontextprotocol/server": "^2.0.0",
     "mdast-util-from-markdown": "^2.0.3",
     "node-html-markdown": "^2.0.0",
@@ -112,9 +117,9 @@
   "devDependencies": {
     "@astrojs/starlight": "^0.41.10",
     "@biomejs/biome": "^2.5.11",
-    "@mariozechner/pi-agent-core": "^0.73.1",
-    "@mariozechner/pi-ai": "^0.73.1",
-    "@mariozechner/pi-coding-agent": "^0.70.2",
+    "@earendil-works/pi-agent-core": "^0.78.1",
+    "@earendil-works/pi-ai": "^0.78.1",
+    "@earendil-works/pi-coding-agent": "^0.78.1",
     "@mermaid-js/mermaid-cli": "^11.12.0",
     "@types/mdast": "^4.0.4",
     "@types/node": "^26",

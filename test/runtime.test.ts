@@ -1,8 +1,8 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentTool } from "@mariozechner/pi-agent-core";
-import type { Api, Model } from "@mariozechner/pi-ai";
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Runtime } from "../extensions/llm-wiki/lib/runtime.js";
 import { runSubAgent } from "../extensions/llm-wiki/lib/subagent.js";
