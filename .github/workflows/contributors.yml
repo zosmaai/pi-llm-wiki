@@ -27,7 +27,7 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Refresh contributors block in README.md
         # Pinned to v2.3.11 → 83ea0b4f1ac928fbfe88b9e8460a932a528eb79f
