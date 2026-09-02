@@ -1013,6 +1013,9 @@ function runWikiLint(paths: VaultPaths, autoFix: boolean): string {
   // The gap snapshot is generated discovery metadata consumed by wiki_status:
   // persist it on every successful lint so status never reports a stale count.
   // Corrective actions below (report, event, meta rebuild) stay autoFix-only.
+  // mkdir mirrors the autoFix report write below: on a fresh checkout the
+  // gitignored .discoveries dir does not exist yet (issue #203).
+  mkdirSync(paths.discoveries, { recursive: true });
   writeJson(join(paths.discoveries, "gaps.json"), {
     gaps,
     generated: new Date().toISOString(),
