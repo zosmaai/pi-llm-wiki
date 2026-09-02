@@ -2,7 +2,12 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { rebuildMetadata } from "../extensions/llm-wiki/lib/metadata.js";
-import { captureFile, captureText, captureUrl } from "../extensions/llm-wiki/lib/source-packet.js";
+import {
+  captureFile,
+  captureText,
+  captureUrl,
+  originalFileNameForPath,
+} from "../extensions/llm-wiki/lib/source-packet.js";
 import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
 import { mockPi, mockPiWithMarkItDown, readFile } from "./helpers.js";
 
@@ -164,6 +169,12 @@ describe("source packet capture", () => {
     expect(extracted).toContain("Hello world.");
 
     expect(existsSync(join(result.packetPath, "original", "notes.md"))).toBe(true);
+  });
+
+  it("derives the original artifact name with platform basename so drive letters stay out of file names (issue #204)", () => {
+    const absPath =
+      process.platform === "win32" ? "D:\\any\\dir\\doc.md" : "/home/user/any/dir/doc.md";
+    expect(originalFileNameForPath(absPath)).toBe("doc.md");
   });
 
   it("keeps a local capture path in the raw manifest but out of events and the OKF log", async () => {
