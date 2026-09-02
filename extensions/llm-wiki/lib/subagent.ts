@@ -3,8 +3,8 @@ import {
   type AgentLoopConfig,
   type AgentTool,
   agentLoop,
-} from "@mariozechner/pi-agent-core";
-import type { Api, Message, Model } from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-agent-core";
+import type { Api, Message, Model } from "@earendil-works/pi-ai";
 
 /**
  * Thin sub-agent runner for the LLM Wiki background lane (issue #64, part of #63).

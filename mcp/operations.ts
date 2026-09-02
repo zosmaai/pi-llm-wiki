@@ -7,7 +7,7 @@
  */
 
 import { join } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { bootstrapVault } from "../extensions/llm-wiki/lib/bootstrap.js";
 import {
   applyWikilinkGate,

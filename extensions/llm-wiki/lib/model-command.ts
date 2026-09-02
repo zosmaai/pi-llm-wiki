@@ -1,4 +1,4 @@
-import type { ExtensionAPI, Theme } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import {
   Container,
   matchesKey,
@@ -7,7 +7,7 @@ import {
   type SelectListTheme,
   Spacer,
   Text,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import type { Runtime } from "./runtime.js";
 import { parseModelRef, persistTaskModel, type TaskConfig } from "./task-config.js";
 

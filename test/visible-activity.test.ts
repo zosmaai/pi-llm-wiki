@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { MODEL_STATUS_KEY } from "../extensions/llm-wiki/lib/model-command.js";
 import { buildReminderText, buildSessionNotice } from "../extensions/llm-wiki/lib/observation.js";
