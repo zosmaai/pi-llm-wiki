@@ -110,7 +110,10 @@ jobs:
 
           cd "$consumer"
           npm init -y > /dev/null
-          npm install --no-package-lock --no-audit --no-fund "$RUNNER_TEMP/$tarball"
+          # @earendil-works/pi-coding-agent (a dep of this package) imports
+          # @earendil-works/pi-server at runtime but does not declare it, so a
+          # lockfile-free consumer install can resolve nothing for it.
+          npm install --no-package-lock --no-audit --no-fund "$RUNNER_TEMP/$tarball" "@earendil-works/pi-server"
 
           installed="$consumer/node_modules/@zosmaai/pi-llm-wiki"
           test -f "$installed/dist/mcp/index.js"
