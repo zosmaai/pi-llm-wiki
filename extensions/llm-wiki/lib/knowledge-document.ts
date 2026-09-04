@@ -589,7 +589,15 @@ export function serializeKnowledgeDocument(document: KnowledgeDocument): string 
   return body ? `---\n${yaml}---\n\n${body}\n` : `---\n${yaml}---\n`;
 }
 
-/** Escape wikilink alias pipes so generated content remains valid in Markdown tables. */
+const TABLE_ROW = /^\s*\|.*\|\s*$/;
+
+/** Escape wikilink alias pipes only inside Markdown table rows.
+ *
+ * A bare `|` inside `[[target|alias]]` would be read as a table cell
+ * delimiter when the row renders, so table rows need the pipe escaped as
+ * `[[target\|alias]]`. Prose, lists, headings, and fenced code keep their
+ * pipes literal, so the written file stays valid for external readers
+ * (Obsidian, VS Code Wiki Links) that don't understand the escaped form. */
 function escapeWikilinkAliasPipes(body: string): string {
   let inFence = false;
   return body
@@ -600,7 +608,9 @@ function escapeWikilinkAliasPipes(body: string): string {
         return line;
       }
       if (inFence) return line;
-      return line.replace(/\[\[([^\]\n]*?)(?<!\\)\|([^\]\n]*?)\]\]/g, "[[$1\\|$2]]");
+      return TABLE_ROW.test(line)
+        ? line.replace(/\[\[([^\]\n]*?)(?<!\\)\|([^\]\n]*?)\]\]/g, "[[$1\\|$2]]")
+        : line;
     })
     .join("\n");
 }

@@ -66,6 +66,34 @@ describe("KnowledgeDocument", () => {
     expect(doc.body).toContain("[[entities/raw|Raw]]");
   });
 
+  it("escopes alias-pipe escaping to Markdown table rows only", () => {
+    const table = createKnowledgeDocument(
+      "concepts/table.md",
+      { type: "concept" },
+      "| Name |\n| --- |\n| [[entities/gildan|Gildan]] |",
+    );
+    // Table row: alias pipe MUST be escaped so the cell isn't split.
+    expect(table.body).toContain("[[entities/gildan\\|Gildan]]");
+
+    const prose = createKnowledgeDocument(
+      "concepts/prose.md",
+      { type: "concept" },
+      "See [[entities/peanut-cat|Peanut]] and [[entities/alice|Alice]] here.",
+    );
+    // Prose: alias pipes MUST stay literal so external readers follow the link.
+    expect(prose.body).toContain("[[entities/peanut-cat|Peanut]]");
+    expect(prose.body).toContain("[[entities/alice|Alice]]");
+    expect(prose.body).not.toContain("\\|");
+
+    // Fenced code stays verbatim (existing behavior, keep asserting).
+    const fenced = createKnowledgeDocument(
+      "concepts/fenced.md",
+      { type: "concept" },
+      "```md\n[[entities/raw|Raw]]\n```",
+    );
+    expect(fenced.body).toContain("[[entities/raw|Raw]]");
+  });
+
   it.each([
     ["frontmatter_duplicate_key", "---\ntype: concept\ntype: entity\n---\n"],
     ["frontmatter_alias_forbidden", "---\ntype: concept\nx: &x [1]\ny: *x\n---\n"],
