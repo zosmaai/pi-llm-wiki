@@ -3,7 +3,6 @@ import {
   Container,
   getKeybindings,
   Input,
-  matchesKey,
   type SelectItem,
   SelectList,
   type SelectListTheme,
@@ -132,11 +131,6 @@ class ModelPickerScreen extends Container {
   }
 
   handleInput(data: string): void {
-    // Esc cancels immediately even with a query; it does not first clear the filter.
-    if (matchesKey(data, "escape")) {
-      this.finish(undefined);
-      return;
-    }
     const kb = getKeybindings();
     if (
       kb.matches(data, "tui.select.up") ||
@@ -146,6 +140,9 @@ class ModelPickerScreen extends Container {
       this.list.handleInput(data);
       return;
     }
+    // tui.select.cancel defaults to escape + ctrl+c and the kitty CSI-u Esc
+    // form, so one keybinding check covers every cancel keypath (no hardcoded Esc,
+    // so a remapped binding is honored).
     if (kb.matches(data, "tui.select.cancel")) {
       this.finish(undefined);
       return;

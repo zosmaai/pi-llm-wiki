@@ -28,6 +28,7 @@ const DOWN = "\x1b[B";
 const ENTER = "\r";
 const ESC = "\x1b";
 const KITTY_ESC = "\u001b[27u";
+const CTRL_C = "\x03"; // ctrl+c resolves to tui.select.cancel in pi-tui
 const BACKSPACE = "\x7f";
 
 const fakeTheme = { fg: (_color: string, text: string) => text };
@@ -347,5 +348,16 @@ describe("/wiki-model interactive picker", () => {
     screen.handleInput(ENTER);
     await pending;
     expect(loadTaskConfig(tmp).taskModel).toEqual({ provider: "anthropic", id: "claude-haiku" });
+  });
+
+  it("cancels with ctrl+c via the keybinding path", async () => {
+    const tmp = project("ctrl-c");
+    const h = makeCtx({ cwd: tmp, models: namedModels });
+    const pending = handler("", h.ctx);
+    await tick();
+    const screen = h.screen.current!;
+    screen.handleInput(CTRL_C);
+    await pending;
+    expect(loadTaskConfig(tmp).taskModel).toBeUndefined();
   });
 });
