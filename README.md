@@ -583,12 +583,21 @@ Thanks to everyone who has contributed! This list is regenerated automatically b
                 </a>
             </td>
             <td align="center">
+                <a href="https://github.com/wooksong">
+                    <img src="https://avatars.githubusercontent.com/u/2772376?v=4" width="64;" alt="wooksong"/>
+                    <br />
+                    <sub><b>wooksong</b></sub>
+                </a>
+            </td>
+            <td align="center">
                 <a href="https://github.com/xcsf">
                     <img src="https://avatars.githubusercontent.com/u/43439835?v=4" width="64;" alt="xcsf"/>
                     <br />
                     <sub><b>xcsf</b></sub>
                 </a>
             </td>
+		</tr>
+		<tr>
             <td align="center">
                 <a href="https://github.com/danielnaab">
                     <img src="https://avatars.githubusercontent.com/u/136512?v=4" width="64;" alt="danielnaab"/>
@@ -596,20 +605,11 @@ Thanks to everyone who has contributed! This list is regenerated automatically b
                     <sub><b>Daniel Naab</b></sub>
                 </a>
             </td>
-		</tr>
-		<tr>
             <td align="center">
                 <a href="https://github.com/deestax">
                     <img src="https://avatars.githubusercontent.com/u/152369481?v=4" width="64;" alt="deestax"/>
                     <br />
                     <sub><b>Superdao</b></sub>
-                </a>
-            </td>
-            <td align="center">
-                <a href="https://github.com/wooksong">
-                    <img src="https://avatars.githubusercontent.com/u/2772376?v=4" width="64;" alt="wooksong"/>
-                    <br />
-                    <sub><b>wooksong</b></sub>
                 </a>
             </td>
             <td align="center">
