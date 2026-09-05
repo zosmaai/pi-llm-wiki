@@ -1,6 +1,8 @@
 import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import {
   Container,
+  getKeybindings,
+  Input,
   matchesKey,
   type SelectItem,
   SelectList,
@@ -93,8 +95,18 @@ function buildPickerItems(
   return { items, selectedIndex };
 }
 
+/** Case-insensitive substring on label/value. Not SelectList.setFilter (prefix-on-value). */
+function itemMatchesQuery(item: SelectItem, query: string): boolean {
+  if (!query) return true;
+  const needle = query.toLowerCase();
+  return item.label.toLowerCase().includes(needle) || item.value.toLowerCase().includes(needle);
+}
+
 /** Editor-dock picker; `ui.custom` without overlay replaces the input slot like `/model`. */
 class ModelPickerScreen extends Container {
+  private readonly allItems: SelectItem[];
+  private readonly listTheme: SelectListTheme;
+  private readonly search: Input;
   private list: SelectList;
   private doneFn: (result?: string) => void;
   private closed = false;
@@ -107,27 +119,63 @@ class ModelPickerScreen extends Container {
     done: (result?: string) => void,
   ) {
     super();
+    this.allItems = items;
+    this.listTheme = buildSelectTheme(theme);
     this.doneFn = done;
     this.addChild(new Text(title, 0, 0));
     this.addChild(new Spacer(1));
-    this.list = new SelectList(
-      items,
-      Math.min(MAX_VISIBLE, Math.max(items.length, 1)),
-      buildSelectTheme(theme),
-    );
-    this.list.setSelectedIndex(selectedIndex);
-    this.list.onSelect = (item) => this.finish(item.value);
-    this.list.onCancel = () => this.finish(undefined);
+    this.search = new Input();
+    this.search.focused = true;
+    this.addChild(this.search);
+    this.list = this.makeList(items, selectedIndex);
     this.addChild(this.list);
   }
 
   handleInput(data: string): void {
-    // matchesKey covers kitty CSI-u Esc; SelectList cancel is the fallback.
+    // Esc cancels immediately even with a query; it does not first clear the filter.
     if (matchesKey(data, "escape")) {
       this.finish(undefined);
       return;
     }
-    this.list.handleInput(data);
+    const kb = getKeybindings();
+    if (
+      kb.matches(data, "tui.select.up") ||
+      kb.matches(data, "tui.select.down") ||
+      kb.matches(data, "tui.select.confirm")
+    ) {
+      this.list.handleInput(data);
+      return;
+    }
+    if (kb.matches(data, "tui.select.cancel")) {
+      this.finish(undefined);
+      return;
+    }
+    this.search.handleInput(data);
+    this.applyFilter();
+  }
+
+  private makeList(items: SelectItem[], selectedIndex: number): SelectList {
+    const list = new SelectList(
+      items,
+      Math.min(MAX_VISIBLE, Math.max(items.length, 1)),
+      this.listTheme,
+    );
+    list.setSelectedIndex(selectedIndex);
+    list.onSelect = (item) => this.finish(item.value);
+    list.onCancel = () => this.finish(undefined);
+    return list;
+  }
+
+  private applyFilter(): void {
+    const filtered = this.allItems.filter((item) => itemMatchesQuery(item, this.search.getValue()));
+    const previous = this.list.getSelectedItem()?.value;
+    const selectedIndex = Math.max(
+      0,
+      filtered.findIndex((item) => item.value === previous),
+    );
+    this.removeChild(this.list);
+    this.list = this.makeList(filtered, selectedIndex);
+    this.addChild(this.list);
   }
 
   private finish(result?: string): void {
