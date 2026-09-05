@@ -28,6 +28,7 @@ const DOWN = "\x1b[B";
 const ENTER = "\r";
 const ESC = "\x1b";
 const KITTY_ESC = "\u001b[27u";
+const BACKSPACE = "\x7f";
 
 const fakeTheme = { fg: (_color: string, text: string) => text };
 
@@ -242,5 +243,109 @@ describe("/wiki-model interactive picker", () => {
     h.screen.current!.handleInput(KITTY_ESC);
     await pending;
     expect(loadTaskConfig(tmp).taskModel).toBeUndefined();
+  });
+
+  const namedModels = [
+    { provider: "anthropic", id: "claude-haiku" },
+    { provider: "anthropic", id: "claude-sonnet" },
+    { provider: "openai", id: "gpt-4" },
+  ];
+
+  it("shows a visible search line above the list", async () => {
+    const tmp = project("search-line");
+    const h = makeCtx({ cwd: tmp, models: makeModels(5) });
+    const pending = handler("", h.ctx);
+    await tick();
+    const text = h.screen.current!.render(80).join("\n");
+    expect(text).toContain(">");
+    expect(text).toContain("prov/m-00");
+    h.screen.current!.handleInput(ESC);
+    await pending;
+  });
+
+  it("filters by substring on label/value so haiku matches anthropic/claude-haiku", async () => {
+    const tmp = project("substring");
+    const h = makeCtx({ cwd: tmp, models: namedModels });
+    const pending = handler("", h.ctx);
+    await tick();
+    const screen = h.screen.current!;
+    screen.handleInput("haiku");
+    const text = screen.render(80).join("\n");
+    expect(text).toContain("anthropic/claude-haiku");
+    expect(text).not.toContain("claude-sonnet");
+    expect(text).not.toContain("openai/gpt-4");
+    expect(text).not.toContain("Use session model");
+    screen.handleInput(ESC);
+    await pending;
+  });
+
+  it("restores the full list when the query is cleared", async () => {
+    const tmp = project("restore");
+    const h = makeCtx({ cwd: tmp, models: namedModels });
+    const pending = handler("", h.ctx);
+    await tick();
+    const screen = h.screen.current!;
+    screen.handleInput("haiku");
+    expect(screen.render(80).join("\n")).not.toContain("claude-sonnet");
+    for (let i = 0; i < 5; i++) screen.handleInput(BACKSPACE);
+    const text = screen.render(80).join("\n");
+    expect(text).toContain("anthropic/claude-haiku");
+    expect(text).toContain("anthropic/claude-sonnet");
+    expect(text).toContain("openai/gpt-4");
+    expect(text).toContain("Use session model");
+    screen.handleInput(ESC);
+    await pending;
+  });
+
+  it("shows SelectList no-match when nothing matches", async () => {
+    const tmp = project("nomatch");
+    const h = makeCtx({ cwd: tmp, models: makeModels(5) });
+    const pending = handler("", h.ctx);
+    await tick();
+    const screen = h.screen.current!;
+    screen.handleInput("zzz-no-such-model");
+    const text = screen.render(80).join("\n");
+    expect(text).toMatch(/no matching/i);
+    expect(text).not.toContain("prov/m-00");
+    screen.handleInput(ESC);
+    await pending;
+  });
+
+  it("keeps the session row when the query matches its label", async () => {
+    const tmp = project("session-label");
+    const h = makeCtx({ cwd: tmp, models: makeModels(3) });
+    const pending = handler("", h.ctx);
+    await tick();
+    const screen = h.screen.current!;
+    screen.handleInput("override");
+    const text = screen.render(80).join("\n");
+    expect(text).toContain("Use session model");
+    expect(text).not.toContain("prov/m-00");
+    screen.handleInput(ESC);
+    await pending;
+  });
+
+  it("cancels with Esc even when a filter is active", async () => {
+    const tmp = project("esc-filter");
+    const h = makeCtx({ cwd: tmp, models: namedModels });
+    const pending = handler("", h.ctx);
+    await tick();
+    const screen = h.screen.current!;
+    screen.handleInput("haiku");
+    screen.handleInput(ESC);
+    await pending;
+    expect(loadTaskConfig(tmp).taskModel).toBeUndefined();
+  });
+
+  it("selects the filtered model on Enter without arrow-paging", async () => {
+    const tmp = project("filter-enter");
+    const h = makeCtx({ cwd: tmp, models: namedModels });
+    const pending = handler("", h.ctx);
+    await tick();
+    const screen = h.screen.current!;
+    screen.handleInput("haiku");
+    screen.handleInput(ENTER);
+    await pending;
+    expect(loadTaskConfig(tmp).taskModel).toEqual({ provider: "anthropic", id: "claude-haiku" });
   });
 });
