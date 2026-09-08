@@ -106,7 +106,7 @@
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
-    "@earendil-works/pi-tui": "0.84.4",
+    "@earendil-works/pi-tui": "0.85.1",
     "@modelcontextprotocol/server": "^2.0.0",
     "mdast-util-from-markdown": "^2.0.3",
     "node-html-markdown": "^2.0.0",
