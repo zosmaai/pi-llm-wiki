@@ -58,7 +58,7 @@ importers:
         specifier: ^4.0.4
         version: 4.0.4
       '@types/node':
-        specifier: ^26.5.0
+        specifier: ^26
         version: 26.5.0
       '@vitest/coverage-v8':
         specifier: ^3.2.4
