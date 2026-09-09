@@ -65,6 +65,34 @@ describe("knowledge links", () => {
     expect(extractLegacyWikilinks(body)).toEqual([{ target: "entities/gildan", offset: 0 }]);
   });
 
+  it("does not extract wikilinks from code spans, fenced blocks, or raw HTML (issue #224)", () => {
+    // Inline code span (reporter's exact case)
+    const inline =
+      "To avoid creating orphaned pages, ensure we include a source link in Wikilink format, i.e. `[[page]]`.";
+    expect(extractKnowledgeLinks(inline).wikilinks).toEqual([]);
+
+    // Fenced code block
+    const fenced = "```md\nSee [[page]] for details.\n```";
+    expect(extractKnowledgeLinks(fenced).wikilinks).toEqual([]);
+
+    // Indented code block
+    const indented = "    [[page]]";
+    expect(extractKnowledgeLinks(indented).wikilinks).toEqual([]);
+
+    // HTML comments and HTML blocks swallow their content
+    const comment = "<!-- [[page]] -->";
+    expect(extractKnowledgeLinks(comment).wikilinks).toEqual([]);
+
+    const block = "<div>\n[[page]]\n</div>";
+    expect(extractKnowledgeLinks(block).wikilinks).toEqual([]);
+
+    // Real wikilinks outside code are still extracted, with valid offsets
+    const mixed = "See [[concepts/inline]] and `[[not-a-link]]`.";
+    expect(extractKnowledgeLinks(mixed).wikilinks).toEqual([
+      { target: "concepts/inline", offset: 4 },
+    ]);
+  });
+
   it("rejects bundle escape and reports unresolved internal targets", () => {
     const result = buildResolvedBacklinks(
       "concepts/source",
