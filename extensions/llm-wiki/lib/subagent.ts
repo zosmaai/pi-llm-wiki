@@ -40,6 +40,8 @@ export interface RunSubAgentArgs<TApi extends Api = Api> {
    * provider's own `streamSimple` when the model belongs to such a provider.
    */
   streamFn?: StreamFn;
+  /** Provider-scoped env from auth resolution (issue #222; pi >= 0.85). */
+  env?: Record<string, string>;
 }
 
 /**
@@ -56,8 +58,18 @@ export interface RunSubAgentArgs<TApi extends Api = Api> {
 export async function runSubAgent<TApi extends Api = Api>(
   args: RunSubAgentArgs<TApi>,
 ): Promise<void> {
-  const { model, apiKey, headers, systemPrompt, userPrompt, tools, maxTokens, signal, streamFn } =
-    args;
+  const {
+    model,
+    apiKey,
+    headers,
+    systemPrompt,
+    userPrompt,
+    tools,
+    maxTokens,
+    signal,
+    streamFn,
+    env,
+  } = args;
 
   const text = userPrompt.trim();
   if (!text) return;
@@ -85,6 +97,10 @@ export async function runSubAgent<TApi extends Api = Api>(
     convertToLlm: (msgs) => msgs as Message[],
     toolExecution: "sequential",
     ...(reasoning ? { reasoning: "high" as const } : {}),
+    // Provider-scoped env from auth resolution (issue #222). pi-agent-core
+    // spreads the config into the stream options, where pi-ai >= 0.85 honors
+    // it; the conditional spread keeps this compiling on pi < 0.85.
+    ...(env ? { env } : {}),
   };
 
   // Drive the loop directly instead of agentLoop(): agentLoop() wraps the

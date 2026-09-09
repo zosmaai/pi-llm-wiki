@@ -497,6 +497,8 @@ export interface RunIngestSynthesisArgs {
   headers?: Record<string, string>;
   /** Stream function for extension-registered providers (issue #222). */
   streamFn?: StreamFn;
+  /** Provider-scoped env from auth resolution (issue #222; pi >= 0.85). */
+  env?: Record<string, string>;
   paths: VaultPaths;
   sourceId: string;
   manifest: Record<string, unknown>;
@@ -525,6 +527,7 @@ export async function runIngestSynthesis(
     apiKey,
     headers,
     streamFn,
+    env,
     paths,
     sourceId,
     manifest,
@@ -586,6 +589,7 @@ export async function runIngestSynthesis(
     apiKey,
     headers,
     streamFn,
+    env,
     systemPrompt,
     userPrompt,
     tools: [commitTool as AgentTool],

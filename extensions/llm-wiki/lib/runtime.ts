@@ -36,6 +36,8 @@ export type ResolveResult =
        * provider whose api pi-ai's default stream path cannot resolve.
        */
       streamFn?: unknown;
+      /** Provider-scoped env from auth resolution (pi >= 0.85). */
+      env?: Record<string, string>;
     }
   | { ok: false; reason: string };
 
@@ -47,9 +49,15 @@ export interface ResolveCtx {
   model: unknown;
   modelRegistry: {
     find(provider: string, id: string): unknown;
-    getApiKeyAndHeaders(
-      model: unknown,
-    ): Promise<{ ok: boolean; apiKey?: string; headers?: Record<string, string> }>;
+    getApiKeyAndHeaders(model: unknown): Promise<{
+      ok: boolean;
+      apiKey?: string;
+      headers?: Record<string, string>;
+      /** Auth-provided endpoint redirect (pi >= 0.85); beats the catalogue baseUrl. */
+      baseUrl?: string;
+      /** Provider-scoped env values (pi >= 0.85); must reach the stream options. */
+      env?: Record<string, string>;
+    }>;
     /**
      * Registered extension provider config (issue #222). Optional: pi < 0.85
      * has no such method (it registers provider streamSimples directly into
@@ -169,7 +177,19 @@ export class Runtime {
       registered?.streamSimple && registered.api === (model as { api?: string }).api
         ? registered.streamSimple
         : undefined;
-    return { ok: true, model, apiKey: auth.apiKey ?? "", headers: auth.headers, streamFn };
+    // Auth can redirect the endpoint (e.g. GitHub Copilot business vs
+    // individual accounts) and/or carry provider-scoped env values (pi >=
+    // 0.85). Streaming against the catalogue values yields 421 Misdirected
+    // Request and the synthesis silently produces nothing (issue #222).
+    const authedModel = auth.baseUrl ? { ...(model as object), baseUrl: auth.baseUrl } : model;
+    return {
+      ok: true,
+      model: authedModel,
+      apiKey: auth.apiKey ?? "",
+      headers: auth.headers,
+      env: auth.env,
+      streamFn,
+    };
   }
 
   /**

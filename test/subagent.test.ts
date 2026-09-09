@@ -4,6 +4,7 @@ import {
   type AssistantMessageEventStream,
   createAssistantMessageEventStream,
   type Model,
+  type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import { describe, expect, it, vi } from "vitest";
 import { Runtime } from "../extensions/llm-wiki/lib/runtime.js";
@@ -149,5 +150,73 @@ describe("Runtime.resolveModel streamFn (issue #222)", () => {
     });
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.streamFn).toBeUndefined();
+  });
+});
+
+// ── auth-provided baseUrl/env (issue #222 follow-up) ────────────────
+// getApiKeyAndHeaders can redirect the endpoint (GitHub Copilot business
+// vs individual) or add provider-scoped env values (pi >= 0.85). resolveModel
+// used to discard both, so background streaming hit the catalogue baseUrl
+// (421 Misdirected Request) and env never reached the provider — silent
+// no-synthesis, no error anywhere.
+describe("auth baseUrl/env propagation (issue #222)", () => {
+  type AuthResult = {
+    ok: boolean;
+    apiKey?: string;
+    headers?: Record<string, string>;
+    baseUrl?: string;
+    env?: Record<string, string>;
+  };
+
+  function makeAuthRegistry(auth: AuthResult) {
+    return {
+      find: (_p: string, _i: string) => undefined,
+      getApiKeyAndHeaders: async (_m: unknown) => auth,
+    };
+  }
+
+  it("resolveModel honors auth.baseUrl (endpoint redirect), not the catalogue value", async () => {
+    const rt = new Runtime();
+    const res = await rt.resolveModel({
+      model: CUSTOM_API_MODEL,
+      modelRegistry: makeAuthRegistry({
+        ok: true,
+        apiKey: "k",
+        baseUrl: "https://api.business.example.com",
+      }),
+      hasUI: false,
+    });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect((res.model as { baseUrl: string }).baseUrl).toBe("https://api.business.example.com");
+    }
+  });
+
+  it("resolveModel propagates auth.env", async () => {
+    const rt = new Runtime();
+    const res = await rt.resolveModel({
+      model: CUSTOM_API_MODEL,
+      modelRegistry: makeAuthRegistry({
+        ok: true,
+        apiKey: "k",
+        env: { HTTPS_PROXY: "http://proxy:3128" },
+      }),
+      hasUI: false,
+    });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.env).toEqual({ HTTPS_PROXY: "http://proxy:3128" });
+  });
+
+  it("runSubAgent passes env into the stream options", async () => {
+    const streamFn = vi.fn(
+      (
+        _model: Model<Api>,
+        _context: unknown,
+        _options?: SimpleStreamOptions & { env?: Record<string, string> },
+      ) => fakeStream(),
+    );
+    await runSubAgent({ ...baseArgs(), streamFn, env: { TZ: "UTC" } });
+    expect(streamFn).toHaveBeenCalledTimes(1);
+    expect(streamFn.mock.calls[0][2]?.env).toEqual({ TZ: "UTC" });
   });
 });
