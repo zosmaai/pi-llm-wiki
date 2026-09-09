@@ -7,6 +7,32 @@ import {
 } from "@earendil-works/pi-agent-core";
 import type { Api, Message, Model } from "@earendil-works/pi-ai";
 
+let cachedDefaultStreamFn: StreamFn | undefined;
+
+/**
+ * The default pi-ai stream function (dispatches to registered API providers).
+ * It moved from the package root to the `./compat` subpath in pi-ai 0.85, so
+ * it is resolved lazily — a static import of either path breaks the other pi
+ * version at load time. Cached after the first resolution.
+ */
+async function resolveDefaultStreamFn(): Promise<StreamFn> {
+  if (cachedDefaultStreamFn) return cachedDefaultStreamFn;
+  const root = await import("@earendil-works/pi-ai");
+  const rootFn = (root as { streamSimple?: StreamFn }).streamSimple;
+  if (rootFn) {
+    cachedDefaultStreamFn = rootFn;
+    return rootFn;
+  }
+  // pi-ai >= 0.85 exposes streamSimple via the ./compat subpath. The
+  // specifier is a variable so static tooling (vite in vitest, jiti in pi)
+  // cannot resolve a subpath that does not exist in pi < 0.85; at runtime
+  // this branch is only reached when the root import lacks streamSimple.
+  const compatSpecifier = "@earendil-works/pi-ai/compat";
+  const compat = await import(compatSpecifier);
+  cachedDefaultStreamFn = (compat as { streamSimple: StreamFn }).streamSimple;
+  return cachedDefaultStreamFn;
+}
+
 /**
  * Thin sub-agent runner for the LLM Wiki background lane (issue #64, part of #63).
  *
@@ -23,7 +49,8 @@ import type { Api, Message, Model } from "@earendil-works/pi-ai";
 export interface RunSubAgentArgs<TApi extends Api = Api> {
   model: Model<TApi>;
   apiKey: string;
-  headers?: Record<string, string>;
+  /** Auth-provided request headers; pi >= 0.85 may carry null (unset) values. */
+  headers?: Record<string, string | null>;
   /** System prompt that defines the sub-agent's role. */
   systemPrompt: string;
   /** The user-turn instruction/payload to process. */
@@ -110,5 +137,9 @@ export async function runSubAgent<TApi extends Api = Api>(
   // — escaped as an uncaughtException and killed the whole pi process while
   // this function's stream drain hung forever (issue #222). runAgentLoop is
   // the same loop with the rejection propagating to THIS promise.
-  await runAgentLoop(prompts, context, config, async () => {}, signal, streamFn);
+  // pi >= 0.85 requires streamFn explicitly (its internal fallback throws
+  // unless the host configured a default), so we always pass one: the
+  // provider-specific function when available, else pi-ai's default.
+  const activeStreamFn = streamFn ?? (await resolveDefaultStreamFn());
+  await runAgentLoop(prompts, context, config, async () => {}, signal, activeStreamFn);
 }

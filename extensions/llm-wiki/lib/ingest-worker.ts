@@ -494,7 +494,7 @@ Rules:
 export interface RunIngestSynthesisArgs {
   model: Model<Api>;
   apiKey: string;
-  headers?: Record<string, string>;
+  headers?: Record<string, string | null>;
   /** Stream function for extension-registered providers (issue #222). */
   streamFn?: StreamFn;
   /** Provider-scoped env from auth resolution (issue #222; pi >= 0.85). */

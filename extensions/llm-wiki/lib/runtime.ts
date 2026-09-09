@@ -29,7 +29,7 @@ export type ResolveResult =
       ok: true;
       model: unknown;
       apiKey: string;
-      headers?: Record<string, string>;
+      headers?: Record<string, string | null>;
       /**
        * Stream function for the model's API (issue #222): the provider's own
        * `streamSimple` when the model belongs to an extension-registered
@@ -52,7 +52,7 @@ export interface ResolveCtx {
     getApiKeyAndHeaders(model: unknown): Promise<{
       ok: boolean;
       apiKey?: string;
-      headers?: Record<string, string>;
+      headers?: Record<string, string | null>;
       /** Auth-provided endpoint redirect (pi >= 0.85); beats the catalogue baseUrl. */
       baseUrl?: string;
       /** Provider-scoped env values (pi >= 0.85); must reach the stream options. */
