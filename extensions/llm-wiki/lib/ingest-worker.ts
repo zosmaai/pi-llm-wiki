@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { AgentTool, StreamFn } from "@earendil-works/pi-agent-core";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { Static } from "typebox";
 import { Type } from "typebox";
@@ -495,6 +495,10 @@ export interface RunIngestSynthesisArgs {
   model: Model<Api>;
   apiKey: string;
   headers?: Record<string, string>;
+  /** Stream function for extension-registered providers (issue #222). */
+  streamFn?: StreamFn;
+  /** Provider-scoped env from auth resolution (issue #222; pi >= 0.85). */
+  env?: Record<string, string>;
   paths: VaultPaths;
   sourceId: string;
   manifest: Record<string, unknown>;
@@ -522,6 +526,8 @@ export async function runIngestSynthesis(
     model,
     apiKey,
     headers,
+    streamFn,
+    env,
     paths,
     sourceId,
     manifest,
@@ -582,6 +588,8 @@ export async function runIngestSynthesis(
     model,
     apiKey,
     headers,
+    streamFn,
+    env,
     systemPrompt,
     userPrompt,
     tools: [commitTool as AgentTool],
