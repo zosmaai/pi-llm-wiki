@@ -25,7 +25,18 @@ import { loadTaskConfig, noticesEnabled, TASK_DEFAULTS, type TaskConfig } from "
  */
 
 export type ResolveResult =
-  | { ok: true; model: unknown; apiKey: string; headers?: Record<string, string> }
+  | {
+      ok: true;
+      model: unknown;
+      apiKey: string;
+      headers?: Record<string, string>;
+      /**
+       * Stream function for the model's API (issue #222): the provider's own
+       * `streamSimple` when the model belongs to an extension-registered
+       * provider whose api pi-ai's default stream path cannot resolve.
+       */
+      streamFn?: unknown;
+    }
   | { ok: false; reason: string };
 
 type NotifyLevel = "info" | "warning" | "error";
@@ -39,6 +50,14 @@ export interface ResolveCtx {
     getApiKeyAndHeaders(
       model: unknown,
     ): Promise<{ ok: boolean; apiKey?: string; headers?: Record<string, string> }>;
+    /**
+     * Registered extension provider config (issue #222). Optional: pi < 0.85
+     * has no such method (it registers provider streamSimples directly into
+     * pi-ai's registry instead), in which case the default stream path is used.
+     */
+    getRegisteredProviderConfig?(
+      provider: string,
+    ): { api?: string; streamSimple?: unknown } | undefined;
   };
   hasUI: boolean;
   ui?: { notify: Notify };
@@ -137,7 +156,20 @@ export class Runtime {
       const provider = (model as { provider?: string }).provider ?? "unknown";
       return { ok: false, reason: `no API key for provider "${provider}"` };
     }
-    return { ok: true, model, apiKey: auth.apiKey ?? "", headers: auth.headers };
+    // Extension-registered providers (issue #222): pi-ai's default stream path
+    // may not be able to resolve their api (e.g. claude-bridge on pi 0.85+), so
+    // surface the provider's own streamSimple for the sub-agent stream. On pi
+    // < 0.85 the registry method is absent (?.) and the default path — which
+    // already knows extension streamSimples — is used instead.
+    const modelProvider = (model as { provider?: string }).provider;
+    const registered = modelProvider
+      ? ctx.modelRegistry.getRegisteredProviderConfig?.(modelProvider)
+      : undefined;
+    const streamFn =
+      registered?.streamSimple && registered.api === (model as { api?: string }).api
+        ? registered.streamSimple
+        : undefined;
+    return { ok: true, model, apiKey: auth.apiKey ?? "", headers: auth.headers, streamFn };
   }
 
   /**

@@ -414,6 +414,7 @@ export function registerWikiIngest(pi: ExtensionAPI, runtime?: Runtime): void {
                 model: resolved.model as Parameters<typeof runIngestSynthesis>[0]["model"],
                 apiKey: resolved.apiKey,
                 headers: resolved.headers,
+                streamFn: resolved.streamFn as Parameters<typeof runIngestSynthesis>[0]["streamFn"],
                 paths,
                 sourceId: s.id,
                 manifest: s.manifest,
