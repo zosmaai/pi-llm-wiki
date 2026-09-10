@@ -100,7 +100,12 @@
   "pnpm": {
     "overrides": {
       "undici": "8.10.1"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "node-llama-cpp",
+      "sqlite-vec"
+    ]
   },
   "packageManager": "pnpm@9.15.4",
   "engines": {
@@ -130,12 +135,5 @@
     "astro": "^7.2.9",
     "typescript": "^7.0.2",
     "vitest": "^3.0.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "node-llama-cpp",
-      "sqlite-vec"
-    ]
   }
 }
