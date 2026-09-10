@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { bootstrapVault } from "./lib/bootstrap.js";
 import { registerWikiDashboardCommand } from "./lib/dashboard-command.js";
 import { installGuardrails } from "./lib/guardrails.js";

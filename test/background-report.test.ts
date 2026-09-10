@@ -1,6 +1,6 @@
 import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { afterEach, expect, it } from "vitest";
 import { Runtime } from "../extensions/llm-wiki/lib/runtime.js";
 import { registerWikiLint, registerWikiRebuildMeta } from "../extensions/llm-wiki/lib/tools.js";

@@ -15,7 +15,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseKnowledgeDocument } from "../extensions/llm-wiki/lib/knowledge-document.js";
 import { repairLegacyKnowledgeDocuments } from "../extensions/llm-wiki/lib/legacy-repair.js";
@@ -180,6 +180,35 @@ it("refreshes a stale gap snapshot to empty on audit-only lint", async () => {
     hasUI: false,
   });
   expect(status.content[0].text).toContain("Gaps: 0");
+});
+
+it("completes on a fresh checkout where .discoveries is not yet created (issue #203)", async () => {
+  const paths = getVaultPaths(root);
+  ensureVaultStructure(paths);
+  // Fresh checkouts / worktrees of an existing vault do not have the
+  // gitignored .discoveries directory — simulate that.
+  rmSync(paths.discoveries, { recursive: true, force: true });
+  writeFileSync(join(paths.dotWiki, "config.json"), JSON.stringify({ name: "Fresh lint" }));
+  writeFileSync(join(paths.wiki, "concepts", "valid.md"), "---\ntype: concept\n---\n\nValid.\n");
+
+  let tool: TestTool | undefined;
+  registerWikiLint({
+    registerTool: (definition: unknown) => {
+      tool = definition as TestTool;
+    },
+  } as unknown as ExtensionAPI);
+  if (!tool) throw new Error("wiki_lint was not registered");
+  const result = await tool.execute("test", { auto_fix: false }, undefined, undefined, {
+    cwd: root,
+    hasUI: false,
+  });
+
+  expect(result.isError).not.toBe(true);
+  // auto_fix:false returns the run summary (not the reportLines file content).
+  expect(result.content[0].text).toContain("LLM Wiki lint complete");
+  expect(existsSync(join(paths.discoveries, "gaps.json"))).toBe(true);
+  const snapshot = JSON.parse(readFileSync(join(paths.discoveries, "gaps.json"), "utf8"));
+  expect(snapshot.gaps).toEqual([]);
 });
 
 it("persists non-empty gaps on audit-only lint", async () => {

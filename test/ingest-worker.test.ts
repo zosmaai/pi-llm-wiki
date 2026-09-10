@@ -306,7 +306,7 @@ describe("commitSynthesis", () => {
       );
       expect(res.ok).toBe(true);
       const written = readFileSync(join(paths.wiki, "sources", "SRC-001.md"), "utf-8");
-      expect(written).toContain("[[concepts/transformer\\|T]]");
+      expect(written).toContain("[[concepts/transformer|T]]");
     });
 
     it("off is a no-op (writes verbatim, no diagnostics)", () => {

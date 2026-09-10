@@ -6,8 +6,8 @@
  * from on-disk vault state (see lib/dashboard.ts) and rendered as plain
  * text through a Container + Text.
  */
-import type { ExtensionAPI, ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
-import { Container, matchesKey, Text } from "@mariozechner/pi-tui";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { Container, matchesKey, Text } from "@earendil-works/pi-tui";
 import { collectDashboardStats, type DashboardStats } from "./dashboard.js";
 import type { Runtime } from "./runtime.js";
 

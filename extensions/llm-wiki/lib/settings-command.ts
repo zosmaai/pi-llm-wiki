@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import type { ExtensionAPI, Theme } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import {
   Container,
   Input,
@@ -8,7 +8,7 @@ import {
   type SettingsListTheme,
   Spacer,
   Text,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import type { Runtime } from "./runtime.js";
 import {
   loadTaskConfig,

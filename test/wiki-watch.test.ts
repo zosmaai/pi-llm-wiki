@@ -16,7 +16,7 @@
 //   6. Log directory created defensively so cron doesn't fail-silent.
 //   7. All `$HOME` references double-quoted so paths with spaces survive.
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import { registerWikiWatch } from "../extensions/llm-wiki/lib/tools.js";
 

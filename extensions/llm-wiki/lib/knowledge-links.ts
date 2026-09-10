@@ -38,22 +38,54 @@ function normalizeWikilinkTarget(target: string): string {
   return target.trim().replace(/\\$/, "");
 }
 
+// Blank out code spans, fenced/indented code blocks, and raw HTML (the same
+// node types the link walk skips), preserving length so offsets stay valid.
+function maskCodeRegions(tree: Root | null, body: string): string {
+  if (!tree) return body;
+  const ranges: Array<[number, number]> = [];
+  function visit(node: Nodes): void {
+    const position = (node as { position?: { start: { offset: number }; end: { offset: number } } })
+      .position;
+    if (node.type === "inlineCode" || node.type === "code" || node.type === "html") {
+      if (position) ranges.push([position.start.offset, position.end.offset]);
+    }
+    if ("children" in node && Array.isArray((node as { children?: Nodes[] }).children)) {
+      for (const child of (node as { children: Nodes[] }).children) {
+        visit(child);
+      }
+    }
+  }
+  visit(tree);
+  if (ranges.length === 0) return body;
+  const chars = body.split("");
+  for (const [start, end] of ranges) {
+    for (let i = start; i < end && i < chars.length; i++) {
+      if (i >= 0) chars[i] = " ";
+    }
+  }
+  return chars.join("");
+}
+
 export function extractKnowledgeLinks(body: string): KnowledgeLinks {
   const markdown: ExtractedLink[] = [];
   const wikilinks: ExtractedLink[] = [];
 
-  // Extract legacy wikilinks. A table-safe alias uses an escaped pipe: [[target\\|alias]].
-  for (const match of body.matchAll(/\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g)) {
-    wikilinks.push({ target: normalizeWikilinkTarget(match[1]), offset: match.index ?? 0 });
-  }
-
   // Parse with CommonMark AST
-  let tree: Root;
+  let tree: Root | null = null;
   try {
     tree = fromMarkdown(body);
   } catch {
-    return { markdown, wikilinks };
+    tree = null;
   }
+
+  // Extract legacy wikilinks. A table-safe alias uses an escaped pipe: [[target\\|alias]].
+  // Scan the code-masked body so [[...]] inside code is not a real link.
+  const scanBody = maskCodeRegions(tree, body);
+  for (const match of scanBody.matchAll(/\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g)) {
+    wikilinks.push({ target: normalizeWikilinkTarget(match[1]), offset: match.index ?? 0 });
+  }
+
+  if (!tree) return { markdown, wikilinks };
 
   // Build definition map (case-insensitive)
   const defs = new Map<string, Definition>();

@@ -1,14 +1,14 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { getAgentDir } from "@mariozechner/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 /**
  * Host adapter for the two coding agents that can load this extension:
  *
- *  - **pi**   — `@mariozechner/pi-coding-agent`, config dir `.pi`
+ *  - **pi**   — `@earendil-works/pi-coding-agent`, config dir `.pi`
  *  - **omp**  — oh-my-pi (`@oh-my-pi/pi-coding-agent`), config dir `.omp`
  *
- * omp rewrites `@mariozechner/pi-*` (and bare `typebox`) imports onto its own
+ * omp rewrites `@earendil-works/pi-*` (and bare `typebox`) imports onto its own
  * bundled packages at load time (its `legacy-pi-compat.ts`), so the *module
  * graph* needs no changes. What does differ is the on-disk config layout:
  *

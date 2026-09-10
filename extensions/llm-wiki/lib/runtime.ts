@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loadTaskConfig, noticesEnabled, TASK_DEFAULTS, type TaskConfig } from "./task-config.js";
 
 /**
@@ -25,7 +25,20 @@ import { loadTaskConfig, noticesEnabled, TASK_DEFAULTS, type TaskConfig } from "
  */
 
 export type ResolveResult =
-  | { ok: true; model: unknown; apiKey: string; headers?: Record<string, string> }
+  | {
+      ok: true;
+      model: unknown;
+      apiKey: string;
+      headers?: Record<string, string | null>;
+      /**
+       * Stream function for the model's API (issue #222): the provider's own
+       * `streamSimple` when the model belongs to an extension-registered
+       * provider whose api pi-ai's default stream path cannot resolve.
+       */
+      streamFn?: unknown;
+      /** Provider-scoped env from auth resolution (pi >= 0.85). */
+      env?: Record<string, string>;
+    }
   | { ok: false; reason: string };
 
 type NotifyLevel = "info" | "warning" | "error";
@@ -36,9 +49,23 @@ export interface ResolveCtx {
   model: unknown;
   modelRegistry: {
     find(provider: string, id: string): unknown;
-    getApiKeyAndHeaders(
-      model: unknown,
-    ): Promise<{ ok: boolean; apiKey?: string; headers?: Record<string, string> }>;
+    getApiKeyAndHeaders(model: unknown): Promise<{
+      ok: boolean;
+      apiKey?: string;
+      headers?: Record<string, string | null>;
+      /** Auth-provided endpoint redirect (pi >= 0.85); beats the catalogue baseUrl. */
+      baseUrl?: string;
+      /** Provider-scoped env values (pi >= 0.85); must reach the stream options. */
+      env?: Record<string, string>;
+    }>;
+    /**
+     * Registered extension provider config (issue #222). Optional: pi < 0.85
+     * has no such method (it registers provider streamSimples directly into
+     * pi-ai's registry instead), in which case the default stream path is used.
+     */
+    getRegisteredProviderConfig?(
+      provider: string,
+    ): { api?: string; streamSimple?: unknown } | undefined;
   };
   hasUI: boolean;
   ui?: { notify: Notify };
@@ -137,7 +164,32 @@ export class Runtime {
       const provider = (model as { provider?: string }).provider ?? "unknown";
       return { ok: false, reason: `no API key for provider "${provider}"` };
     }
-    return { ok: true, model, apiKey: auth.apiKey ?? "", headers: auth.headers };
+    // Extension-registered providers (issue #222): pi-ai's default stream path
+    // may not be able to resolve their api (e.g. claude-bridge on pi 0.85+), so
+    // surface the provider's own streamSimple for the sub-agent stream. On pi
+    // < 0.85 the registry method is absent (?.) and the default path — which
+    // already knows extension streamSimples — is used instead.
+    const modelProvider = (model as { provider?: string }).provider;
+    const registered = modelProvider
+      ? ctx.modelRegistry.getRegisteredProviderConfig?.(modelProvider)
+      : undefined;
+    const streamFn =
+      registered?.streamSimple && registered.api === (model as { api?: string }).api
+        ? registered.streamSimple
+        : undefined;
+    // Auth can redirect the endpoint (e.g. GitHub Copilot business vs
+    // individual accounts) and/or carry provider-scoped env values (pi >=
+    // 0.85). Streaming against the catalogue values yields 421 Misdirected
+    // Request and the synthesis silently produces nothing (issue #222).
+    const authedModel = auth.baseUrl ? { ...(model as object), baseUrl: auth.baseUrl } : model;
+    return {
+      ok: true,
+      model: authedModel,
+      apiKey: auth.apiKey ?? "",
+      headers: auth.headers,
+      env: auth.env,
+      streamFn,
+    };
   }
 
   /**

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { bootstrapVault } from "./bootstrap.js";
 import { launchEmbedPages, reindexEmbeddings, resolveEmbedder } from "./embeddings.js";
@@ -415,6 +415,8 @@ export function registerWikiIngest(pi: ExtensionAPI, runtime?: Runtime): void {
                 model: resolved.model as Parameters<typeof runIngestSynthesis>[0]["model"],
                 apiKey: resolved.apiKey,
                 headers: resolved.headers,
+                streamFn: resolved.streamFn as Parameters<typeof runIngestSynthesis>[0]["streamFn"],
+                env: resolved.env,
                 paths,
                 sourceId: s.id,
                 manifest: s.manifest,
@@ -1015,6 +1017,9 @@ async function runWikiLint(paths: VaultPaths, autoFix: boolean): Promise<string>
   // The gap snapshot is generated discovery metadata consumed by wiki_status:
   // persist it on every successful lint so status never reports a stale count.
   // Corrective actions below (report, event, meta rebuild) stay autoFix-only.
+  // mkdir mirrors the autoFix report write below: on a fresh checkout the
+  // gitignored .discoveries dir does not exist yet (issue #203).
+  mkdirSync(paths.discoveries, { recursive: true });
   writeJson(join(paths.discoveries, "gaps.json"), {
     gaps,
     generated: new Date().toISOString(),
