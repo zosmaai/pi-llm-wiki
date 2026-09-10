@@ -75,9 +75,37 @@ WIKI_ROOT/
 | `.llm-wiki/wiki/**`   | Model + user             | Editable knowledge pages |
 | `.llm-wiki/meta/events.jsonl` | Extension tools | Authoritative, append-only; preserve in full-vault backups |
 | `.llm-wiki/meta/**` except `events.jsonl` | Extension | Generated projections |
+| `.llm-wiki/meta/qmd/**` | Extension | Generated QMD search index (mirrors + SQLite); local, rebuildable with `wiki_reindex` |
 | `.llm-wiki/` | Human + explicit request | Operating rules          |
 
 `events.jsonl` records selected extension operations, not every filesystem edit. `meta/log.md` and OKF-mode `wiki/log.md` are one-way projections; neither can recover the event stream.
+
+## Generated QMD Search Index (phase 2)
+
+`.llm-wiki/meta/qmd/**` is extension-owned, generated, local, and **generated and rebuildable** via `wiki_reindex`. It is a validated, independently repairable search index that no recall path depends on yet (active recall stays the legacy heuristic until Phase 3).
+
+```
+meta/qmd/
+  manifest.json             # maps generated paths -> (vault_id, page_id)
+  documents/
+    canonical/**/*.md        # parser-valid concept/entity/analysis/synthesis/requirement/skill/case
+    evidence/**/*.md         # parser-valid source/unknown types
+  current/index.sqlite       # live QMD store (copied, never edited in place)
+  index.lock/                # cross-process lock (owner.json)
+  swap.json                  # journal for crash-safe promotion
+```
+
+- QMD never scans `.llm-wiki/wiki/**` directly; it reads only the validated mirrors QMD owns.
+- `manifest.json` maps validated mirrors back to stable `(vault_id, page_id)` identities.
+- Canonical and evidence collections never overlap.
+- Ordinary write-triggered updates are **lexical and model-free**; `vectors` may download ~2 GB on first use.
+- The live store is replaced atomically via a recoverable copy-on-write swap; failures retain the last usable `current`.
+- `swap.json` is a **write-ahead journal**: each phase is published before the destructive rename it covers, and recovery re-checks the filesystem, so every crash window restores a usable `current` or an explicit missing/error state.
+- Stale `staging-<uuid>` directories left by failed or cancelled pre-journal work are extension-owned and swept while the per-vault lock is held; recovery never touches arbitrary names under `meta/qmd`.
+- Malformed generated artifacts (`swap.json`, `manifest.json`, `index-state.json`) report `error`, never `missing` or `ready`.
+- Generated status exposes `repairComponents` (valid tool component values) so lint can suggest an exact `wiki_reindex` command. `vectors` refreshes documents before embedding, so `components=["vectors"]` repairs stale vectors and their document index together.
+- Do not copy, partially restore, or edit individual SQLite/WAL/SHM files inside `current` — restore the whole directory or rebuild.
+- Full-vault backups include generated searchable text; OKF-only exports do not.
 
 ## Source Packet Format
 

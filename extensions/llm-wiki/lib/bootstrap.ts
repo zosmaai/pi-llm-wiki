@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { KnowledgeDiagnostic } from "./knowledge-document.js";
@@ -76,6 +77,7 @@ export function bootstrapVault(paths: VaultPaths, input: BootstrapInput): Bootst
     topic: input.topic,
     created: existing.created ?? fmtDate(),
     version: existing.version ?? "1.0",
+    vault_id: existing.vault_id ?? randomUUID(),
     ...(created ? { knowledge_format: "okf-0.2" } : {}),
   };
 

@@ -10,3 +10,8 @@ queries:
 query-filters:
   - exclude:
       id: js/insecure-temporary-file
+  # Embeddings intentionally send parsed wiki page text to the user-configured
+  # embedding API (lib/embeddings.ts) — that is the feature's contract, not an
+  # exfiltration path. The endpoint is config-owned and the body is capped.
+  - exclude:
+      id: js/file-access-to-http

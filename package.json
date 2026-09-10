@@ -68,6 +68,8 @@
     "release:minor": "node scripts/release.js minor",
     "release:major": "node scripts/release.js major",
     "release:push": "git push origin main --tags",
+    "benchmark:retrieval": "vitest run test/retrieval-benchmark.test.ts --reporter=verbose",
+    "benchmark:retrieval:update": "node scripts/update-retrieval-baseline.mjs",
     "docs:sync": "node scripts/sync-docs.js",
     "docs:dev": "astro dev",
     "docs:build": "node scripts/sync-docs.js && astro build"
@@ -98,16 +100,22 @@
   "pnpm": {
     "overrides": {
       "undici": "8.10.1"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "node-llama-cpp",
+      "sqlite-vec"
+    ]
   },
   "packageManager": "pnpm@9.15.4",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
     "@earendil-works/pi-tui": "0.85.1",
     "@modelcontextprotocol/server": "^2.0.0",
+    "@tobilu/qmd": "2.5.3",
     "mdast-util-from-markdown": "^2.0.3",
     "node-html-markdown": "^2.0.0",
     "typebox": "^1.1.34",

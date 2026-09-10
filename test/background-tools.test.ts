@@ -64,10 +64,14 @@ describe("wiki_rebuild_meta background + report (issue #77)", () => {
     runtime.report = (s: string) => reported.push(s);
     const launched: string[] = [];
     // Run work synchronously inline so we can assert the report deterministically.
-    runtime.launchReported = async (_ctx, label, work) => {
+    let pendingWork!: Promise<void>;
+    runtime.launchReported = (_ctx, label, work) => {
       launched.push(label);
-      const summary = await work();
-      if (summary) runtime.report(summary);
+      pendingWork = (async () => {
+        const summary = await work();
+        if (summary) runtime.report(summary);
+      })();
+      return pendingWork;
     };
 
     const tool = captureRebuildTool(runtime);
@@ -80,6 +84,8 @@ describe("wiki_rebuild_meta background + report (issue #77)", () => {
     expect(res.details.background).toBe(true);
     expect(res.content[0].text).toContain("background");
     expect(launched).toEqual([`rebuild_meta:${getVaultPaths(wikiDir).root}`]);
+    // Await the launched background work (it now includes a model-free QMD pass).
+    await pendingWork;
     expect(reported).toHaveLength(1);
     expect(reported[0]).toContain("metadata rebuilt");
     // The rebuild actually ran: registry.json now exists.

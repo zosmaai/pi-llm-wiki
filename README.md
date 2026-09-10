@@ -127,6 +127,7 @@ The result is a wiki that **compounds** as you capture sources, ask questions, a
 | `wiki_status` | Show counts, source states, and recent activity |
 | `wiki_observe` | Record timestamped, searchable observations from the current session (decisions, findings, constraints) — later distilled into pages |
 | `wiki_rebuild_meta` | Force a full metadata rebuild (registry, backlinks, index, log) |
+| `wiki_reindex` | Rebuild/repair the generated QMD search index at `meta/qmd` (lexical is model-free; vectors may download ~2 GB) |
 | `wiki_reindex_embeddings` | Refresh semantic embeddings for new or stale pages (no-op if no embedding provider is configured) |
 | `wiki_log_event` | Append a structured event to the wiki activity log |
 | `wiki_watch` | Print a `crontab` line for automatic wiki updates (daily / weekly / hourly) — does not install it |

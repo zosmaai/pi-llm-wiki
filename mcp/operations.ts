@@ -15,6 +15,7 @@ import {
   type WikilinkValidationMode,
 } from "../extensions/llm-wiki/lib/knowledge-links.js";
 import { type ProjectionResult, rebuildMetadata } from "../extensions/llm-wiki/lib/metadata.js";
+import { reindexQmdVault } from "../extensions/llm-wiki/lib/qmd-indexing.js";
 import { type RecallResult, searchWikiLayered } from "../extensions/llm-wiki/lib/recall.js";
 import { saveInsight } from "../extensions/llm-wiki/lib/retro.js";
 import { captureFile, captureText, captureUrl } from "../extensions/llm-wiki/lib/source-packet.js";
@@ -25,7 +26,11 @@ import {
   inspectWritableVault,
   VaultWriteError,
 } from "../extensions/llm-wiki/lib/vault-format.js";
-import { getWikiStatus, searchRegistry } from "../extensions/llm-wiki/lib/wiki-service.js";
+import {
+  getWikiStatus,
+  reindexWiki,
+  searchRegistry,
+} from "../extensions/llm-wiki/lib/wiki-service.js";
 
 function projectionOutcome(
   projection: ProjectionResult,
@@ -36,6 +41,22 @@ function projectionOutcome(
         ok: false,
         diagnostics: projection.diagnostics.map(({ code, message }) => ({ code, message })),
       };
+}
+
+/**
+ * Enqueue a post-projection lexical QMD pass. Model-free and repairable; never
+ * fails the authoritative write. Goes through the per-vault in-process queue.
+ */
+async function scheduleLexicalQmd(paths: VaultPaths): Promise<void> {
+  try {
+    await reindexQmdVault(paths, {
+      scope: "changed",
+      components: ["lexical"],
+      force: false,
+    });
+  } catch {
+    // Generated QMD state is repairable; an authoritative write must not fail.
+  }
 }
 
 /**
@@ -113,6 +134,20 @@ export async function searchOperation(
   };
 }
 
+/** Shared reindex operation: delegates to the shared reindexWiki operation. */
+export async function reindexOperation(
+  paths: VaultPaths,
+  input: {
+    scope?: "changed" | "all";
+    components?: Array<"lexical" | "vectors">;
+    force?: boolean;
+    vault?: "active" | "personal" | "project" | "all";
+    signal?: AbortSignal;
+  },
+): Promise<import("../extensions/llm-wiki/lib/wiki-service.js").WikiReindexResult> {
+  return reindexWiki(paths, input);
+}
+
 /** Shared status operation: delegates directly to wiki-service. */
 export async function statusOperation(paths: VaultPaths): Promise<{
   knowledgeFormat: string;
@@ -120,8 +155,9 @@ export async function statusOperation(paths: VaultPaths): Promise<{
   byType: Record<string, number>;
   blockingDiagnostics: Array<{ code: string; message: string }>;
   lastUpdated: string;
+  qmd: import("../extensions/llm-wiki/lib/qmd-indexing.js").QmdGeneratedStatus;
 }> {
-  const status = getWikiStatus(paths);
+  const status = await getWikiStatus(paths);
   return {
     knowledgeFormat: status.knowledgeFormat,
     totalPages: status.totalPages,
@@ -131,6 +167,7 @@ export async function statusOperation(paths: VaultPaths): Promise<{
       message: d.message,
     })),
     lastUpdated: status.lastUpdated,
+    qmd: status.qmd,
   };
 }
 
@@ -179,6 +216,7 @@ export async function retroOperation(
     const result = saveInsight(paths, slug, title, gateBody, category, { rebuild: false });
     const projection = projectionOutcome(rebuildMetadata(paths));
     if (!projection.ok) return projection;
+    await scheduleLexicalQmd(paths);
     return { ok: true, slug: result.slug, sourcePagePath: result.sourcePagePath };
   } catch (error: unknown) {
     if (error instanceof VaultWriteError) {
@@ -236,6 +274,7 @@ export async function captureSourceOperation(
 
     const projection = projectionOutcome(rebuildMetadata(paths));
     if (!projection.ok) return projection;
+    await scheduleLexicalQmd(paths);
     return { ok: true, sourceId };
   } catch (error: unknown) {
     if (error instanceof VaultWriteError) {

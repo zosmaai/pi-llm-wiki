@@ -41,6 +41,7 @@ off by default** (issue #80) — registered only when `llm-wiki.trajectories` is
 | `wiki_status`         | Instant stats                               |
 | `wiki_observe` | Record a timestamped observation from the current session |
 | `wiki_rebuild_meta`   | Force metadata rebuild                      |
+| `wiki_reindex`        | Rebuild/repair the QMD search index at `meta/qmd` (lexical model-free; vectors may download ~2 GB) |
 | `wiki_reindex_embeddings` | Refresh semantic embeddings (no-op when no embedding provider) |
 | `wiki_log_event`      | Record custom event                         |
 | `wiki_watch`          | Schedule auto-updates                       |

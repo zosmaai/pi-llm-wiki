@@ -53,7 +53,9 @@ const changelogPath = path.join(__dirname, "..", "CHANGELOG.md");
 let changelog = "";
 try {
   changelog = fs.readFileSync(changelogPath, "utf-8");
-} catch {}
+} catch {
+  // CHANGELOG.md does not exist yet — start fresh.
+}
 const today = new Date().toISOString().split("T")[0];
 const newSection = `## [${next}] - ${today}\n\n### Added\n- Release ${next}\n`;
 if (changelog.includes("## [Unreleased]")) {

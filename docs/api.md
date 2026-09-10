@@ -302,6 +302,48 @@ details: { pageCount: number }
 
 ---
 
+## wiki_reindex
+
+Rebuild or repair the generated QMD search index under `meta/qmd`. Validated, parser-checked mirrors of
+`.llm-wiki/wiki/**` are written to `meta/qmd/documents/{canonical,evidence}/**`, and a manifest maps them
+back to stable `(vault_id, page_id)` identities. The live store lives at `meta/qmd/current/index.sqlite`
+and is replaced atomically via a recoverable copy-on-write swap. **Active recall still uses the legacy
+heuristic until Phase 3**; QMD indexing is independently observable and repairable but no recall path
+depends on it yet.
+
+**Parameters**
+
+```
+wiki_reindex(
+  scope: "changed" | "all" = "changed",
+  components: ("lexical" | "vectors")[] = ["lexical", "vectors"],
+  force: boolean = false,
+  vault: "active" | "personal" | "project" | "all" = "active"
+)
+```
+
+- `scope`: `changed` hashes and skips unchanged mirrors; `all` rewrites every accepted file (unchanged pages are still counted as `unchanged`).
+- `components`: `vectors` first refreshes documents; `lexical`-only never loads a model. Default: `components: ["lexical", "vectors"]`.
+- `force`: applies only to the selected components (a forced lexical rebuild starts from an empty staging store).
+- `vault`: which vaults to reindex. `all` reports each vault independently.
+
+Selecting `vectors` may download approximately 2 GB of models on first use. Cancellation and failures retain
+the last usable `current` store; stale/error/recovering state is repaired by re-running this tool. The swap
+journal is write-ahead intent — each phase is published before the destructive rename it covers, and recovery
+also checks filesystem state, so interrupted promotions are restored or rolled back rather than guessed. Do not copy,
+partially restore, or edit individual SQLite/WAL/SHM files inside `current` — restore the whole directory or rebuild.
+
+**Returns**
+
+```
+details: {
+  scope, components, vault,
+  results: Array<{ root, label, result: QmdReindexResult }>
+}
+```
+
+---
+
 ## wiki_log_event
 
 Append a structured event to the authoritative, append-only `meta/events.jsonl` stream and regenerate available log projections. Every event is timestamped automatically. The event stream must be preserved in full-vault backups; generated Markdown logs cannot reconstruct it.

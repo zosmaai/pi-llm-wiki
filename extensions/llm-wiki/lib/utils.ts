@@ -28,6 +28,11 @@ export interface VaultPaths {
   dotWiki: string;
   outputs: string;
   discoveries: string;
+  qmd: string;
+  qmdCurrent: string;
+  qmdDocuments: string;
+  qmdManifest: string;
+  qmdSwap: string;
 }
 
 /** Detect whether a vault root uses new (.llm-wiki) or legacy (.wiki) layout. */
@@ -200,31 +205,45 @@ export function resolveVaultRoot(cwd: string): string {
 
 /** Get all vault paths for the new (.llm-wiki) layout. */
 export function getVaultPaths(root: string): VaultPaths {
+  const meta = join(root, ".llm-wiki", "meta");
+  const qmd = join(meta, "qmd");
   return {
     root,
     raw: join(root, ".llm-wiki", "raw"),
     rawSources: join(root, ".llm-wiki", "raw", "sources"),
     rawTrajectories: join(root, ".llm-wiki", "raw", "trajectories"),
     wiki: join(root, ".llm-wiki", "wiki"),
-    meta: join(root, ".llm-wiki", "meta"),
+    meta,
     dotWiki: join(root, ".llm-wiki"),
     outputs: join(root, ".llm-wiki", "outputs"),
     discoveries: join(root, ".llm-wiki", ".discoveries"),
+    qmd,
+    qmdCurrent: join(qmd, "current"),
+    qmdDocuments: join(qmd, "documents"),
+    qmdManifest: join(qmd, "manifest.json"),
+    qmdSwap: join(qmd, "swap.json"),
   };
 }
 
 /** Get all vault paths for the legacy (.wiki) layout. */
 export function getLegacyVaultPaths(root: string): VaultPaths {
+  const meta = join(root, "meta");
+  const qmd = join(meta, "qmd");
   return {
     root,
     raw: join(root, "raw"),
     rawSources: join(root, "raw", "sources"),
     rawTrajectories: join(root, "raw", "trajectories"),
     wiki: join(root, "wiki"),
-    meta: join(root, "meta"),
+    meta,
     dotWiki: join(root, ".wiki"),
     outputs: join(root, "outputs"),
     discoveries: join(root, ".discoveries"),
+    qmd,
+    qmdCurrent: join(qmd, "current"),
+    qmdDocuments: join(qmd, "documents"),
+    qmdManifest: join(qmd, "manifest.json"),
+    qmdSwap: join(qmd, "swap.json"),
   };
 }
 
