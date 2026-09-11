@@ -46,7 +46,7 @@ export interface WikiStatusSnapshot {
 /**
  * Search the registry for matching concepts.
  *
- * Matches ID, semantic title, type, category, domain, tags, aliases, and recall triggers.
+ * Matches ID, title, type, state, status, category, domain, tags, aliases, and recall triggers.
  * Preserves unknown types as strings.
  */
 export function searchRegistry(
@@ -117,6 +117,14 @@ function matchesField(id: string, entry: Record<string, unknown>, query: string)
   // Match state
   if (
     String(entry.state || "")
+      .toLowerCase()
+      .includes(query)
+  )
+    return true;
+
+  // Match status
+  if (
+    String(entry.status || "")
       .toLowerCase()
       .includes(query)
   )
