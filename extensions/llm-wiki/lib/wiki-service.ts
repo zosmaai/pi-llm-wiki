@@ -114,6 +114,14 @@ function matchesField(id: string, entry: Record<string, unknown>, query: string)
   )
     return true;
 
+  // Match state
+  if (
+    String(entry.state || "")
+      .toLowerCase()
+      .includes(query)
+  )
+    return true;
+
   // Match category/domain
   if (
     String(entry.category || "")

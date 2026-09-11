@@ -56,7 +56,7 @@ describe("MCP parity with shared services", () => {
     mkdirSync(join(paths.wiki, "concepts"), { recursive: true });
     writeFileSync(
       join(paths.wiki, "concepts", "nested.md"),
-      "---\ntype: concept\ntitle: Nested Concept\ndescription: A nested concept about trees\n---\n\n# Nested Concept\n\nTree content.",
+      "---\ntype: concept\ntitle: Nested Concept\nstate: needs-review\ndescription: A nested concept about trees\n---\n\n# Nested Concept\n\nTree content.",
     );
     rebuildMetadata(paths);
 
@@ -67,6 +67,14 @@ describe("MCP parity with shared services", () => {
     expect(mcpSearch.diagnostics).toEqual(
       piSearch.diagnostics.map((d) => ({ code: d.code, message: d.message })),
     );
+
+    const piStateSearch = searchRegistry(paths, "needs-review");
+    const mcpStateSearch = await searchOperation(paths, "needs-review");
+
+    expect(piStateSearch.matches).toEqual([
+      { id: "concepts/nested", title: "Nested Concept", type: "concept" },
+    ]);
+    expect(mcpStateSearch.matches).toEqual(piStateSearch.matches);
   });
 
   it("status parity: MCP matches shared getWikiStatus", async () => {

@@ -154,7 +154,7 @@ scoring, no PRF, no vault layering. Use for lookups when you already know what y
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `query` | `string` | ✅ | Search term matched against page IDs, titles, and types |
+| `query` | `string` | ✅ | Search term matched against page IDs, titles, types, states, categories, domains, tags, aliases, and recall triggers |
 | `type` | `string` | — | Filter results to a specific page type (e.g. `"concept"`, `"entity"`) |
 
 **Returns**
