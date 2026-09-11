@@ -1,0 +1,15 @@
+# LLM Wiki via MCP for OpenAI Codex CLI.
+# Add to ~/.codex/config.toml (or .codex/config.toml in a trusted repo).
+# Manage interactively: codex mcp add llm-wiki -- node <abs>/dist/mcp/index.js
+#
+# NOTE: top-level key must be snake_case `mcp_servers` — `mcpServers` or
+# `mcp.servers` is silently ignored by Codex.
+
+[mcp_servers.llm-wiki]
+command = "node"
+args = ["/absolute/path/to/pi-llm-wiki/dist/mcp/index.js"]
+# Vault root auto-detects from cwd; set explicitly to pin it:
+# env = { WIKI_ROOT = "/absolute/path/to/your-wiki" }
+startup_timeout_sec = 20
+tool_timeout_sec = 120
+# enabled = true   # default; set false to disable without removing

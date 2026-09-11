@@ -644,3 +644,8 @@ Thanks to everyone who has contributed! This list is regenerated automatically b
 ## License
 
 MIT
+
+## Harness support
+
+Runs natively in pi, and as an MCP server in Claude Code (plugin), Codex,
+Cursor, Windsurf, Zed and opencode. See [docs/harnesses.md](docs/harnesses.md).
