@@ -8,6 +8,32 @@ import {
   type TaskConfig,
 } from "../extensions/llm-wiki/lib/task-config.js";
 
+describe("task model MCP settings", () => {
+  it("reads explicit task model endpoint and auth fields", () => {
+    const project = mkdtempSync(join(tmpdir(), "task-model-"));
+    try {
+      mkdirSync(join(project, ".pi"), { recursive: true });
+      writeFileSync(
+        join(project, ".pi", "settings.json"),
+        JSON.stringify({
+          "llm-wiki": {
+            taskModelBaseUrl: "http://localhost:8001/v1",
+            taskModelApiKey: "direct-key",
+            taskModelApiKeyEnv: "TASK_MODEL_API_KEY",
+          },
+        }),
+      );
+      expect(loadTaskConfig(project)).toMatchObject({
+        taskModelBaseUrl: "http://localhost:8001/v1",
+        taskModelApiKey: "direct-key",
+        taskModelApiKeyEnv: "TASK_MODEL_API_KEY",
+      });
+    } finally {
+      rmSync(project, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("resolveWikilinkValidation", () => {
   it("defaults to warn when unset/undefined", () => {
     expect(resolveWikilinkValidation(undefined)).toBe("warn");
