@@ -12,8 +12,7 @@ if (/(^|[/\\])\.llm-wiki[/\\](raw|meta)([/\\]|$)/.test(filePath)) {
     JSON.stringify({
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
-      permissionDecisionReason:
-        `Blocked direct edit of ${filePath}. This is generated wiki state — use the wiki tools (wiki_ensure_page, wiki_retro, wiki_observe, wiki_log_event, wiki_ingest) so metadata stays consistent.`,
+      permissionDecisionReason: `Blocked direct edit of ${filePath}. This is generated wiki state — use the wiki tools (wiki_ensure_page, wiki_retro, wiki_observe, wiki_log_event, wiki_ingest) so metadata stays consistent.`,
     }),
   );
 }

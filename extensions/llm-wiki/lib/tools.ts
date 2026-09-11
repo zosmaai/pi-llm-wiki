@@ -502,7 +502,14 @@ export function registerWikiIngest(pi: ExtensionAPI, runtime?: Runtime): void {
 // Frontmatter fields wiki_ensure_page generates or derives itself (title also
 // determines the filename). Model-supplied values for these are ignored rather
 // than merged (issue #241).
-export const RESERVED_FRONTMATTER = new Set(["type", "title", "created", "updated", "sources", "id"]);
+export const RESERVED_FRONTMATTER = new Set([
+  "type",
+  "title",
+  "created",
+  "updated",
+  "sources",
+  "id",
+]);
 
 export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): void {
   pi.registerTool({
