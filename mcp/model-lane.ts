@@ -11,18 +11,13 @@
  * "synthesize yourself" path.
  */
 
-import {
-  createModels,
-  createProvider,
-  envApiKeyAuth,
-  type Provider,
-} from "@earendil-works/pi-ai";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
+import { createModels, createProvider, envApiKeyAuth, type Provider } from "@earendil-works/pi-ai";
 import { streamSimple as openaiStreamSimple } from "@earendil-works/pi-ai/api/openai-completions";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import {
-  Runtime,
   type ResolveCtx,
   type ResolveResult,
+  Runtime,
 } from "../extensions/llm-wiki/lib/runtime.js";
 import type { TaskConfig } from "../extensions/llm-wiki/lib/task-config.js";
 
@@ -104,7 +99,7 @@ export function buildLane(
     getApiKeyAndHeaders: async () => {
       const key =
         config.taskModelApiKey ??
-        (config.taskModelApiKeyEnv ? process.env[config.taskModelApiKeyEnv] ?? "" : "");
+        (config.taskModelApiKeyEnv ? (process.env[config.taskModelApiKeyEnv] ?? "") : "");
       return {
         ok: typeof key === "string" && key.length > 0,
         ...(key.length > 0 ? { apiKey: key } : {}),

@@ -6,11 +6,12 @@
  * registry entries, or builds page strings itself.
  */
 
-import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { bootstrapVault } from "../extensions/llm-wiki/lib/bootstrap.js";
 import { reindexEmbeddings, resolveEmbedder } from "../extensions/llm-wiki/lib/embeddings.js";
+import { runIngestSynthesis } from "../extensions/llm-wiki/lib/ingest-worker.js";
 import {
   createKnowledgeDocument,
   type KnowledgeValue,
@@ -29,7 +30,6 @@ import {
   type Registry,
   rebuildMetadata,
 } from "../extensions/llm-wiki/lib/metadata.js";
-import { runIngestSynthesis } from "../extensions/llm-wiki/lib/ingest-worker.js";
 import { saveObservation } from "../extensions/llm-wiki/lib/observation.js";
 import { reindexQmdVault } from "../extensions/llm-wiki/lib/qmd-indexing.js";
 import { type RecallResult, searchWikiLayered } from "../extensions/llm-wiki/lib/recall.js";
@@ -651,10 +651,9 @@ export async function ingestOperation(
   const packets = readdirSync(paths.rawSources)
     .filter((d) => d.startsWith("SRC-"))
     .sort();
-  const registry = readJson<{ pages: Record<string, unknown> }>(
-    join(paths.meta, "registry.json"),
-    { pages: {} },
-  );
+  const registry = readJson<{ pages: Record<string, unknown> }>(join(paths.meta, "registry.json"), {
+    pages: {},
+  });
   const ingested = new Set<string>();
   for (const [id, entry] of Object.entries(registry.pages)) {
     const page = entry as Record<string, unknown>;
@@ -695,9 +694,7 @@ export async function ingestOperation(
       return {
         id,
         title: (manifest.title as string) ?? id,
-        extractedChars: existsSync(extractedPath)
-          ? readFileSync(extractedPath, "utf-8").length
-          : 0,
+        extractedChars: existsSync(extractedPath) ? readFileSync(extractedPath, "utf-8").length : 0,
       };
     });
     return {

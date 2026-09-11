@@ -5,7 +5,7 @@
 1. **Native pi extension** (`extensions/llm-wiki/`) — full surface: 14 tools, 3
    opt-in trajectory tools, slash commands, ambient recall injection,
    background ingest lane, raw/meta edit guardrails.
-2. **MCP server** (`dist/mcp/index.js`) — 14 tools over stdio MCP; consumed by
+2. **MCP server** (`dist/mcp/index.js`) — 15 tools over stdio MCP; consumed by
    any MCP-capable harness.
 
 ## Matrix
@@ -14,9 +14,21 @@
 |---|---|---|
 | pi | Built-in extension (this repo) | none |
 | Claude Code | `claude plugin install .` — bundles the MCP server (`.claude-plugin/`) + PreToolUse guard hook | no automatic context injection; model calls tools on demand |
-| Codex | `hosts/codex.config.toml.example` → `~/.codex/config.toml` | background ingest, commands, reminders not available (Phase 2) |
-| Cursor | `"mcpServers"` in `.cursor/mcp.json`, command `node`, args `["<abs>/dist/mcp/index.js"]` | same as Codex |
-| Windsurf / Zed / opencode / cline | same stdio command in their MCP settings | same as Codex |
+| Codex | `hosts/codex.config.toml.example` → `~/.codex/config.toml` | `wiki_ingest` runs synchronously over the configured `llm-wiki.taskModel*` settings; no background reporting |
+| Cursor | `"mcpServers"` in `.cursor/mcp.json`, command `node`, args `["<abs>/dist/mcp/index.js"]` | `wiki_ingest` runs synchronously over the configured `llm-wiki.taskModel*` settings; no background reporting |
+| Windsurf / Zed / opencode / cline | same stdio command in their MCP settings | `wiki_ingest` runs synchronously over the configured `llm-wiki.taskModel*` settings; no background reporting |
+
+## Architecture
+
+### Model lane (wiki_ingest)
+
+Non-pi hosts have no pi model registry. The MCP server reads
+`llm-wiki.taskModel` plus the optional `taskModelBaseUrl` / `taskModelApiKey`
+/ `taskModelApiKeyEnv` settings (same shape as the embedding* fields) and
+resolves a model through the SAME precedence as pi
+(`lib/runtime.ts::resolveModel`): per-call override → taskModel → none. When
+nothing resolves, `wiki_ingest` returns the extracted content so the calling
+agent can synthesize the pages itself.
 
 ## Guardrails across hosts
 

@@ -363,7 +363,7 @@ This preserves both the **original artifact** and a **normalized extracted view*
 
 Use the wiki from **any MCP-compatible tool** — Claude Code, Cursor, Windsurf, and others.
 
-The package ships a standalone MCP server exposing 6 wiki tools over stdio:
+The package ships a standalone MCP server exposing 15 wiki tools over stdio:
 
 | Tool | Description |
 |------|-------------|
@@ -373,6 +373,7 @@ The package ships a standalone MCP server exposing 6 wiki tools over stdio:
 | `wiki_status` | Wiki stats (page counts, type breakdown) |
 | `wiki_retro` | Save atomic insights |
 | `wiki_capture_source` | Capture text as a source packet |
+| `wiki_ingest` | Process source packets synchronously using the configured `llm-wiki.taskModel*` settings |
 
 ### Usage
 

@@ -81,7 +81,7 @@ Design notes:
 **Files:**
 - Modify: `extensions/llm-wiki/lib/task-config.ts`
 
-- [ ] **Step 1: Extend the interface**
+- [x] **Step 1: Extend the interface**
 
 Add after the `embeddingApiKeyEnv` block (interface `TaskConfig`):
 
@@ -97,7 +97,7 @@ Add after the `embeddingApiKeyEnv` block (interface `TaskConfig`):
   taskModelApiKeyEnv?: string;
 ```
 
-- [ ] **Step 2: Parse the new keys in `readNamespacedConfig`**
+- [x] **Step 2: Parse the new keys in `readNamespacedConfig`**
 
 Locate the `readNamespacedConfig` block that maps `embeddingApiKey` / `embeddingApiKeyEnv` and add the three mappings right after it (matching the existing style — the `section` is the `llm-wiki` config object already split off by `readNamespacedConfig`):
 
@@ -109,11 +109,11 @@ Locate the `readNamespacedConfig` block that maps `embeddingApiKey` / `embedding
     }
 ```
 
-- [ ] **Step 3: Register in `ALL_SETTING_KEYS`**
+- [x] **Step 3: Register in `ALL_SETTING_KEYS`**
 
 Add the three keys to the `ALL_SETTING_KEYS` array next to `"embeddingApiKeyEnv"`.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 pnpm exec vitest run test/task-config.test.ts && pnpm typecheck
@@ -121,7 +121,7 @@ pnpm exec vitest run test/task-config.test.ts && pnpm typecheck
 
 Expected: task-config tests pass and the new keys round-trip (add a two-line test in `test/task-config.test.ts` asserting `loadTaskConfig(root)` returns the three fields when the settings JSON contains them — follow the existing settings-fixture style in that file, which writes `<root>/.omp/settings.json`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add extensions/llm-wiki/lib/task-config.ts test/task-config.test.ts
@@ -135,7 +135,7 @@ git commit -m "feat(config): explicit taskModelBaseUrl/ApiKey/Env for the MCP la
 **Files:**
 - Create: `mcp/model-lane.ts`
 
-- [ ] **Step 1: Confirm the contract facts (2 min — facts in the contract summary above are pre-verified; confirm against the installed versions):**
+- [x] **Step 1: Confirm the contract facts (2 min — facts in the contract summary above are pre-verified; confirm against the installed versions):**
 
 ```bash
 grep -c "export const streamSimple" node_modules/@earendil-works/pi-ai/dist/api/openai-completions.js   # expect 1
@@ -145,7 +145,7 @@ grep -n "getRegisteredProviderConfig" extensions/llm-wiki/lib/runtime.ts        
 
 All three must match the contract summary; the deep imports `@earendil-works/pi-ai/api/openai-completions` and `.lazy` are allowed by pi-ai's `exports` map (verified). If any differs, adapt the code below to the installed shape — the shim contract (`find` / `getApiKeyAndHeaders` / `getRegisteredProviderConfig`) and `Runtime.resolveModel` usage do not change.
 
-- [ ] **Step 2: Write `mcp/model-lane.ts`**
+- [x] **Step 2: Write `mcp/model-lane.ts`**
 
 ```ts
 /**
@@ -270,7 +270,7 @@ Executor notes:
 - `ResolveCtx` must come from `lib/runtime.ts` (it already types `modelRegistry`); if the exported name differs, use the inline shape `NonNullable<Parameters<Runtime["resolveModel"]>[0]["modelRegistry"]>` as the shim type instead.
 - biome `noUnusedImports` is an ERROR in this repo — do not leave unused imports.
 
-- [ ] **Step 3: Typecheck the lane module**
+- [x] **Step 3: Typecheck the lane module**
 
 ```bash
 pnpm typecheck
@@ -278,7 +278,7 @@ pnpm typecheck
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add mcp/model-lane.ts
@@ -292,7 +292,7 @@ git commit -m "feat(mcp): config-first model lane for non-pi hosts"
 **Files:**
 - Modify: `mcp/operations.ts`
 
-- [ ] **Step 1: Extend the `node:fs` imports (add `readdirSync` and `readFileSync`)**
+- [x] **Step 1: Extend the `node:fs` imports (add `readdirSync` and `readFileSync`)**
 
 Change the existing `import { existsSync, mkdirSync } from "node:fs";` to:
 
@@ -302,7 +302,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 
 (These are the only two symbols missing — biome forbids unused imports, so do not add `statSync`/`writeFileSync`.)
 
-- [ ] **Step 2: Add the operation (port of the pi `wiki_ingest` selection + sync loop)**
+- [x] **Step 2: Add the operation (port of the pi `wiki_ingest` selection + sync loop)**
 
 Append after `observeOperation`, and add these imports to the top of `operations.ts`:
 
@@ -444,7 +444,7 @@ Executor notes:
 - `res.env` / `res.headers` are already `Record<string, string>`-compatible from `ResolveResult`; pass them straight through.
 - The stitching check in `tools.ts` first verifies `existsSync(paths.rawSources)`; keep that guard (it is what the first test asserts).
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 ```bash
 pnpm typecheck
@@ -452,7 +452,7 @@ pnpm typecheck
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add mcp/operations.ts
@@ -466,11 +466,11 @@ git commit -m "feat(mcp): wiki_ingest operation with sync lane + self-synthesize
 **Files:**
 - Modify: `mcp/index.ts`
 
-- [ ] **Step 1: Import the operation**
+- [x] **Step 1: Import the operation**
 
 Add `ingestOperation,` to the `./operations.js` import list.
 
-- [ ] **Step 2: Register the tool after `wiki_watch` (append at the very end of the tool sections, before `// ─── Main ───`)**
+- [x] **Step 2: Register the tool after `wiki_watch` (append at the very end of the tool sections, before `// ─── Main ───`)**
 
 ```ts
 // ---- wiki_ingest ----
@@ -523,7 +523,7 @@ server.registerTool(
 );
 ```
 
-- [ ] **Step 3: Update BOTH parity tool lists (15 tools, source order)**
+- [x] **Step 3: Update BOTH parity tool lists (15 tools, source order)**
 
 There are two hard-coded 14-tool lists that must stay in sync with `mcp/index.ts` registration order:
 
@@ -538,7 +538,7 @@ There are two hard-coded 14-tool lists that must stay in sync with `mcp/index.ts
 
 2. `test/mcp-package.test.ts` — find its tool list (the second hard-coded list discovered in phase 1) and append `"wiki_ingest"` in the same relative position (after `"wiki_watch"`).
 
-- [ ] **Step 4: Run the MCP tests**
+- [x] **Step 4: Run the MCP tests**
 
 ```bash
 pnpm exec vitest run test/mcp-parity.test.ts test/mcp-package.test.ts
@@ -546,7 +546,7 @@ pnpm exec vitest run test/mcp-parity.test.ts test/mcp-package.test.ts
 
 Expected: all pass (both count assertions now see 15 tools).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add mcp/index.ts test/mcp-parity.test.ts test/mcp-package.test.ts
@@ -560,7 +560,7 @@ git commit -m "feat(mcp): expose wiki_ingest over MCP (15 tools)"
 **Files:**
 - Create: `test/mcp-ingest-lane.test.ts`
 
-- [ ] **Step 1: Write the test file**
+- [x] **Step 1: Write the test file**
 
 Settings in this repo are read from `<root>/.pi/settings.json` (`.omp` on omp hosts) by `loadTaskConfig` — do NOT write `.llm-wiki/config.json` (that is the vault config, not the settings file). The `fauxProvider` contract: root export, takes `{ provider, models, api }` (no `model` key), and returns a handle whose `.provider` member is setProvider-able.
 
@@ -673,7 +673,7 @@ Executor notes:
 - If `fauxProvider`'s `.provider` shape differs on the installed version (e.g. `faux.provider` is async-refreshed), adapt `fauxFactory` — the failing test reveals the real contract. `store.setProvider(provider)` must accept whatever you return.
 - `ingestOperation` returning `{ report }` without `isError` — assert with `res.isError` being undefined, matching the operation's return type.
 
-- [ ] **Step 2: Run the new tests**
+- [x] **Step 2: Run the new tests**
 
 ```bash
 pnpm exec vitest run test/mcp-ingest-lane.test.ts
@@ -681,7 +681,7 @@ pnpm exec vitest run test/mcp-ingest-lane.test.ts
 
 Expected: all pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add test/mcp-ingest-lane.test.ts
@@ -695,7 +695,7 @@ git commit -m "test(mcp): ingest lane — faux-provider resolution + self-synthe
 **Files:**
 - Modify: `docs/harnesses.md`, `README.md` (ingest row), then the full gate.
 
-- [ ] **Step 1: Update `docs/harnesses.md`**
+- [x] **Step 1: Update `docs/harnesses.md`**
 
 In the matrix, the Codex/Cursor/etc. "Limits" cells currently say "background ingest ... not available (Phase 2)". Replace with: "`wiki_ingest` runs synchronously over the configured `llm-wiki.taskModel*` settings; no background reporting". In the Architecture section, add:
 
@@ -711,7 +711,7 @@ nothing resolves, `wiki_ingest` returns the extracted content so the calling
 agent can synthesize the pages itself.
 ```
 
-- [ ] **Step 2: Full gate**
+- [x] **Step 2: Full gate**
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm test
@@ -722,7 +722,7 @@ Expected:
 - lint: only the pre-existing `useOptionalChain` warning remains (verify no new warnings in `mcp/model-lane.ts` / operations / tests).
 - test: all files pass (894 baseline + new lane tests; both 15-tool count tests green).
 
-- [ ] **Step 3: Rebuild + live MCP smoke**
+- [x] **Step 3: Rebuild + live MCP smoke**
 
 ```bash
 pnpm build:mcp
@@ -741,7 +741,7 @@ WIKI_ROOT=/tmp/mcp-e2e node dist/mcp/index.js   # in one shell
 
 Expected: capture creates `SRC-*`, `wiki_ingest` returns per-source ingest summaries (or the self-synthesize fallback if no `taskModel*` key is configured for `/tmp/mcp-e2e`). Record the observed output in the PR body.
 
-- [ ] **Step 4: Commit any doc changes**
+- [x] **Step 4: Commit any doc changes**
 
 ```bash
 git add docs/harnesses.md README.md

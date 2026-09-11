@@ -1,9 +1,9 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, beforeEach, expect, it } from "vitest";
 import { fauxProvider } from "@earendil-works/pi-ai";
-import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
+import { afterEach, beforeEach, expect, it } from "vitest";
 import { loadTaskConfig } from "../extensions/llm-wiki/lib/task-config.js";
+import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
 import { resolveLaneModel } from "../mcp/model-lane.js";
 import { ingestOperation } from "../mcp/operations.js";
 
@@ -82,10 +82,7 @@ it("ingestOperation falls back to self-synthesize instructions when the lane has
   );
   const paths = getVaultPaths(root);
   mkdirSync(join(paths.rawSources, "SRC-2026-09-11-001"), { recursive: true });
-  writeFileSync(
-    join(paths.rawSources, "SRC-2026-09-11-001", "extracted.md"),
-    "hello world",
-  );
+  writeFileSync(join(paths.rawSources, "SRC-2026-09-11-001", "extracted.md"), "hello world");
   writeFileSync(
     join(paths.rawSources, "SRC-2026-09-11-001", "manifest.json"),
     JSON.stringify({

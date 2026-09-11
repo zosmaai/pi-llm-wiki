@@ -263,7 +263,8 @@ function readNamespacedConfig(path: string): Partial<TaskConfig> {
       if (typeof value === "string" && value.trim()) out[key] = value.trim();
     }
 
-    if (typeof section.taskModelBaseUrl === "string") out.taskModelBaseUrl = section.taskModelBaseUrl;
+    if (typeof section.taskModelBaseUrl === "string")
+      out.taskModelBaseUrl = section.taskModelBaseUrl;
     if (typeof section.taskModelApiKey === "string") out.taskModelApiKey = section.taskModelApiKey;
     if (typeof section.taskModelApiKeyEnv === "string") {
       out.taskModelApiKeyEnv = section.taskModelApiKeyEnv;
