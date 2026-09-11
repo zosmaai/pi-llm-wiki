@@ -96,6 +96,7 @@ it("starts the published MCP command, exposes seven tools, and invokes operation
       "wiki_bootstrap",
       "wiki_capture_source",
       "wiki_ensure_page",
+      "wiki_ingest",
       "wiki_lint",
       "wiki_log_event",
       "wiki_observe",

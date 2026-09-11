@@ -282,6 +282,7 @@ describe("MCP parity with shared services", () => {
       "wiki_rebuild_meta",
       "wiki_reindex_embeddings",
       "wiki_watch",
+      "wiki_ingest",
     ]);
   });
 

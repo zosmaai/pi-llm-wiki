@@ -26,6 +26,7 @@ import {
   bootstrapOperation,
   captureSourceOperation,
   ensurePageOperation,
+  ingestOperation,
   lintOperation,
   logEventOperation,
   observeOperation,
@@ -682,6 +683,55 @@ server.registerTool(
     return {
       content: [{ type: "text" as const, text: result.message }],
       ...(result.ok ? {} : { isError: true as const }),
+    };
+  },
+);
+
+// ---- wiki_ingest ----
+
+server.registerTool(
+  "wiki_ingest",
+  {
+    description:
+      "Process uningested source packets (captured with wiki_capture_source) by running " +
+      "the synthesis sub-agent over the configured llm-wiki task model, then committing " +
+      "pages. Runs synchronously over this server's model lane (llm-wiki.taskModel + " +
+      "taskModelApiKey/taskModelBaseUrl). When no model is available, returns the " +
+      "extracted content and instructions so the calling agent can synthesize itself.",
+    inputSchema: z.object({
+      source_id: z.string().optional().describe("Specific source ID to ingest"),
+      batch_size: z
+        .number()
+        .int()
+        .min(1)
+        .max(5)
+        .optional()
+        .default(3)
+        .describe("Max sources to process (1-5)"),
+      model: z.string().optional().describe("Per-call model override as 'provider/id'"),
+    }),
+  },
+  async ({ source_id, batch_size, model }) => {
+    if (!hasVault()) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: "No wiki vault found. Set WIKI_ROOT or run wiki_bootstrap first.",
+          },
+        ],
+        isError: true,
+      };
+    }
+    const paths = getPaths();
+    const result = await ingestOperation(paths, {
+      source_id,
+      batch_size,
+      model,
+    });
+    return {
+      content: [{ type: "text" as const, text: result.report }],
+      ...(result.isError ? { isError: true as const } : {}),
     };
   },
 );
