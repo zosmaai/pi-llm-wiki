@@ -6,7 +6,7 @@
  * registry entries, or builds page strings itself.
  */
 
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { bootstrapVault } from "../extensions/llm-wiki/lib/bootstrap.js";
@@ -29,6 +29,7 @@ import {
   type Registry,
   rebuildMetadata,
 } from "../extensions/llm-wiki/lib/metadata.js";
+import { runIngestSynthesis } from "../extensions/llm-wiki/lib/ingest-worker.js";
 import { saveObservation } from "../extensions/llm-wiki/lib/observation.js";
 import { reindexQmdVault } from "../extensions/llm-wiki/lib/qmd-indexing.js";
 import { type RecallResult, searchWikiLayered } from "../extensions/llm-wiki/lib/recall.js";
@@ -36,6 +37,7 @@ import { saveInsight } from "../extensions/llm-wiki/lib/retro.js";
 import { captureFile, captureText, captureUrl } from "../extensions/llm-wiki/lib/source-packet.js";
 import {
   loadTaskConfig,
+  parseModelRef,
   resolveWikilinkValidation,
 } from "../extensions/llm-wiki/lib/task-config.js";
 import { buildPageBody, RESERVED_FRONTMATTER } from "../extensions/llm-wiki/lib/tools.js";
@@ -50,6 +52,7 @@ import {
   reindexWiki,
   searchRegistry,
 } from "../extensions/llm-wiki/lib/wiki-service.js";
+import { resolveLaneModel } from "./model-lane.js";
 
 function projectionOutcome(
   projection: ProjectionResult,
@@ -622,5 +625,127 @@ export function observeOperation(
   return {
     ok: true,
     message: `⭐ Observation saved: ${result.slug} — ${input.title}`,
+  };
+}
+
+/**
+ * Shared ingest operation: the exact pi packet-selection rules, run
+ * synchronously over the config-first lane. Mirrors pi's background=false
+ * "synthesize yourself" fallback when no model/API key resolves.
+ */
+export async function ingestOperation(
+  paths: VaultPaths,
+  input: {
+    source_id?: string;
+    batch_size?: number;
+    model?: string;
+  },
+): Promise<{ report: string; isError?: boolean }> {
+  if (!existsSync(paths.rawSources)) {
+    return {
+      report: "No raw/sources/ directory. Capture sources first with wiki_capture_source.",
+      isError: true,
+    };
+  }
+
+  const packets = readdirSync(paths.rawSources)
+    .filter((d) => d.startsWith("SRC-"))
+    .sort();
+  const registry = readJson<{ pages: Record<string, unknown> }>(
+    join(paths.meta, "registry.json"),
+    { pages: {} },
+  );
+  const ingested = new Set<string>();
+  for (const [id, entry] of Object.entries(registry.pages)) {
+    const page = entry as Record<string, unknown>;
+    if (page.type === "source" && page.status !== "skeleton") {
+      const base = id.split("/").pop();
+      if (base) ingested.add(base);
+    }
+  }
+
+  let toProcess = packets.filter((p) => !ingested.has(p));
+  if (input.source_id) {
+    if (!toProcess.includes(input.source_id) && !packets.includes(input.source_id)) {
+      return {
+        report: `Source ${input.source_id} not found or already ingested.`,
+        isError: true,
+      };
+    }
+    toProcess = [input.source_id];
+  }
+
+  const batch = toProcess.slice(0, Math.min(input.batch_size ?? 3, 5));
+  if (batch.length === 0) {
+    return { report: "✅ All sources ingested. Use wiki_capture_source to add new ones." };
+  }
+
+  const config = loadTaskConfig(paths.root);
+  const override = input.model ? parseModelRef(input.model) : undefined;
+  const res = await resolveLaneModel(config, undefined, override);
+  if (!res.ok) {
+    // Mirror pi's background=false output: hand the extracted content to the
+    // calling agent so it can synthesize without a background model.
+    const sources = batch.map((id) => {
+      const manifest = readJson<Record<string, unknown>>(
+        join(paths.rawSources, id, "manifest.json"),
+        {},
+      );
+      const extractedPath = join(paths.rawSources, id, "extracted.md");
+      return {
+        id,
+        title: (manifest.title as string) ?? id,
+        extractedChars: existsSync(extractedPath)
+          ? readFileSync(extractedPath, "utf-8").length
+          : 0,
+      };
+    });
+    return {
+      report: [
+        `⚠️ No background LLM available (${res.reason}) — synthesize these sources yourself:`,
+        "",
+        ...sources.map((s) => `- **${s.id}**: ${s.title} (${s.extractedChars} chars extracted)`),
+        "",
+        "1. Read each source's extracted.md",
+        "2. Update the skeleton source page in wiki/sources/",
+        "3. Create/update entity pages in wiki/entities/",
+        "4. Create/update concept pages in wiki/concepts/",
+        "5. Add [[wikilinks]] cross-references",
+        "6. Flag contradictions",
+        "",
+        "The extension will auto-update metadata when you are done.",
+      ].join("\n"),
+    };
+  }
+
+  const summaries: string[] = [];
+  for (const id of batch) {
+    const extractedPath = join(paths.rawSources, id, "extracted.md");
+    const manifestPath = join(paths.rawSources, id, "manifest.json");
+    const extracted = existsSync(extractedPath) ? readFileSync(extractedPath, "utf-8") : "";
+    const manifest: Record<string, unknown> = readJson(manifestPath, {});
+    const committed = await runIngestSynthesis({
+      model: res.model as Parameters<typeof runIngestSynthesis>[0]["model"],
+      apiKey: res.apiKey,
+      headers: res.headers,
+      streamFn: res.streamFn as Parameters<typeof runIngestSynthesis>[0]["streamFn"],
+      env: res.env,
+      paths,
+      sourceId: id,
+      manifest,
+      extracted,
+      synthesisLanguage: config.synthesisLanguage,
+      wikilinkValidation: config.wikilinkValidation,
+    });
+    const wl = committed?.wikilinkDiagnostics?.length ?? 0;
+    const wlNote = wl > 0 ? `, ${wl} wikilink issue${wl === 1 ? "" : "s"}` : "";
+    summaries.push(
+      committed
+        ? `**${id}**: ingested → ${committed.entitiesCreated.length} entit${committed.entitiesCreated.length === 1 ? "y" : "ies"} created, ${committed.entitiesLinked.length} linked, ${committed.conceptsCreated.length} concept${committed.conceptsCreated.length === 1 ? "" : "s"} created, ${committed.conceptsLinked.length} linked${wlNote}`
+        : `**${id}**: model produced no synthesis`,
+    );
+  }
+  return {
+    report: `${summaries.join("\n")}\n\nBatch: ${batch.length} source${batch.length === 1 ? "" : "s"} (${toProcess.length} pending, ${toProcess.length - batch.length} remaining).`,
   };
 }
