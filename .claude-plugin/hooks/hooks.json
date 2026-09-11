@@ -1,0 +1,16 @@
+{
+  "description": "Block direct edits to .llm-wiki/raw and .llm-wiki/meta so model writes go through wiki tools",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/guard-llm-wiki-edit.mjs\""
+          }
+        ]
+      }
+    ]
+  }
+}
