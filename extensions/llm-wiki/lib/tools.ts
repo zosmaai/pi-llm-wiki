@@ -8,6 +8,8 @@ import { scheduleReindex } from "./indexing.js";
 import { runIngestSynthesis } from "./ingest-worker.js";
 import {
   createKnowledgeDocument,
+  type KnowledgeValue,
+  parseMarkdownFrontmatter,
   serializeKnowledgeDocument,
   writeKnowledgeDocumentFile,
 } from "./knowledge-document.js";
@@ -509,6 +511,11 @@ export function registerWikiIngest(pi: ExtensionAPI, runtime?: Runtime): void {
 
 // ─── 4. wiki_ensure_page ────────────────────────────────
 
+// Frontmatter fields wiki_ensure_page generates or derives itself (title also
+// determines the filename). Model-supplied values for these are ignored rather
+// than merged (issue #241).
+const RESERVED_FRONTMATTER = new Set(["type", "title", "created", "updated", "sources", "id"]);
+
 export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): void {
   pi.registerTool({
     name: "wiki_ensure_page",
@@ -518,6 +525,7 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
     promptGuidelines: [
       "Use wiki_ensure_page before creating pages to avoid duplicates.",
       "Search existing pages first with wiki_search.",
+      "Content may begin with a YAML frontmatter block; its fields are merged into the page frontmatter, and generated fields are reserved.",
     ],
     parameters: Type.Object({
       type: Type.String({
@@ -526,7 +534,10 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
       }),
       title: Type.String({ description: "Page title" }),
       content: Type.Optional(
-        Type.String({ description: "Optional initial content (otherwise uses template)" }),
+        Type.String({
+          description:
+            "Optional Markdown body. May begin with a YAML frontmatter block, whose fields are merged into the page frontmatter; generated fields (type, title, created, updated, sources) are reserved and ignored.",
+        }),
       ),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -571,6 +582,25 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
       const today = fmtDate();
       let body = params.content ?? buildPageBody(type, params.title);
 
+      // #241: models sometimes pass a YAML frontmatter block inside content.
+      // Consume it (with the same hardened parser used for page reads) and merge
+      // its fields into the generated frontmatter, instead of writing the block
+      // verbatim into the body (duplicate frontmatter, and the model's fields
+      // silently never took effect). Generated fields are reserved; a
+      // frontmatter-only content falls back to the template body.
+      const extraFrontmatter: Record<string, KnowledgeValue> = {};
+      if (body.trimStart().startsWith("---")) {
+        const parsed = parseMarkdownFrontmatter(body, `${folder}/${slug}.md`);
+        if (parsed.ok) {
+          for (const [key, value] of Object.entries(parsed.mapping)) {
+            if (!RESERVED_FRONTMATTER.has(key)) {
+              extraFrontmatter[key] = value;
+            }
+          }
+          body = parsed.body.trim() ? parsed.body : buildPageBody(type, params.title);
+        }
+      }
+
       // Pre-write wikilink gate (#172): validate/normalize caller-supplied content.
       const mode = resolveWikilinkValidation(loadTaskConfig(ctx.cwd));
       let wikilinkIssues: string[] = [];
@@ -612,6 +642,7 @@ export function registerWikiEnsurePage(pi: ExtensionAPI, runtime?: Runtime): voi
           title: params.title,
           created: today,
           updated: today,
+          ...extraFrontmatter,
         },
         body,
       );
