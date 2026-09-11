@@ -58,6 +58,16 @@ export interface TaskConfig {
   embeddingApiKeyEnv?: string;
 
   /**
+   * Explicit LLM endpoint for the MCP ingest lane (hosts without pi's model
+   * registry). Mirrors the embedding* fields; unused by the pi extension,
+   * which resolves the task model through the session registry instead.
+   * Prefer taskModelApiKeyEnv to avoid storing secrets in settings files.
+   */
+  taskModelBaseUrl?: string;
+  taskModelApiKey?: string;
+  taskModelApiKeyEnv?: string;
+
+  /**
    * Weight of the semantic (cosine) signal when blending with lexical score in
    * hybrid recall (issue #67). 0 = pure lexical, 1 = pure semantic boost.
    * Default 0.5. Only takes effect when embeddings exist AND an embedder is
@@ -251,6 +261,13 @@ function readNamespacedConfig(path: string): Partial<TaskConfig> {
     ] as const) {
       const value = section[key];
       if (typeof value === "string" && value.trim()) out[key] = value.trim();
+    }
+
+    if (typeof section.taskModelBaseUrl === "string")
+      out.taskModelBaseUrl = section.taskModelBaseUrl;
+    if (typeof section.taskModelApiKey === "string") out.taskModelApiKey = section.taskModelApiKey;
+    if (typeof section.taskModelApiKeyEnv === "string") {
+      out.taskModelApiKeyEnv = section.taskModelApiKeyEnv;
     }
 
     const weight = section.semanticWeight;
@@ -487,6 +504,9 @@ const KNOWN_KEYS = [
   "embeddingBaseUrl",
   "embeddingApiKey",
   "embeddingApiKeyEnv",
+  "taskModelBaseUrl",
+  "taskModelApiKey",
+  "taskModelApiKeyEnv",
   "semanticWeight",
   "recallLinksThreshold",
   "recallSkillInlineMax",

@@ -25,11 +25,19 @@ import { createExecApi } from "./exec.js";
 import {
   bootstrapOperation,
   captureSourceOperation,
+  ensurePageOperation,
+  ingestOperation,
+  lintOperation,
+  logEventOperation,
+  observeOperation,
+  rebuildMetaOperation,
   recallOperation,
+  reindexEmbeddingsOperation,
   reindexOperation,
   retroOperation,
   searchOperation,
   statusOperation,
+  watchOperation,
 } from "./operations.js";
 
 const execApi = createExecApi();
@@ -414,6 +422,316 @@ server.registerTool(
           text: `Source captured: ${result.sourceId}`,
         },
       ],
+    };
+  },
+);
+
+// ---- wiki_ensure_page ----
+
+server.registerTool(
+  "wiki_ensure_page",
+  {
+    description:
+      "Resolve or safely create a canonical wiki page. Returns the page path. " +
+      "Content may begin with a YAML frontmatter block; its fields are merged into " +
+      "the page frontmatter, and generated fields (type, title, created, updated, " +
+      "sources) are reserved and ignored.",
+    inputSchema: z.object({
+      type: z.string().describe("Page type"),
+      title: z.string().describe("Page title"),
+      content: z.string().optional().describe("Optional Markdown body"),
+    }),
+  },
+  async ({ type, title, content }) => {
+    if (!hasVault()) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: "No wiki vault found. Set WIKI_ROOT or run wiki_bootstrap first.",
+          },
+        ],
+        isError: true,
+      };
+    }
+    const paths = getPaths();
+    const result = await ensurePageOperation(paths, { type, title, content });
+    if (!result.ok) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Vault error: ${result.diagnostics[0].message}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: result.created
+            ? `✅ Created ${result.path}`
+            : `✅ Page already exists: \`${result.path}\``,
+        },
+      ],
+    };
+  },
+);
+
+// ---- wiki_lint ----
+
+server.registerTool(
+  "wiki_lint",
+  {
+    description:
+      "Health check the wiki. Scans for orphans, missing pages, contradictions, gaps. Optionally auto-fixes.",
+    inputSchema: z.object({
+      auto_fix: z.boolean().optional().describe("Auto-fix orphans and missing pages"),
+    }),
+  },
+  async ({ auto_fix }) => {
+    if (!hasVault()) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: "No wiki vault found. Set WIKI_ROOT or run wiki_bootstrap first.",
+          },
+        ],
+        isError: true,
+      };
+    }
+    const paths = getPaths();
+    const result = await lintOperation(paths, auto_fix === true);
+    if (!result.ok) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Vault error: ${result.diagnostics[0].message}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+    return { content: [{ type: "text" as const, text: result.report }] };
+  },
+);
+
+// ---- wiki_log_event ----
+
+server.registerTool(
+  "wiki_log_event",
+  {
+    description: "Append a structured event to meta/events.jsonl and regenerate meta/log.md.",
+    inputSchema: z.object({
+      kind: z.string().describe("Event kind (e.g., ingest, query, decision)"),
+      details: z.record(z.string(), z.unknown()).optional().describe("Additional event fields"),
+    }),
+  },
+  async ({ kind, details }) => {
+    if (!hasVault()) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: "No wiki vault found. Set WIKI_ROOT or run wiki_bootstrap first.",
+          },
+        ],
+        isError: true,
+      };
+    }
+    const paths = getPaths();
+    const result = logEventOperation(paths, { kind, details });
+    if (!result.ok) {
+      return {
+        content: [{ type: "text" as const, text: result.message }],
+        isError: true,
+      };
+    }
+    return { content: [{ type: "text" as const, text: result.message }] };
+  },
+);
+
+// ---- wiki_observe ----
+
+server.registerTool(
+  "wiki_observe",
+  {
+    description:
+      "Record an atomic observation from the current session into the wiki. " +
+      "Observations are timestamped, relevance-rated, and searchable via wiki_recall.",
+    inputSchema: z.object({
+      title: z.string().describe("Short descriptive title (<=80 chars). Noun phrase."),
+      content: z.string().describe("The observation in plain prose"),
+      relevance: z
+        .enum(["low", "medium", "high", "critical"])
+        .optional()
+        .default("medium")
+        .describe("Relevance level"),
+      tags: z.string().optional().describe("Optional space-separated tags"),
+      source_context: z.string().optional().describe("What was being worked on"),
+    }),
+  },
+  async ({ title, content, relevance, tags, source_context }) => {
+    if (!hasVault()) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: "No wiki vault found. Set WIKI_ROOT or run wiki_bootstrap first.",
+          },
+        ],
+        isError: true,
+      };
+    }
+    const paths = getPaths();
+    const result = observeOperation(paths, {
+      title,
+      content,
+      relevance: relevance ?? "medium",
+      tags,
+      source_context,
+    });
+    if (!result.ok) {
+      return {
+        content: [{ type: "text" as const, text: result.message }],
+        isError: true,
+      };
+    }
+    return { content: [{ type: "text" as const, text: result.message }] };
+  },
+);
+
+// ---- wiki_rebuild_meta ----
+
+server.registerTool(
+  "wiki_rebuild_meta",
+  {
+    description:
+      "Force a full metadata rebuild (registry, backlinks, index, log). Use if metadata seems out of sync.",
+    inputSchema: z.object({}),
+  },
+  async () => {
+    if (!hasVault()) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: "No wiki vault found. Set WIKI_ROOT or run wiki_bootstrap first.",
+          },
+        ],
+        isError: true,
+      };
+    }
+    const paths = getPaths();
+    const result = await rebuildMetaOperation(paths);
+    return { content: [{ type: "text" as const, text: result.report }] };
+  },
+);
+
+// ---- wiki_reindex_embeddings ----
+
+server.registerTool(
+  "wiki_reindex_embeddings",
+  {
+    description:
+      "Backfill / refresh semantic embeddings for the vault. Embeds pages that are new " +
+      "or stale (content changed); pass force to re-embed everything. No-op when no " +
+      "embedding provider is configured.",
+    inputSchema: z.object({
+      force: z.boolean().optional().describe("Re-embed every page, ignoring staleness"),
+    }),
+  },
+  async ({ force }) => {
+    if (!hasVault()) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: "No wiki vault found. Set WIKI_ROOT or run wiki_bootstrap first.",
+          },
+        ],
+        isError: true,
+      };
+    }
+    const paths = getPaths();
+    const result = await reindexEmbeddingsOperation(paths, force === true);
+    return {
+      content: [{ type: "text" as const, text: result.message }],
+      ...(result.ok ? {} : { isError: true as const }),
+    };
+  },
+);
+
+// ---- wiki_watch ----
+
+server.registerTool(
+  "wiki_watch",
+  {
+    description:
+      "Print a ready-to-paste crontab line for scheduling automatic wiki updates " +
+      "(discover -> ingest -> lint). Does NOT schedule anything itself.",
+    inputSchema: z.object({
+      interval: z.enum(["daily", "weekly", "hourly", "stop"]).describe("Cron interval"),
+    }),
+  },
+  async ({ interval }) => {
+    const result = watchOperation({ interval });
+    return {
+      content: [{ type: "text" as const, text: result.message }],
+      ...(result.ok ? {} : { isError: true as const }),
+    };
+  },
+);
+
+// ---- wiki_ingest ----
+
+server.registerTool(
+  "wiki_ingest",
+  {
+    description:
+      "Process uningested source packets (captured with wiki_capture_source) by running " +
+      "the synthesis sub-agent over the configured llm-wiki task model, then committing " +
+      "pages. Runs synchronously over this server's model lane (llm-wiki.taskModel + " +
+      "taskModelApiKey/taskModelBaseUrl). When no model is available, returns the " +
+      "extracted content and instructions so the calling agent can synthesize itself.",
+    inputSchema: z.object({
+      source_id: z.string().optional().describe("Specific source ID to ingest"),
+      batch_size: z
+        .number()
+        .int()
+        .min(1)
+        .max(5)
+        .optional()
+        .default(3)
+        .describe("Max sources to process (1-5)"),
+      model: z.string().optional().describe("Per-call model override as 'provider/id'"),
+    }),
+  },
+  async ({ source_id, batch_size, model }) => {
+    if (!hasVault()) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: "No wiki vault found. Set WIKI_ROOT or run wiki_bootstrap first.",
+          },
+        ],
+        isError: true,
+      };
+    }
+    const paths = getPaths();
+    const result = await ingestOperation(paths, {
+      source_id,
+      batch_size,
+      model,
+    });
+    return {
+      content: [{ type: "text" as const, text: result.report }],
+      ...(result.isError ? { isError: true as const } : {}),
     };
   },
 );

@@ -21,11 +21,18 @@ import { createExecApi } from "../mcp/exec.js";
 import {
   bootstrapOperation,
   captureSourceOperation,
+  ensurePageOperation,
+  lintOperation,
+  logEventOperation,
+  observeOperation,
+  rebuildMetaOperation,
   recallOperation,
+  reindexEmbeddingsOperation,
   reindexOperation,
   retroOperation,
   searchOperation,
   statusOperation,
+  watchOperation,
 } from "../mcp/operations.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -268,6 +275,14 @@ describe("MCP parity with shared services", () => {
       "wiki_reindex",
       "wiki_retro",
       "wiki_capture_source",
+      "wiki_ensure_page",
+      "wiki_lint",
+      "wiki_log_event",
+      "wiki_observe",
+      "wiki_rebuild_meta",
+      "wiki_reindex_embeddings",
+      "wiki_watch",
+      "wiki_ingest",
     ]);
   });
 
@@ -340,5 +355,122 @@ describe("MCP parity with shared services", () => {
       const status = await statusOperation(freshPaths);
       expect(status.blockingDiagnostics).toEqual([]);
     });
+  });
+});
+
+describe("Phase 1 MCP tools (#221)", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = join(import.meta.dirname, "..", "tmp", `mcp-parity-phase1-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    try {
+      rmSync(tmpDir, { recursive: true, force: true });
+    } catch {}
+  });
+
+  function newVault(name: string): string {
+    const root = join(tmpDir, name);
+    mkdirSync(root, { recursive: true });
+    ensureVaultStructure(getVaultPaths(root));
+    writeFileSync(
+      join(root, ".llm-wiki", "config.json"),
+      JSON.stringify({ topic: "Test", mode: "personal" }),
+    );
+    // Fresh vaults have no activity yet; a real post-bootstrap vault regains
+    // an (empty) events.jsonl once the first event is logged. Rebuilds warn
+    // "event_source_missing" without it (the activity log cannot be rebuilt
+    // from a missing source), so mirror that state for the clean-rebuild tests.
+    writeFileSync(join(root, ".llm-wiki", "meta", "events.jsonl"), "");
+    return root;
+  }
+
+  it("ensure_page writes the same canonical page Pi does (incl. #241 frontmatter consume)", async () => {
+    const root = newVault("ensure");
+    const paths = getVaultPaths(root);
+    const res = await ensurePageOperation(paths, {
+      type: "concept",
+      title: "Frontmatter Test",
+      content: "---\ntags: [mcp]\ntitle: Ignored\n---\n\nBody text.",
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.created).toBe(true);
+    const file = join(paths.wiki, "concepts", "frontmatter-test.md");
+    const text = readFileSync(file, "utf-8");
+    expect(text.split("\n").filter((l) => l === "---")).toHaveLength(2); // one block
+    expect(text).toContain("tags:\n  - mcp");
+    expect(text).toContain("Body text.");
+    expect(text).not.toContain("Ignored");
+    expect(text).toContain("title: Frontmatter Test");
+    // idempotent
+    const again = await ensurePageOperation(paths, { type: "concept", title: "Frontmatter Test" });
+    expect(again).toEqual({ ok: true, path: file, created: false });
+  });
+
+  it("lint returns a health report and auto_fix repairs", async () => {
+    const root = newVault("lint");
+    const paths = getVaultPaths(root);
+    const res = await lintOperation(paths, false);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.report).toContain("LLM Wiki lint complete");
+  });
+
+  it("log_event appends a JSONL line and forbids reserved fields", async () => {
+    const root = newVault("log");
+    const paths = getVaultPaths(root);
+    const ok = logEventOperation(paths, { kind: "decision", details: { why: "test" } });
+    expect(ok.ok).toBe(true);
+    const lines = readFileSync(join(paths.meta, "events.jsonl"), "utf-8").trim().split("\n");
+    expect(JSON.parse(lines[lines.length - 1])).toMatchObject({ kind: "decision", why: "test" });
+    const bad = logEventOperation(paths, { kind: "x", details: { timestamp: "nope" } });
+    expect(bad.ok).toBe(false);
+  });
+
+  it("observe writes a timestamped searchable observation page", async () => {
+    const root = newVault("observe");
+    const paths = getVaultPaths(root);
+    const res = observeOperation(paths, {
+      title: "MCP parity proven",
+      content: "Seven operations ported over MCP.",
+      relevance: "high",
+      tags: "mcp parity",
+    });
+    expect(res.ok).toBe(true);
+    // slug is date-based; assert by glob instead:
+    const pages = readdirSync(join(paths.wiki, "sources")).filter((f) => f.endsWith(".md"));
+    expect(pages.length).toBe(1);
+    const text = readFileSync(join(paths.wiki, "sources", pages[0]), "utf-8");
+    expect(text).toContain("Observation: MCP parity proven");
+    expect(text).toContain("high");
+  });
+
+  it("rebuild_meta reports the page count", async () => {
+    const root = newVault("rebuild");
+    const paths = getVaultPaths(root);
+    const res = await rebuildMetaOperation(paths);
+    expect(res.report).toMatch(/pages indexed\.$/);
+  });
+
+  it("reindex_embeddings no-ops cleanly without a provider", async () => {
+    const root = newVault("emb");
+    const paths = getVaultPaths(root);
+    const res = await reindexEmbeddingsOperation(paths, false);
+    expect(res.ok).toBe(true);
+    expect(res.enabled).toBe(false);
+    expect(res.message).toContain("No embedding provider configured");
+  });
+
+  it("watch prints the cron line with the llm-wiki-autoupdate tag", async () => {
+    const res = watchOperation({ interval: "daily" });
+    expect(res.ok).toBe(true);
+    expect(res.details.cronLine).toMatch(/^0 8 \* \* \* /);
+    expect(String(res.details.cronLine)).toMatch(/# llm-wiki-autoupdate$/);
+    const bad = watchOperation({ interval: "yearly" });
+    expect(bad.ok).toBe(false);
   });
 });
