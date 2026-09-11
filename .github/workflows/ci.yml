@@ -15,11 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-<<<<<<< HEAD
         node-version: [22, 24]
-=======
-        node-version: [22, 23, 24, 25]
->>>>>>> origin/main
 
     steps:
       - uses: actions/checkout@v7

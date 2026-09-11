@@ -242,6 +242,52 @@ describe("wiki recall", () => {
     expect(results[0].id).toBe("concepts/sparse-page");
   });
 
+  // issue #223 — common words must not be matched as substrings of unrelated
+  // words. The auto-injection gate uses maxResults 3 / minScore 5.
+  it("does not return unrelated pages whose words merely contain query function-words (#223)", () => {
+    createRegistryPage(
+      "personal-history",
+      "source",
+      "Personal History",
+      "A history of the story told to the person, so the wilson family kept the context.",
+    );
+    const paths = getVaultPaths(wikiDir);
+    rebuildMetadataLight(paths);
+    const results = searchWiki(
+      paths,
+      "Good morning! I got the notification to deposit the check, and did so.",
+      3,
+      5,
+    );
+    expect(results).toEqual([]);
+  });
+
+  it("still returns a page that genuinely matches the query's content words (#223)", () => {
+    createRegistryPage(
+      "personal-history",
+      "source",
+      "Personal History",
+      "A history of the story told to the person, so the wilson family kept the context.",
+    );
+    createRegistryPage(
+      "check-deposit-notification",
+      "concept",
+      "Deposit Check Notification",
+      "A notification about the deposit of the check.",
+    );
+    const paths = getVaultPaths(wikiDir);
+    rebuildMetadataLight(paths);
+    const results = searchWiki(
+      paths,
+      "Good morning! I got the notification to deposit the check, and did so.",
+      3,
+      5,
+    );
+    const ids = results.map((r) => r.id);
+    expect(ids).toContain("concepts/check-deposit-notification");
+    expect(ids).not.toContain("concepts/personal-history");
+  });
+
   it("should find mixed Chinese and Latin short queries without spaces", () => {
     createRegistryPage(
       "pi-learning-progress",

@@ -148,11 +148,13 @@ function queryTerms(query: string): string[] {
   if (compact && compact !== normalized) terms.push(compact);
 
   for (const part of normalized.split(/\s+/)) {
-    if (part.length >= 2) terms.push(part);
+    if (part.length >= 2 && !STOPWORDS.has(part)) terms.push(part);
   }
 
   const latinRuns = normalized.match(/[a-z0-9]{2,}/g) ?? [];
-  terms.push(...latinRuns);
+  for (const run of latinRuns) {
+    if (!STOPWORDS.has(run)) terms.push(run);
+  }
 
   const cjkRuns =
     normalized.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]+/gu) ?? [];
@@ -168,9 +170,36 @@ function queryTerms(query: string): string[] {
   return unique(terms).slice(0, 30);
 }
 
+/** Matches any CJK (Han / Hiragana / Katakana) character. */
+const CJK_RE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
+
+/**
+ * Whether `haystack` contains `term`.
+ *
+ * Root-cause fix for issue #223. Previously this was a raw substring
+ * containment, so a 2-char query token like "to" or "so" matched thousands of
+ * unrelated words ("to" ⊂ "history"/"story"; "so" ⊂ "person"/"wilson"), and
+ * weighted field stacking pushed that junk past the auto-injection gate.
+ *
+ * Now:
+ * - CJK terms (Han/Kana) have no whitespace word boundaries, so they still
+ *   match by compact substring — a CJK bigram matches inside a longer glued
+ *   CJK run, preserving the multilingual recall the vaults depend on.
+ * - Latin/ASCII terms require a WHOLE-WORD match: a spaceless haystack is a
+ *   single word (term must equal it), and a spaced haystack must contain the
+ *   term as a whole whitespace-delimited token. "to" still matches the word
+ *   "to" and "Go" still matches "Go", but no longer "history"/"story"/"person".
+ */
 function includesTerm(haystack: string, term: string): boolean {
   if (!haystack || !term) return false;
-  return haystack.includes(term) || compactText(haystack).includes(compactText(term));
+  const termCompact = compactText(term);
+  if (CJK_RE.test(termCompact)) {
+    return compactText(haystack).includes(termCompact);
+  }
+  if (!/\s/.test(haystack)) {
+    return compactText(haystack) === termCompact;
+  }
+  return haystack.split(/\s+/).some((t) => t === term || t === termCompact);
 }
 
 function scoreField(value: unknown, terms: string[], weight: number): number {
@@ -238,6 +267,51 @@ const STOPWORDS = new Set([
   "type",
   "used",
   "using",
+  // Common English function words (issue #223). These must not become scoring
+  // terms, or a natural-language prompt full of "to"/"so"/"the"/"did" pushes
+  // unrelated pages past the auto-injection gate. 2-letter acronyms that are
+  // NOT stopwords ("go", "pi", "sso") still match, as intended.
+  "to",
+  "so",
+  "did",
+  "do",
+  "does",
+  "and",
+  "or",
+  "but",
+  "a",
+  "an",
+  "i",
+  "it",
+  "its",
+  "is",
+  "are",
+  "was",
+  "be",
+  "am",
+  "for",
+  "on",
+  "at",
+  "by",
+  "as",
+  "if",
+  "in",
+  "of",
+  "up",
+  "out",
+  "not",
+  "no",
+  "can",
+  "has",
+  "had",
+  "me",
+  "my",
+  "you",
+  "your",
+  "we",
+  "our",
+  "us",
+  "too",
 ]);
 
 // ─── Chunk-Level Indexing ────────────────────────────
