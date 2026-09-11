@@ -607,6 +607,13 @@ Thanks to everyone who has contributed! This list is regenerated automatically b
                 </a>
             </td>
             <td align="center">
+                <a href="https://github.com/mdmayfield">
+                    <img src="https://avatars.githubusercontent.com/u/26154258?v=4" width="64;" alt="mdmayfield"/>
+                    <br />
+                    <sub><b>Matt Mayfield</b></sub>
+                </a>
+            </td>
+            <td align="center">
                 <a href="https://github.com/deestax">
                     <img src="https://avatars.githubusercontent.com/u/152369481?v=4" width="64;" alt="deestax"/>
                     <br />
