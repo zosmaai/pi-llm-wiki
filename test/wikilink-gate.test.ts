@@ -150,6 +150,50 @@ describe("wiki_ensure_page wikilink gate", () => {
   });
 });
 
+describe("wiki_ensure_page content frontmatter (#241)", () => {
+  it("consumes a leading YAML block, merges non-reserved fields, ignores reserved ones", async () => {
+    setMode("off"); // wikilink gate irrelevant here
+    const tool = capture((pi) => registerWikiEnsurePage(pi));
+    const content =
+      "---\ntags: [llm, wikis]\nstatus: active\ntitle: Wrong Title\nsources: nope\n---\n\nSome notes about wikis.";
+    const res = await tool.execute(
+      "t",
+      { type: "concept", title: "Wikis", content },
+      undefined,
+      undefined,
+      { cwd: wikiDir, hasUI: false },
+    );
+    expect(res.isError).toBeFalsy();
+    const file = join(getVaultPaths(wikiDir).wiki, "concepts", "wikis.md");
+    const text = readFileSync(file, "utf-8");
+    // exactly one frontmatter block, not a duplicate
+    expect(text.split("\n").filter((l) => l === "---")).toHaveLength(2);
+    expect(text).toContain("tags:\n  - llm\n  - wikis");
+    expect(text).toContain("status: active");
+    expect(text).toContain("title: Wikis"); // param title wins over content's
+    expect(text).not.toContain("Wrong Title");
+    expect(text).not.toContain("sources");
+    expect(text).toContain("Some notes about wikis.");
+  });
+
+  it("falls back to the template body when content is frontmatter-only", async () => {
+    setMode("off");
+    const tool = capture((pi) => registerWikiEnsurePage(pi));
+    const res = await tool.execute(
+      "t",
+      { type: "concept", title: "Tags Only", content: "---\ntags: [meta]\n---\n" },
+      undefined,
+      undefined,
+      { cwd: wikiDir, hasUI: false },
+    );
+    expect(res.isError).toBeFalsy();
+    const file = join(getVaultPaths(wikiDir).wiki, "concepts", "tags-only.md");
+    const text = readFileSync(file, "utf-8");
+    expect(text).toContain("tags:\n  - meta");
+    expect(text).toContain("# Tags Only"); // template body filled in
+  });
+});
+
 import { registerWikiRetro } from "../extensions/llm-wiki/lib/retro.js";
 
 describe("wiki_retro wikilink gate", () => {
