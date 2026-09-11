@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -56,15 +57,25 @@ export function saveObservation(
   const today = fmtDate();
   const timestamp = new Date().toISOString();
 
-  // Generate a slug from title
-  const slugBase = input.title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 60);
+  // Generate a slug from title. \p{L}\p{N} keeps non-Latin letters (CJK titles
+  // used to collapse to an empty slug and collide on one filename per day);
+  // every other character run becomes a separator, as before.
+  const slugBase =
+    input.title
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 60) || "untitled";
   const slug = `obs-${today}-${slugBase}`;
 
-  const pagePath = join(paths.wiki, "sources", `${slug}.md`);
+  // Never overwrite an existing observation: same-day identical slugs get a
+  // -2, -3, … suffix instead of silently replacing the earlier file.
+  let finalSlug = slug;
+  let pagePath = join(paths.wiki, "sources", `${finalSlug}.md`);
+  for (let n = 2; existsSync(pagePath); n++) {
+    finalSlug = `${slug}-${n}`;
+    pagePath = join(paths.wiki, "sources", `${finalSlug}.md`);
+  }
 
   const relevanceEmoji = RELEVANCE_EMOJIS[input.relevance] ?? "📝";
   const tags = input.tags ?? "";
@@ -80,11 +91,11 @@ ${input.content}
 *Observed: ${timestamp}*`;
 
   const doc = createKnowledgeDocument(
-    `sources/${slug}.md`,
+    `sources/${finalSlug}.md`,
     {
       type: "source",
       title: `Observation: ${input.title}`,
-      slug,
+      slug: finalSlug,
       status: "observation",
       created: today,
       updated: today,
@@ -100,7 +111,7 @@ ${input.content}
   // Log event
   appendEvent(paths, {
     kind: "observe",
-    slug,
+    slug: finalSlug,
     title: input.title,
     relevance: input.relevance,
   });
@@ -110,7 +121,7 @@ ${input.content}
   // a non-blocking reindex instead.
   if (opts?.rebuild !== false) rebuildMetadataLight(paths);
 
-  return { slug, pagePath };
+  return { slug: finalSlug, pagePath };
 }
 
 // ─── Shared Reminder State ────────────────────────────
