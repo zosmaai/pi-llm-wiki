@@ -748,7 +748,7 @@ git add docs/harnesses.md README.md
 git commit -m "docs: ingest lane + MCP sync semantics in harness matrix"
 ```
 
-- [ ] **Step 5: Push the branch + report**
+- [x] **Step 5: Push the branch + report**
 
 ```bash
 git push arjun-zosma HEAD:feat/mcp-tool-parity
