@@ -268,6 +268,13 @@ describe("MCP parity with shared services", () => {
       "wiki_reindex",
       "wiki_retro",
       "wiki_capture_source",
+      "wiki_ensure_page",
+      "wiki_lint",
+      "wiki_log_event",
+      "wiki_observe",
+      "wiki_rebuild_meta",
+      "wiki_reindex_embeddings",
+      "wiki_watch",
     ]);
   });
 

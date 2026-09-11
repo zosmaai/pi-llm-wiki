@@ -95,11 +95,18 @@ it("starts the published MCP command, exposes seven tools, and invokes operation
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "wiki_bootstrap",
       "wiki_capture_source",
+      "wiki_ensure_page",
+      "wiki_lint",
+      "wiki_log_event",
+      "wiki_observe",
+      "wiki_rebuild_meta",
       "wiki_recall",
       "wiki_reindex",
+      "wiki_reindex_embeddings",
       "wiki_retro",
       "wiki_search",
       "wiki_status",
+      "wiki_watch",
     ]);
 
     const status = await request(child, {
