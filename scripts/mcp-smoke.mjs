@@ -18,11 +18,20 @@ import { spawn } from "node:child_process";
 
 const REQUIRED_TOOLS = [
   "wiki_bootstrap",
-  "wiki_capture_source",
   "wiki_recall",
-  "wiki_retro",
   "wiki_search",
   "wiki_status",
+  "wiki_reindex",
+  "wiki_retro",
+  "wiki_capture_source",
+  "wiki_ensure_page",
+  "wiki_lint",
+  "wiki_log_event",
+  "wiki_observe",
+  "wiki_rebuild_meta",
+  "wiki_reindex_embeddings",
+  "wiki_watch",
+  "wiki_ingest",
 ];
 
 const TIMEOUT_MS = 30_000;

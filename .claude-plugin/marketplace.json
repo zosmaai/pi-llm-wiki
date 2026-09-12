@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "zosmaai",
+  "version": "1.0.0",
+  "description": "Zosma AI plugins for knowledge work and durable project memory.",
+  "owner": { "name": "Zosma AI", "url": "https://github.com/zosmaai" },
+  "plugins": [
+    {
+      "name": "llm-wiki",
+      "displayName": "LLM Wiki",
+      "description": "A self-maintaining, Obsidian-compatible LLM wiki with MCP tools and Claude guardrails.",
+      "source": { "source": "npm", "package": "@zosmaai/pi-llm-wiki" },
+      "category": "productivity",
+      "keywords": ["wiki", "memory", "mcp", "knowledge-base"]
+    }
+  ]
+}

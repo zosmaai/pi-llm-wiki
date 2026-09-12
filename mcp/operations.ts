@@ -10,8 +10,14 @@ import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { bootstrapVault } from "../extensions/llm-wiki/lib/bootstrap.js";
-import { reindexEmbeddings, resolveEmbedder } from "../extensions/llm-wiki/lib/embeddings.js";
-import { runIngestSynthesis } from "../extensions/llm-wiki/lib/ingest-worker.js";
+import {
+  type Embedder,
+  type EmbedStats,
+  embedPages,
+  reindexEmbeddings,
+  resolveEmbedder,
+} from "../extensions/llm-wiki/lib/embeddings.js";
+import { type CommitResult, runIngestSynthesis } from "../extensions/llm-wiki/lib/ingest-worker.js";
 import {
   createKnowledgeDocument,
   type KnowledgeValue,
@@ -628,6 +634,30 @@ export function observeOperation(
   };
 }
 
+/** Dependencies injectable for deterministic MCP ingest-lane tests. */
+export interface IngestLaneDeps {
+  embedder?: Embedder | null;
+  runSynthesis?: typeof runIngestSynthesis;
+}
+
+function committedPageIds(committed: CommitResult): string[] {
+  return [
+    `sources/${committed.sourceId}`,
+    ...committed.entitiesCreated.map((slug) => `entities/${slug}`),
+    ...committed.entitiesLinked.map((slug) => `entities/${slug}`),
+    ...committed.conceptsCreated.map((slug) => `concepts/${slug}`),
+    ...committed.conceptsLinked.map((slug) => `concepts/${slug}`),
+  ];
+}
+
+export async function embedCommittedPages(
+  paths: VaultPaths,
+  committed: CommitResult,
+  embedder: Embedder,
+): Promise<EmbedStats> {
+  return embedPages(paths, committedPageIds(committed), embedder);
+}
+
 /**
  * Shared ingest operation: the exact pi packet-selection rules, run
  * synchronously over the config-first lane. Mirrors pi's background=false
@@ -640,6 +670,7 @@ export async function ingestOperation(
     batch_size?: number;
     model?: string;
   },
+  deps: IngestLaneDeps = {},
 ): Promise<{ report: string; isError?: boolean }> {
   if (!existsSync(paths.rawSources)) {
     return {
@@ -680,6 +711,8 @@ export async function ingestOperation(
   }
 
   const config = loadTaskConfig(paths.root);
+  const runSynthesis = deps.runSynthesis ?? runIngestSynthesis;
+  const embedder = deps.embedder === undefined ? resolveEmbedder(config) : deps.embedder;
   const override = input.model ? parseModelRef(input.model) : undefined;
   const res = await resolveLaneModel(config, undefined, override);
   if (!res.ok) {
@@ -721,7 +754,7 @@ export async function ingestOperation(
     const manifestPath = join(paths.rawSources, id, "manifest.json");
     const extracted = existsSync(extractedPath) ? readFileSync(extractedPath, "utf-8") : "";
     const manifest: Record<string, unknown> = readJson(manifestPath, {});
-    const committed = await runIngestSynthesis({
+    const committed = await runSynthesis({
       model: res.model as Parameters<typeof runIngestSynthesis>[0]["model"],
       apiKey: res.apiKey,
       headers: res.headers,
@@ -736,9 +769,18 @@ export async function ingestOperation(
     });
     const wl = committed?.wikilinkDiagnostics?.length ?? 0;
     const wlNote = wl > 0 ? `, ${wl} wikilink issue${wl === 1 ? "" : "s"}` : "";
+    let embeddingNote = "";
+    if (committed && embedder) {
+      try {
+        const stats = await embedCommittedPages(paths, committed, embedder);
+        embeddingNote = `; embeddings: ${stats.embedded} embedded, ${stats.skipped} fresh`;
+      } catch {
+        embeddingNote = "; embedding refresh failed — run wiki_reindex_embeddings to retry";
+      }
+    }
     summaries.push(
       committed
-        ? `**${id}**: ingested → ${committed.entitiesCreated.length} entit${committed.entitiesCreated.length === 1 ? "y" : "ies"} created, ${committed.entitiesLinked.length} linked, ${committed.conceptsCreated.length} concept${committed.conceptsCreated.length === 1 ? "" : "s"} created, ${committed.conceptsLinked.length} linked${wlNote}`
+        ? `**${id}**: ingested → ${committed.entitiesCreated.length} entit${committed.entitiesCreated.length === 1 ? "y" : "ies"} created, ${committed.entitiesLinked.length} linked, ${committed.conceptsCreated.length} concept${committed.conceptsCreated.length === 1 ? "" : "s"} created, ${committed.conceptsLinked.length} linked${wlNote}${embeddingNote}`
         : `**${id}**: model produced no synthesis`,
     );
   }

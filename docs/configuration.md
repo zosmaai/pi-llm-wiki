@@ -56,6 +56,9 @@ present). A hand-authored `config.yml` is read but never rewritten.
 All of the above are viewable and editable in the `/wiki-settings` TUI (persists to project or global settings).
 | ---------------------- | ---------- | ------------------------------------------------------------ |
 | `taskModel`            | —          | Model for background tasks (`{ provider: "openai", id: "gpt-4o" }`) |
+| `taskModelBaseUrl`      | —          | OpenAI-compatible base URL used by the MCP ingest lane |
+| `taskModelApiKey`       | —          | Literal MCP task-model key; prefer `taskModelApiKeyEnv` |
+| `taskModelApiKeyEnv`    | —          | Environment variable name holding the MCP task-model key |
 | `synthesisLanguage`    | —          | BCP 47 language tag for ingest synthesis (e.g. `"ru"`, `"fr"`). When unset, synthesis defaults to English. |
 | `synthesisMaxTokens`     | 16384    | Max output tokens for ingest/synthesis runs (stored as a plain number)                        |
 | `wikilinkValidation`   | warn       | Pre-write wikilink gate for page writes (ingest, `wiki_ensure_page`, `wiki_retro`, MCP `wiki_retro`). `off` ignore, `warn` report, `normalize` rewrite resolvable links, `strict` block writes with unresolved/ambiguous links |
@@ -70,6 +73,10 @@ All of the above are viewable and editable in the `/wiki-settings` TUI (persists
 | `embeddingBaseUrl`     | —        | Optional API base URL override for the embedding provider                                     |
 | `embeddingApiKey`      | —        | API key literal — prefer `embeddingApiKeyEnv` so no secret lands in settings                  |
 | `embeddingApiKeyEnv`   | —        | Name of the environment variable holding the embedding API key                                |
+
+`taskModelBaseUrl`, `taskModelApiKey`, and `taskModelApiKeyEnv` are additive
+settings for the MCP host's synchronous ingest lane. Pi still resolves its
+session model through the host's model registry.
 
 Example:
 

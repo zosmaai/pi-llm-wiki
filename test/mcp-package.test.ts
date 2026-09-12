@@ -48,7 +48,7 @@ async function request(
   return nextMessage(child);
 }
 
-it("starts the published MCP command, exposes seven tools, and invokes operations", async () => {
+it("starts the published MCP command, exposes all 15 tools, and invokes operations", async () => {
   const pkg = JSON.parse(readFile(join(rootDir, "package.json"))) as {
     pi: { mcpservers: Record<string, string> };
   };

@@ -116,7 +116,8 @@ export async function resolveLaneModel(
   providerFactory: ProviderFactory = defaultProviderFactory,
   override?: { provider: string; id: string },
 ): Promise<ResolveResult> {
-  const { runtime, modelRegistry } = buildLane(config, providerFactory);
+  const effectiveConfig = override ? { ...config, taskModel: override } : config;
+  const { runtime, modelRegistry } = buildLane(effectiveConfig, providerFactory);
   return runtime.resolveModel(
     { model: undefined, modelRegistry, hasUI: false } as ResolveCtx,
     override,
