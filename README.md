@@ -63,6 +63,29 @@ omp install @zosmaai/pi-llm-wiki
 Both hosts load the same extension, skill, and `/wiki-*` slash commands — see
 [Dual-host support](#dual-host-support-pi--oh-my-pi) for what differs.
 
+### Other harnesses via MCP
+
+Claude Code, Codex, Cursor, Windsurf, Zed, Cline, and other MCP-capable
+harnesses use the packaged stdio server. Start with the Claude marketplace:
+
+```text
+/plugin marketplace add https://github.com/zosmaai/pi-llm-wiki
+/plugin install llm-wiki@zosmaai
+/reload-plugins
+```
+
+For every other MCP client, install the package and register
+`dist/mcp/index.js` as a local stdio server:
+
+```bash
+npm install --save-dev @zosmaai/pi-llm-wiki@latest
+```
+
+Use the client-specific JSON/TOML examples in
+[`docs/harnesses.md`](docs/harnesses.md). They cover Codex CLI, Cursor,
+Windsurf, Zed, Cline, and a generic MCP configuration. Set `WIKI_ROOT` to pin
+the vault; use an absolute server path because MCP clients do not expand `~`.
+
 The extension will proactively suggest creating a wiki on your first session. Alternatively:
 
 ```
