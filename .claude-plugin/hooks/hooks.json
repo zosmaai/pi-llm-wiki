@@ -1,6 +1,17 @@
 {
-  "description": "Block direct edits to .llm-wiki/raw and .llm-wiki/meta so model writes go through wiki tools",
+  "description": "Surface project wiki context at Claude session start and block direct edits to raw/meta",
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/claude-session-start.mjs\""
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Write|Edit",

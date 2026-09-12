@@ -367,13 +367,21 @@ The package ships a standalone MCP server exposing 15 wiki tools over stdio:
 
 | Tool | Description |
 |------|-------------|
-| `wiki_bootstrap` | Initialize a new wiki vault with config, templates, schema, and metadata |
-| `wiki_recall` | Search wiki for task-relevant pages |
-| `wiki_search` | Full registry search |
-| `wiki_status` | Wiki stats (page counts, type breakdown) |
-| `wiki_retro` | Save atomic insights |
-| `wiki_capture_source` | Capture text as a source packet |
-| `wiki_ingest` | Process source packets synchronously using the configured `llm-wiki.taskModel*` settings |
+| `wiki_bootstrap` | Initialize a vault |
+| `wiki_recall` | Search relevant wiki pages |
+| `wiki_search` | Search the registry |
+| `wiki_status` | Show wiki health and counts |
+| `wiki_retro` | Save an atomic insight |
+| `wiki_capture_source` | Capture a source packet |
+| `wiki_ingest` | Synthesize captured sources synchronously over the configured task model |
+| `wiki_reindex` | Rebuild/repair QMD indexes |
+| `wiki_ensure_page` | Safely create a canonical page |
+| `wiki_lint` | Run deterministic health checks |
+| `wiki_log_event` | Append an activity event |
+| `wiki_observe` | Save a timestamped observation |
+| `wiki_rebuild_meta` | Rebuild metadata projections |
+| `wiki_reindex_embeddings` | Refresh semantic embeddings |
+| `wiki_watch` | Print an update cron line |
 
 ### Usage
 
@@ -386,6 +394,14 @@ WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js
 ```
 
 Set `WIKI_ROOT` to your wiki vault directory. If unset, the server auto-detects from the current working directory.
+
+### Claude marketplace installation
+
+```text
+/plugin marketplace add https://github.com/zosmaai/pi-llm-wiki
+/plugin install llm-wiki@zosmaai
+/reload-plugins
+```
 
 ### Client configuration
 
