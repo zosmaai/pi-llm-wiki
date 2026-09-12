@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
@@ -73,6 +73,19 @@ it("does not treat WIKI_HOME as a project vault", () => {
   expect(runHook({ cwd: project, source: "startup" }, { WIKI_HOME: personal })).toBe("");
 });
 
+it("excludes a personal vault reached through a symlinked WIKI_HOME", () => {
+  const sandbox = mkdtempSync(join(rootDir, "tmp", "claude-session-symlink-"));
+  temporaryRoots.push(sandbox);
+  const realHome = join(sandbox, "real-home");
+  const linkedHome = join(sandbox, "linked-home");
+  const project = join(linkedHome, "projects", "empty");
+  mkdirSync(join(realHome, ".llm-wiki"), { recursive: true });
+  writeFileSync(join(realHome, ".llm-wiki", "config.json"), "{}");
+  symlinkSync(realHome, linkedHome, "dir");
+  mkdirSync(project, { recursive: true });
+  expect(runHook({ cwd: project, source: "startup" }, { WIKI_HOME: linkedHome })).toBe("");
+});
+
 it("keeps notice and process switches independently testable", () => {
   const active = createVault();
   mkdirSync(join(active, ".pi"), { recursive: true });
@@ -99,6 +112,13 @@ it("is silent for no vault, malformed input, and null input", () => {
   expect(execFileSync(process.execPath, [script], { input: "null", encoding: "utf8" })).toBe("");
 
   const active = createVault();
+  expect(
+    execFileSync(process.execPath, [script], {
+      cwd: active,
+      input: JSON.stringify({ source: "startup" }),
+      encoding: "utf8",
+    }),
+  ).toBe("");
   expect(
     execFileSync(process.execPath, [script], {
       cwd: active,

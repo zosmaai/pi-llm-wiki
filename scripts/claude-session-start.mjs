@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -22,6 +22,16 @@ function readStdin() {
   });
 }
 
+function physicalPath(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    const parent = resolve(path, "..");
+    if (parent === path) return resolve(path);
+    return join(physicalPath(parent), path.slice(parent.length + 1));
+  }
+}
+
 function projectVaultRoot(cwd) {
   const configured = process.env.WIKI_ROOT?.trim();
   if (configured) {
@@ -31,13 +41,13 @@ function projectVaultRoot(cwd) {
 
   const personalBase = process.env.WIKI_HOME || homedir();
   const personalRoots = new Set([
-    resolve(join(personalBase, ".llm-wiki")),
-    resolve(join(homedir(), ".llm-wiki")),
+    physicalPath(join(personalBase, ".llm-wiki")),
+    physicalPath(join(homedir(), ".llm-wiki")),
   ]);
   let current = resolve(cwd);
   while (true) {
     const candidate = join(current, ".llm-wiki");
-    if (!personalRoots.has(resolve(candidate)) && existsSync(join(candidate, "config.json"))) {
+    if (!personalRoots.has(physicalPath(candidate)) && existsSync(join(candidate, "config.json"))) {
       return current;
     }
     const parent = resolve(current, "..");

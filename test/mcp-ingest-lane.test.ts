@@ -10,7 +10,7 @@ import {
 } from "../extensions/llm-wiki/lib/ingest-worker.js";
 import { loadTaskConfig } from "../extensions/llm-wiki/lib/task-config.js";
 import { ensureVaultStructure, getVaultPaths } from "../extensions/llm-wiki/lib/utils.js";
-import { resolveLaneModel } from "../mcp/model-lane.js";
+import { defaultProviderFactory, resolveLaneModel } from "../mcp/model-lane.js";
 import { ingestOperation } from "../mcp/operations.js";
 
 const FAUX_PROVIDER = "faux";
@@ -86,6 +86,32 @@ it("resolveLaneModel degrades gracefully when no model is configured", async () 
   const bare = { ...cfg, taskModel: undefined };
   const res = await resolveLaneModel(bare, fauxFactory);
   expect(res.ok).toBe(false);
+});
+
+it("resolveLaneModel registers a per-call override without configured taskModel", async () => {
+  const res = await resolveLaneModel(
+    { taskModelApiKey: "test-key", taskModelBaseUrl: "http://localhost" },
+    defaultProviderFactory,
+    { provider: "override-provider", id: "override-model" },
+  );
+  expect(res.ok).toBe(true);
+  if (res.ok)
+    expect(res.model).toMatchObject({ provider: "override-provider", id: "override-model" });
+});
+
+it("resolveLaneModel registers a different per-call provider and model", async () => {
+  const res = await resolveLaneModel(
+    {
+      taskModel: { provider: "configured-provider", id: "configured-model" },
+      taskModelApiKey: "test-key",
+      taskModelBaseUrl: "http://localhost",
+    },
+    defaultProviderFactory,
+    { provider: "override-provider", id: "override-model" },
+  );
+  expect(res.ok).toBe(true);
+  if (res.ok)
+    expect(res.model).toMatchObject({ provider: "override-provider", id: "override-model" });
 });
 
 it("ingestOperation reports when the vault has no raw packets at all", async () => {
