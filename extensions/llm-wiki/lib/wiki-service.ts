@@ -34,6 +34,15 @@ export interface RegistrySearchResult {
   diagnostics: KnowledgeDiagnostic[];
 }
 
+export interface RegistrySearchFilters {
+  type?: string;
+  state?: string;
+  status?: string;
+  category?: string;
+  domain?: string;
+  tags?: string[];
+}
+
 export interface WikiStatusSnapshot {
   knowledgeFormat: KnowledgeFormat;
   totalPages: number;
@@ -51,8 +60,8 @@ export interface WikiStatusSnapshot {
  */
 export function searchRegistry(
   paths: VaultPaths,
-  query: string,
-  typeFilter?: string,
+  query = "",
+  filters: RegistrySearchFilters = {},
 ): RegistrySearchResult {
   const diagnostics: KnowledgeDiagnostic[] = [];
   const vaultState = inspectVaultFormat(paths);
@@ -73,13 +82,10 @@ export function searchRegistry(
   const matches: Array<{ id: string; title: string; type: string }> = [];
 
   for (const [id, entry] of Object.entries(registry.pages)) {
-    // Apply type filter
-    if (typeFilter && String(entry.type).toLowerCase() !== typeFilter.toLowerCase()) {
-      continue;
-    }
+    if (!matchesFilters(entry, filters)) continue;
 
-    // Check if query matches any searchable field
-    if (matchesField(id, entry, normalizedQuery)) {
+    // An empty query returns every page matching the structured filters.
+    if (!normalizedQuery || matchesField(id, entry, normalizedQuery)) {
       matches.push({
         id,
         title: String(entry.title || id),
@@ -92,6 +98,29 @@ export function searchRegistry(
   matches.sort((a, b) => compareCodePoint(a.id, b.id));
 
   return { matches, diagnostics };
+}
+
+function matchesFilters(
+  entry: Record<string, unknown>,
+  filters: RegistrySearchFilters,
+): boolean {
+  for (const field of ["type", "state", "status", "category", "domain"] as const) {
+    const filter = filters[field];
+    if (filter && String(entry[field] ?? "").toLowerCase() !== filter.toLowerCase()) {
+      return false;
+    }
+  }
+
+  if (filters.tags?.length) {
+    const entryTags = Array.isArray(entry.tags)
+      ? entry.tags.map((tag) => String(tag).toLowerCase())
+      : typeof entry.tags === "string"
+        ? [entry.tags.toLowerCase()]
+        : [];
+    if (!filters.tags.every((tag) => entryTags.includes(tag.toLowerCase()))) return false;
+  }
+
+  return true;
 }
 
 function matchesField(id: string, entry: Record<string, unknown>, query: string): boolean {

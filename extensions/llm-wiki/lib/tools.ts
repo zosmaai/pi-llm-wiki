@@ -816,17 +816,31 @@ export function registerWikiSearch(pi: ExtensionAPI): void {
     promptSnippet: "Search the wiki registry for pages",
     promptGuidelines: ["Use wiki_search to find existing pages before creating duplicates."],
     parameters: Type.Object({
-      query: Type.String({ description: "Search term" }),
+      query: Type.Optional(Type.String({ description: "Keyword search across registry fields" })),
       type: Type.Optional(Type.String({ description: "Filter by page type" })),
+      state: Type.Optional(Type.String({ description: "Filter by state" })),
+      status: Type.Optional(Type.String({ description: "Filter by status" })),
+      category: Type.Optional(Type.String({ description: "Filter by category" })),
+      domain: Type.Optional(Type.String({ description: "Filter by domain" })),
+      tags: Type.Optional(
+        Type.Array(Type.String(), { description: "Require all specified tags" }),
+      ),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const paths = getPaths(ctx.cwd);
-      const result = searchRegistry(paths, params.query, params.type);
+      const result = searchRegistry(paths, params.query ?? "", {
+        type: params.type,
+        state: params.state,
+        status: params.status,
+        category: params.category,
+        domain: params.domain,
+        tags: params.tags,
+      });
 
       if (result.matches.length === 0) {
         return {
-          content: [{ type: "text", text: `No pages found for "${params.query}"` }],
-          details: { query: params.query, matches: [], diagnostics: result.diagnostics } as Record<
+          content: [{ type: "text", text: `No pages found for "${params.query ?? ""}"` }],
+          details: { query: params.query ?? "", matches: [], diagnostics: result.diagnostics } as Record<
             string,
             unknown
           >,
@@ -838,14 +852,14 @@ export function registerWikiSearch(pi: ExtensionAPI): void {
           {
             type: "text",
             text: [
-              `🔍 **${result.matches.length} result(s)** for "${params.query}":`,
+              `🔍 **${result.matches.length} result(s)** for "${params.query ?? ""}":`,
               "",
               ...result.matches.map((m) => `- [[${m.id}]] — *${m.type}* — ${m.title}`),
             ].join("\n"),
           },
         ],
         details: {
-          query: params.query,
+          query: params.query ?? "",
           matches: result.matches,
           diagnostics: result.diagnostics,
         } as Record<string, unknown>,
