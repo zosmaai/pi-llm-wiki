@@ -37,16 +37,32 @@ execSync("pnpm test", { stdio: "inherit" });
 const pkgPath = path.join(__dirname, "..", "package.json");
 const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
 const current = pkg.version;
-const [major, minor, patch] = current.split(".").map(Number);
+const releaseTags = execSync("git tag --merged HEAD --list 'v*' --sort=-version:refname", {
+  encoding: "utf-8",
+})
+  .split(/\r?\n/)
+  .map((tag) => tag.trim())
+  .filter((tag) => /^v\d+\.\d+\.\d+$/.test(tag));
+const latestTagVersion = releaseTags[0]?.slice(1) ?? current;
+const [major, minor, patch] = latestTagVersion.split(".").map(Number);
 
 let next;
 if (bump === "major") next = `${major + 1}.0.0`;
 else if (bump === "minor") next = `${major}.${minor + 1}.0`;
 else next = `${major}.${minor}.${patch + 1}`;
 
+if (execSync(`git tag --list "v${next}"`, { encoding: "utf-8" }).trim()) {
+  console.error(`Error: release tag v${next} already exists`);
+  process.exit(1);
+}
+
 // Update package.json
 pkg.version = next;
 fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf-8");
+const pluginPath = path.join(__dirname, "..", ".claude-plugin", "plugin.json");
+const plugin = JSON.parse(fs.readFileSync(pluginPath, "utf-8"));
+plugin.version = next;
+fs.writeFileSync(pluginPath, `${JSON.stringify(plugin, null, 2)}\n`, "utf-8");
 
 // Update CHANGELOG
 const changelogPath = path.join(__dirname, "..", "CHANGELOG.md");
@@ -65,9 +81,9 @@ if (changelog.includes("## [Unreleased]")) {
 }
 fs.writeFileSync(changelogPath, changelog, "utf-8");
 
-// Tag the current commit (no commit — tags are the release source of truth)
+execSync("git add package.json CHANGELOG.md .claude-plugin/plugin.json", { stdio: "inherit" });
+execSync(`git commit -m "chore(release): v${next}"`, { stdio: "inherit" });
 execSync(`git tag v${next}`, { stdio: "inherit" });
-
-console.log(`\n✅ Tagged v${next} at current HEAD`);
-console.log("Run the following to publish:");
-console.log(`  git push origin v${next}`);
+console.log(`\n✅ Committed and tagged v${next}`);
+console.log("Push main and the tag; the existing release workflow publishes the package:");
+console.log(`  git push origin main v${next}`);

@@ -42,10 +42,18 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
-      - name: Update package.json version
+      - name: Verify package and plugin versions
         run: |
-          node -e "const p=require('./package.json'); p.version='${{ steps.version.outputs.VERSION }}'; require('fs').writeFileSync('./package.json', JSON.stringify(p, null, 2)+'\n')"
-          npx biome check --fix package.json 2>&1
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const expected = process.env.RELEASE_VERSION;
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          const plugin = JSON.parse(fs.readFileSync(".claude-plugin/plugin.json", "utf8"));
+          if (pkg.version !== expected) throw new Error(`package.json is ${pkg.version}, tag is ${expected}`);
+          if (plugin.version !== expected) throw new Error(`plugin.json is ${plugin.version}, tag is ${expected}`);
+          NODE
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
 
 
       - name: Generate Release Notes
@@ -77,7 +85,7 @@ jobs:
 
             ### What's Included
             - **Skill**: Self-maintaining wiki schema (SKILL.md)
-            - **Extension**: 10 TypeScript tools (wiki_bootstrap, wiki_capture_source, wiki_ingest, wiki_ensure_page, wiki_search, wiki_lint, wiki_status, wiki_rebuild_meta, wiki_log_event, wiki_watch)
+            - **Extension**: 14 always-on Pi tools, 3 opt-in trajectory tools, and 15 MCP tools
             - **Prompt Templates**: 8 slash commands (/wiki:init, :ingest, :query, :lint, :discover, :run, :status, :digest)
             - **Templates**: INDEX.md, LOG.md, DASHBOARD.md, config.yaml, 5 page templates
           generate_release_notes: false
