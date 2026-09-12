@@ -104,26 +104,34 @@ it("ingestOperation reports when every source is already ingested", async () => 
 });
 
 it("ingestOperation falls back to self-synthesize instructions when the lane has no model", async () => {
-  // Rewrite settings WITHOUT taskModel so the lane degrades.
-  writeFileSync(
-    join(root, ".pi", "settings.json"),
-    JSON.stringify({ "llm-wiki": { mode: "personal" } }),
-  );
-  const paths = getVaultPaths(root);
-  mkdirSync(join(paths.rawSources, "SRC-2026-09-11-001"), { recursive: true });
-  writeFileSync(join(paths.rawSources, "SRC-2026-09-11-001", "extracted.md"), "hello world");
-  writeFileSync(
-    join(paths.rawSources, "SRC-2026-09-11-001", "manifest.json"),
-    JSON.stringify({
-      kind: "text",
-      title: "Lane Test",
-      captured_at: "2026-09-11T00:00:00Z",
-    }),
-  );
-  const res = await ingestOperation(paths, {});
-  expect(res.isError).toBeUndefined();
-  expect(res.report).toContain("synthesize these sources yourself");
-  expect(res.report).toContain("SRC-2026-09-11-001");
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  const isolatedAgentDir = join(root, "agent");
+  mkdirSync(isolatedAgentDir, { recursive: true });
+  process.env.PI_CODING_AGENT_DIR = isolatedAgentDir;
+  try {
+    writeFileSync(
+      join(root, ".pi", "settings.json"),
+      JSON.stringify({ "llm-wiki": { mode: "personal" } }),
+    );
+    const paths = getVaultPaths(root);
+    mkdirSync(join(paths.rawSources, "SRC-2026-09-11-001"), { recursive: true });
+    writeFileSync(join(paths.rawSources, "SRC-2026-09-11-001", "extracted.md"), "hello world");
+    writeFileSync(
+      join(paths.rawSources, "SRC-2026-09-11-001", "manifest.json"),
+      JSON.stringify({
+        kind: "text",
+        title: "Lane Test",
+        captured_at: "2026-09-11T00:00:00Z",
+      }),
+    );
+    const res = await ingestOperation(paths, {});
+    expect(res.isError).toBeUndefined();
+    expect(res.report).toContain("synthesize these sources yourself");
+    expect(res.report).toContain("SRC-2026-09-11-001");
+  } finally {
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+  }
 });
 
 it("embeds pages written by each successful MCP synthesis", async () => {
@@ -134,6 +142,11 @@ it("embeds pages written by each successful MCP synthesis", async () => {
   writeFileSync(
     join(paths.rawSources, sourceId, "manifest.json"),
     JSON.stringify({ id: sourceId, title: "Embedding Lane Test", format: "text" }),
+  );
+  mkdirSync(join(paths.wiki, "concepts"), { recursive: true });
+  writeFileSync(
+    join(paths.wiki, "concepts", "unrelated.md"),
+    "---\ntype: concept\ntitle: Unrelated\nstatus: active\n---\n\n# Unrelated\n",
   );
 
   const calls: string[][] = [];
@@ -154,6 +167,7 @@ it("embeds pages written by each successful MCP synthesis", async () => {
   const store = readEmbeddingStore(paths);
   expect(store.entries[`sources/${sourceId}`]).toBeDefined();
   expect(store.entries["entities/test-entity"]).toBeDefined();
+  expect(store.entries["concepts/unrelated"]).toBeUndefined();
 });
 
 it("keeps a committed synthesis successful when post-commit embedding fails", async () => {

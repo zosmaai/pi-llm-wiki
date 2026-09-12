@@ -127,18 +127,17 @@ describe("MCP parity with shared services", () => {
   });
 
   it("recall uses layered search: MCP returns personal vault results when project vault has no matches", async () => {
-    // Arrange: search for a term that exists in personal vault but not in the temp project vault
+    const previousWikiHome = process.env.WIKI_HOME;
+    const personalRoot = join(tmpDir, "personal");
+    process.env.WIKI_HOME = personalRoot;
     const personalVault = getPersonalWikiPaths();
-    const personalExists = existsSync(join(personalVault.dotWiki, "config.json"));
-    if (!personalExists) {
-      // skip if no personal vault
-      return;
-    }
+    ensureVaultStructure(personalVault);
+    writeFileSync(
+      join(personalVault.dotWiki, "config.json"),
+      JSON.stringify({ topic: "Personal test", mode: "personal" }),
+    );
 
-    // Use a known unique term from personal vault
     const uniqueTerm = "mcp-layered-test";
-
-    // Create a test page in personal vault with this unique term
     const personalPagePath = join(personalVault.wiki, "concepts", "mcp-layered-test.md");
     mkdirSync(join(personalVault.wiki, "concepts"), { recursive: true });
     writeFileSync(
@@ -148,17 +147,15 @@ describe("MCP parity with shared services", () => {
     rebuildMetadata(personalVault);
 
     try {
-      // Act: search from project vault for term that only exists in personal vault
       const mcpRecall = await recallOperation(paths, uniqueTerm, 10);
-
-      // Assert: should find the personal vault page
       const found = mcpRecall.results.find((r) => r.id === "concepts/mcp-layered-test");
       expect(found).toBeDefined();
       expect(found?.vaultLabel).toBe("📓 personal");
     } finally {
-      // Cleanup
-      rmSync(personalPagePath);
+      rmSync(personalPagePath, { force: true });
       rebuildMetadata(personalVault);
+      if (previousWikiHome === undefined) delete process.env.WIKI_HOME;
+      else process.env.WIKI_HOME = previousWikiHome;
     }
   }, 60_000);
 
@@ -264,7 +261,7 @@ describe("MCP parity with shared services", () => {
     }
   });
 
-  it("exactly seven tools registered", () => {
+  it("all 15 MCP tools are registered", () => {
     const source = readFileSync(join(import.meta.dirname, "..", "mcp", "index.ts"), "utf-8");
     const tools = [...source.matchAll(/server\.registerTool\(\s*"([^"]+)"/g)].map((m) => m[1]);
     expect(tools).toEqual([

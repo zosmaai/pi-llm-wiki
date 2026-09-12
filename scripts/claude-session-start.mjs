@@ -34,7 +34,7 @@ function projectVaultRoot(cwd) {
     resolve(join(personalBase, ".llm-wiki")),
     resolve(join(homedir(), ".llm-wiki")),
   ]);
-  let current = resolve(cwd || process.cwd());
+  let current = resolve(cwd);
   while (true) {
     const candidate = join(current, ".llm-wiki");
     if (!personalRoots.has(resolve(candidate)) && existsSync(join(candidate, "config.json"))) {
@@ -90,9 +90,9 @@ try {
   process.exit(0);
 }
 if (!event || typeof event !== "object" || Array.isArray(event)) process.exit(0);
+if (typeof event.cwd !== "string" || !event.cwd.trim()) process.exit(0);
 
-const cwd = typeof event.cwd === "string" ? event.cwd : process.cwd();
-const root = projectVaultRoot(cwd);
+const root = projectVaultRoot(event.cwd);
 if (!root || noticesDisabled(root)) process.exit(0);
 
 const stats = vaultStats(root);

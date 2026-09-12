@@ -97,9 +97,19 @@ it("is silent for no vault, malformed input, and null input", () => {
     "",
   );
   expect(execFileSync(process.execPath, [script], { input: "null", encoding: "utf8" })).toBe("");
+
+  const active = createVault();
   expect(
     execFileSync(process.execPath, [script], {
+      cwd: active,
       input: JSON.stringify({ cwd: { malformed: true } }),
+      encoding: "utf8",
+    }),
+  ).toBe("");
+  expect(
+    execFileSync(process.execPath, [script], {
+      cwd: active,
+      input: JSON.stringify({ cwd: "   " }),
       encoding: "utf8",
     }),
   ).toBe("");
