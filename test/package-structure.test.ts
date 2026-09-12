@@ -41,6 +41,36 @@ describe("package structure", () => {
     ]);
   });
 
+  it("keeps Claude plugin and marketplace metadata aligned with the package", () => {
+    const pkg = JSON.parse(readFile(join(rootDir, "package.json"))) as {
+      name: string;
+      version: string;
+      files: string[];
+    };
+    const plugin = JSON.parse(readFile(join(rootDir, ".claude-plugin", "plugin.json")));
+    const marketplace = JSON.parse(readFile(join(rootDir, ".claude-plugin", "marketplace.json")));
+    expect(plugin.version).toBe(pkg.version);
+    expect(plugin.mcpServers).toBe("./.mcp.json");
+    expect(plugin.hooks).toBe("./hooks/hooks.json");
+    for (const path of [
+      ".claude-plugin",
+      "hosts",
+      "scripts/claude-session-start.mjs",
+      "scripts/guard-llm-wiki-edit.mjs",
+    ]) {
+      expect(pkg.files).toContain(path);
+    }
+    expect(marketplace.plugins).toContainEqual({
+      name: "llm-wiki",
+      displayName: "LLM Wiki",
+      description:
+        "A self-maintaining, Obsidian-compatible LLM wiki with MCP tools and Claude guardrails.",
+      source: { source: "npm", package: pkg.name },
+      category: "productivity",
+      keywords: ["wiki", "memory", "mcp", "knowledge-base"],
+    });
+  });
+
   // oh-my-pi reads `package.json#omp` first and only falls back to `#pi`
   // (its extensibility/plugins/loader.ts: `pluginPkg.omp || pluginPkg.pi`),
   // and its marketplace docs name `omp.extensions` explicitly.
