@@ -17,20 +17,6 @@
 
 <br/>
 
-<div align="center">
-  <a href="https://github.com/zosmaai/pi-llm-wiki/stargazers">
-    <img src="./assets/thank-you-for-the-star.png" alt="Thank you for starring pi-llm-wiki!" width="100%" />
-  </a>
-  <br/>
-  <sub>
-    If you find pi-llm-wiki useful,
-    <a href="https://github.com/zosmaai/pi-llm-wiki">⭐ star the repo</a> —
-    it lets us know we're building something that matters.
-  </sub>
-</div>
-
-<br/>
-
 **Selbstverwaltende, Obsidian-kompatible Wissensdatenbank für [pi](https://pi.dev). Folgt Andrej Karpathys LLM Wiki-Muster.**
 Follows Andrej Karpathy's [LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 
@@ -58,11 +44,45 @@ Starte mit einem neuen OKF-Vault oder verweise pi-llm-wiki auf einen bestehenden
 
 ---
 
-## Schnellstart
+## Quick Start
+
+**pi** ([`@mariozechner/pi-coding-agent`](https://github.com/badlogic/pi-mono)):
 
 ```bash
 pi install npm:@zosmaai/pi-llm-wiki
 ```
+
+**oh-my-pi** ([`omp`](https://github.com/can1357/oh-my-pi)):
+
+```bash
+omp install @zosmaai/pi-llm-wiki
+```
+
+Both hosts load the same extension, skill, and `/wiki-*` slash commands — see
+[Dual-host support](#dual-host-support-pi--oh-my-pi) for what differs.
+
+### Other harnesses via MCP
+
+Claude Code, Codex, Cursor, Windsurf, Zed, Cline, and other MCP-capable
+harnesses use the packaged stdio server. Start with the Claude marketplace:
+
+```text
+/plugin marketplace add https://github.com/zosmaai/pi-llm-wiki
+/plugin install llm-wiki@zosmaai
+/reload-plugins
+```
+
+For every other MCP client, install the package and register
+`dist/mcp/index.js` as a local stdio server:
+
+```bash
+npm install --save-dev @zosmaai/pi-llm-wiki@latest
+```
+
+Use the client-specific JSON/TOML examples in
+[`docs/harnesses.md`](docs/harnesses.md). They cover Codex CLI, Cursor,
+Windsurf, Zed, Cline, and a generic MCP configuration. Set `WIKI_ROOT` to pin
+the vault; use an absolute server path because MCP clients do not expand `~`.
 
 The extension will proactively suggest creating a wiki on your first session. Alternatively:
 
@@ -109,7 +129,7 @@ Das Ergebnis ist ein Wiki, das wächst, während du Quellen erfasst, Fragen stel
 | 📝 **Obsidian-friendly** | Folder-qualified wikilinks, stable source-ID citations, compatible vault |
 | 🛡️ **Guardrails** | Blocks direct edits to raw sources and generated metadata |
 | 🔧 **Configurable PDF extraction** | MarkItDown timeout via `WIKI_MARKITDOWN_TIMEOUT_MS` env var |
-| 🧪 **562 tests, 85.09% coverage, CI, CodeQL** | TypeScript, Vitest, Biome, Codecov |
+| 🧪 **Quality checks** | TypeScript, Vitest, Biome, Codecov, CodeQL |
 
 ---
 
@@ -163,7 +183,7 @@ Das Ergebnis ist ein Wiki, das wächst, während du Quellen erfasst, Fragen stel
 
 ---
 
-## Geschichtete Vault-Architektur
+## Layered Vault Architecture
 
 Knowledge follows you everywhere. pi-llm-wiki uses a layered vault system:
 
@@ -173,7 +193,7 @@ Knowledge follows you everywhere. pi-llm-wiki uses a layered vault system:
 | 📁 **Project** | `{project}/.llm-wiki/` | Explicit opt-in. Dedicated wiki per project, sharing personal knowledge when relevant. |
 | 🏢 **Company** (future) | git-tracked | Shared wiki across a team. `wiki_publish` promotes personal/project pages to the company wiki. |
 
-**So funktioniert es:**
+**How it works:**
 
 1. `resolveVaultRoot()` checks: cwd → walk up for `.llm-wiki/` → `~/.llm-wiki/`
 2. `wiki_recall` (layered) searches **both** personal and project vaults, merging results with vault labels
@@ -185,9 +205,9 @@ This means: you can have a project wiki for team documentation **and** a persona
 
 ---
 
-## Schnellstart (Detailiert)
+## Quick Start (Detailed)
 
-### 1) Neues Wiki erstellen
+### 1) Create a new wiki
 
 ```bash
 mkdir my-wiki
@@ -195,7 +215,7 @@ cd my-wiki
 pi
 ```
 
-Frage pi:
+Ask pi:
 
 ```
 Initialize an llm wiki here for AI research.
@@ -213,7 +233,7 @@ This calls `wiki_bootstrap` and creates:
 └── WIKI_SCHEMA.md
 ```
 
-### 2) Quelle erfassen
+### 2) Capture a source
 
 ```
 Capture this article into the wiki: https://example.com/some-article
@@ -227,7 +247,7 @@ Capture this PDF into the wiki: ./papers/context-windows.pdf
 Capture these notes into the wiki: ...pasted text...
 ```
 
-### 3) Quelle integrieren
+### 3) Integrate the source
 
 1. Capture the source
 2. Read `.llm-wiki/wiki/sources/SRC-*.md`
@@ -237,7 +257,7 @@ Capture these notes into the wiki: ...pasted text...
 6. Update concept / entity / synthesis pages with citations
 7. Mark the integration with `wiki_log_event kind=integrate`
 
-### 4) Wiki abfragen
+### 4) Query the wiki
 
 ```
 Based on the wiki, what are the main tradeoffs between long-context models and RAG?
@@ -251,7 +271,7 @@ Answer the question and file the result as an analysis page.
 
 ---
 
-## Vault-Layout
+## Vault Layout
 
 ```
 my-wiki/
@@ -281,7 +301,7 @@ my-wiki/
    └─ WIKI_SCHEMA.md               # Operating manual
 ```
 
-### Eigentumsmodell
+### Ownership Model
 
 | Path | Owner | Rule |
 |------|-------|------|
@@ -292,16 +312,24 @@ my-wiki/
 | `.llm-wiki/meta/registry.json` | Extension | Generated |
 | `.llm-wiki/meta/backlinks.json` | Extension | Generated |
 | `.llm-wiki/meta/index.md` | Extension | Generated |
-| `.llm-wiki/meta/events.jsonl` | Extension / tool | Append-only |
+| `.llm-wiki/meta/events.jsonl` | Extension / tool | Authoritative append-only state; back up for activity continuity |
 | `.llm-wiki/meta/log.md` | Extension | Generated from events |
 | `.llm-wiki/meta/lint-report.md` | Extension | Generated |
 | `.llm-wiki/WIKI_SCHEMA.md` | Human + explicit request | Operating manual |
 
+### Activity history, backup, and portability
+
+`meta/events.jsonl` is the authoritative source for recorded extension activity. Unlike registry, backlinks, indexes, logs, and embeddings, it cannot be rebuilt from wiki pages or raw packets. Preserve it when backing up or Git-synchronizing a complete pi-llm-wiki vault.
+
+`meta/log.md` and OKF-mode `wiki/log.md` are generated views. `wiki/log.md` can travel with the OKF bundle as a readable snapshot, but it cannot reconstruct or resume the originating JSONL stream. Manual page edits are intentionally absent, so this is selected extension activity rather than a complete revision audit.
+
+File-capture events omit machine-local paths from the public log projection. Callers of `wiki_log_event` still control arbitrary detail fields and must not record secrets or private host paths.
+
 ---
 
-## Verlinkungs- und Zitierstil
+## Linking & Citation Style
 
-### Interne Navigation
+### Internal Navigation
 
 ```markdown
 [[concepts/retrieval-augmented-generation]]
@@ -309,7 +337,7 @@ my-wiki/
 [[syntheses/long-context-vs-rag]]
 ```
 
-### Faktenzitate
+### Factual Citations
 
 ```markdown
 [[sources/SRC-2026-04-04-001|SRC-2026-04-04-001]]
@@ -319,7 +347,7 @@ Stable source-page IDs keep provenance stable even if titles change.
 
 ---
 
-## Schutzmaßnahmen
+## Guardrails
 
 The extension **blocks** direct tool-call edits to:
 
@@ -335,7 +363,7 @@ If the model directly edits `.llm-wiki/wiki/**` using Pi's built-in `write` or `
 
 ---
 
-## Quellpaket-Format
+## Source Packet Format
 
 Each captured source is stored as a structured packet:
 
@@ -351,22 +379,31 @@ This preserves both the **original artifact** and a **normalized extracted view*
 
 ---
 
-## MCP-Server
+## MCP Server
 
 Use the wiki from **any MCP-compatible tool** — Claude Code, Cursor, Windsurf, and others.
 
-The package ships a standalone MCP server exposing 6 wiki tools over stdio:
+The package ships a standalone MCP server exposing 15 wiki tools over stdio:
 
 | Tool | Description |
 |------|-------------|
-| `wiki_bootstrap` | Initialize a new wiki vault with config, templates, schema, and metadata |
-| `wiki_recall` | Search wiki for task-relevant pages |
-| `wiki_search` | Full registry search |
-| `wiki_status` | Wiki stats (page counts, type breakdown) |
-| `wiki_retro` | Save atomic insights |
-| `wiki_capture_source` | Capture text as a source packet |
+| `wiki_bootstrap` | Initialize a vault |
+| `wiki_recall` | Search relevant wiki pages |
+| `wiki_search` | Search the registry |
+| `wiki_status` | Show wiki health and counts |
+| `wiki_retro` | Save an atomic insight |
+| `wiki_capture_source` | Capture a source packet |
+| `wiki_ingest` | Synthesize captured sources synchronously over the configured task model |
+| `wiki_reindex` | Rebuild/repair QMD indexes |
+| `wiki_ensure_page` | Safely create a canonical page |
+| `wiki_lint` | Run deterministic health checks |
+| `wiki_log_event` | Append an activity event |
+| `wiki_observe` | Save a timestamped observation |
+| `wiki_rebuild_meta` | Rebuild metadata projections |
+| `wiki_reindex_embeddings` | Refresh semantic embeddings |
+| `wiki_watch` | Print an update cron line |
 
-### Verwendung
+### Usage
 
 ```bash
 # Auto-discovered by pi:
@@ -377,6 +414,14 @@ WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js
 ```
 
 Set `WIKI_ROOT` to your wiki vault directory. If unset, the server auto-detects from the current working directory.
+
+### Claude marketplace installation
+
+```text
+/plugin marketplace add https://github.com/zosmaai/pi-llm-wiki
+/plugin install llm-wiki@zosmaai
+/reload-plugins
+```
 
 ### Client configuration
 
@@ -398,7 +443,67 @@ The same server as an entry in `.mcp.json` (Claude Code) or `claude_desktop_conf
 
 ---
 
-## Skill-Verhalten
+## Dual-host support (pi + oh-my-pi)
+
+The package targets two hosts from a single codebase:
+
+| | **pi** (`@mariozechner/pi-coding-agent`) | **oh-my-pi** (`omp`) |
+|---|---|---|
+| Extension entry | `package.json#pi.extensions` | `package.json#omp.extensions` (falls back to `#pi`) |
+| Skill | `skills/llm-wiki/SKILL.md` via `pi.skills` | same file, found by directory convention |
+| Slash commands | `prompts/*.md` via `pi.prompts` | `commands/*.md` (generated mirror of `prompts/`) |
+| Project config | `<cwd>/.pi/settings.json` | `<cwd>/.omp/settings.json`, then `.omp/config.yml` |
+| User config | `~/.pi/agent/settings.json` | `~/.omp/agent/settings.json`, then `config.yml` |
+| MCP server | auto-registered via `pi.mcpservers` | register manually (see below) |
+| Ambient surfaces without a project wiki | on (personal vault) | off — see below |
+
+No source changes are needed for the imports: oh-my-pi rewrites
+`@mariozechner/pi-*` and bare `typebox` specifiers onto its own bundled
+packages when it loads a legacy extension.
+
+**Settings are read from both layouts.** `llm-wiki` config is merged from every
+file above, host-native directory last. A vault configured under pi keeps
+working after `omp` takes over the same repository, and writes land in whichever
+config directory already exists (so a `.pi`-only repo does not sprout a second
+settings file). Writes are always JSON — a hand-authored `config.yml` is read
+but never rewritten.
+
+Set `LLM_WIKI_HOST=pi|omp` to override host detection; by default it is derived
+from the resolved agent directory.
+
+**Ambient surfaces are gated under oh-my-pi.** The session notice, the periodic
+observe/retro reminder, and `before_agent_start` recall all fire unprompted, and
+vault resolution falls back to the personal vault — so once `~/.llm-wiki/`
+exists they would speak up in *every* directory. Under pi that is the historical
+behaviour and it is kept; under omp the plugin is installed once and loads in
+every project, so a repository that never ran `/wiki-init` stays quiet. Override
+either default with `llm-wiki.ambientPersonalVault`. The wiki tools and slash
+commands are registered regardless, so `/wiki-init` always works — and a project
+with its own `.llm-wiki/` gets every surface back.
+
+**MCP under oh-my-pi.** `pi.mcpservers` is a pi-only manifest key, and the
+server's vault auto-detection depends on the client's working directory, so it
+cannot be declared with a relative path. Register it explicitly instead:
+
+```jsonc
+// <cwd>/.omp/.mcp.json
+{
+  "mcpServers": {
+    "llm-wiki": {
+      "command": "node",
+      "args": ["/abs/path/to/node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js"],
+      "env": { "WIKI_ROOT": "/abs/path/to/your/wiki" }
+    }
+  }
+}
+```
+
+You rarely need it: under either host the extension already registers the same
+capabilities as native tools.
+
+---
+
+## Skill Behavior
 
 The bundled `llm-wiki` skill teaches the model to:
 
@@ -412,20 +517,20 @@ The bundled `llm-wiki` skill teaches the model to:
 
 ---
 
-## Architektur
+## Architecture
 
-### Vault-Ebenen
+### Vault Layers
 
-Siehe den obigen Abschnitt [Geschichtete Vault-Architektur](#geschichtete-vault-architektur) für die persönliche, projektbezogene und unternehmensweite Schichtung.
+See the [Layered Vault Architecture](#layered-vault-architecture) section above for the personal/project/company layering.
 
-### Vier-Ebenen-Seitenmodell
+### Four-Layer Page Model
 
 Each wiki vault has four layers with clear ownership:
 
 ```
 .llm-wiki/raw/sources/SRC-*/     # Immutable source packets (extension-owned)
 .llm-wiki/wiki/                   # Editable knowledge pages (you + LLM)
-.llm-wiki/meta/                   # Auto-generated registry, backlinks, index, log
+.llm-wiki/meta/                   # Durable event source + generated internal projections
 .llm-wiki/                        # Config and templates
 ```
 
@@ -433,7 +538,7 @@ Read [docs/architecture.md](docs/architecture.md) for the full design document.
 
 ---
 
-## Dokumentation
+## Documentation
 
 | Document | What it covers |
 |----------|---------------|
@@ -445,21 +550,126 @@ Read [docs/architecture.md](docs/architecture.md) for the full design document.
 
 ---
 
-## Mitwirken
+## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, test patterns, and PR workflow.
 
 ---
 
-## Stern-Verlauf
+<div align="center">
+  <a href="https://github.com/zosmaai/pi-llm-wiki/stargazers">
+    <img src="./assets/thank-you-for-the-star.png" alt="Thank you for starring pi-llm-wiki!" width="100%" />
+  </a>
+  <br/>
+  <sub>
+    If you find pi-llm-wiki useful,
+    <a href="https://github.com/zosmaai/pi-llm-wiki">⭐ star the repo</a> —
+    it lets us know we're building something that matters.
+  </sub>
+</div>
 
-[![Star History Chart](https://api.star-history.com/svg?repos=zosmaai/pi-llm-wiki&type=Date)](https://star-history.com/#zosmaai/pi-llm-wiki&Date)
+<br/>
 
-## Mitwirkende
+## Contributors
 
-<a href="https://github.com/zosmaai/pi-llm-wiki/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=zosmaai/pi-llm-wiki" alt="Contributors" />
-</a>
+Thanks to everyone who has contributed! This list is regenerated automatically by [`.github/workflows/contributors.yml`](.github/workflows/contributors.yml) — see [#60](https://github.com/zosmaai/pi-llm-wiki/issues/60) for the rationale.
+
+<!-- readme: contributors -start -->
+<table>
+	<tbody>
+		<tr>
+            <td align="center">
+                <a href="https://github.com/arjun-zosma">
+                    <img src="https://avatars.githubusercontent.com/u/25246034?v=4" width="64;" alt="arjun-zosma"/>
+                    <br />
+                    <sub><b>Arjun Nayak</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/Shanvit7">
+                    <img src="https://avatars.githubusercontent.com/u/64424817?v=4" width="64;" alt="Shanvit7"/>
+                    <br />
+                    <sub><b>Shanvit S Shetty</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/jfraser">
+                    <img src="https://avatars.githubusercontent.com/u/165964?v=4" width="64;" alt="jfraser"/>
+                    <br />
+                    <sub><b>James Fraser</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/mkuhl">
+                    <img src="https://avatars.githubusercontent.com/u/61073?v=4" width="64;" alt="mkuhl"/>
+                    <br />
+                    <sub><b>Mike P. Kuhl</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/CelestialCreator">
+                    <img src="https://avatars.githubusercontent.com/u/177931942?v=4" width="64;" alt="CelestialCreator"/>
+                    <br />
+                    <sub><b>Akshay</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/prestalab">
+                    <img src="https://avatars.githubusercontent.com/u/2825421?v=4" width="64;" alt="prestalab"/>
+                    <br />
+                    <sub><b>PrestaLab</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/wooksong">
+                    <img src="https://avatars.githubusercontent.com/u/2772376?v=4" width="64;" alt="wooksong"/>
+                    <br />
+                    <sub><b>wooksong</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/xcsf">
+                    <img src="https://avatars.githubusercontent.com/u/43439835?v=4" width="64;" alt="xcsf"/>
+                    <br />
+                    <sub><b>xcsf</b></sub>
+                </a>
+            </td>
+		</tr>
+		<tr>
+            <td align="center">
+                <a href="https://github.com/danielnaab">
+                    <img src="https://avatars.githubusercontent.com/u/136512?v=4" width="64;" alt="danielnaab"/>
+                    <br />
+                    <sub><b>Daniel Naab</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/mdmayfield">
+                    <img src="https://avatars.githubusercontent.com/u/26154258?v=4" width="64;" alt="mdmayfield"/>
+                    <br />
+                    <sub><b>Matt Mayfield</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/deestax">
+                    <img src="https://avatars.githubusercontent.com/u/152369481?v=4" width="64;" alt="deestax"/>
+                    <br />
+                    <sub><b>Superdao</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/mystery4f">
+                    <img src="https://avatars.githubusercontent.com/u/40482524?v=4" width="64;" alt="mystery4f"/>
+                    <br />
+                    <sub><b>标准萌新</b></sub>
+                </a>
+            </td>
+		</tr>
+	<tbody>
+</table>
+<!-- readme: contributors -end -->
+
+<sub>Full history: [contributors graph](https://github.com/zosmaai/pi-llm-wiki/graphs/contributors).</sub>
 
 ---
 
@@ -468,6 +678,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, test patterns, and
   <a href="https://pi.dev">pi.dev</a> · <a href="https://github.com/zosmaai/pi-llm-wiki/issues">Issues</a>
 </div>
 
-## Lizenz
+## License
 
 MIT
+
+## Harness support
+
+Runs natively in pi, and as an MCP server in Claude Code (plugin), Codex,
+Cursor, Windsurf, Zed and opencode. See [docs/harnesses.md](docs/harnesses.md).

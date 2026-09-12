@@ -44,13 +44,47 @@
 
 ---
 
-## 快速开始
+## Quick Start
+
+**pi** ([`@mariozechner/pi-coding-agent`](https://github.com/badlogic/pi-mono)):
 
 ```bash
 pi install npm:@zosmaai/pi-llm-wiki
 ```
 
-扩展将在首次会话时主动建议创建 wiki。或者：
+**oh-my-pi** ([`omp`](https://github.com/can1357/oh-my-pi)):
+
+```bash
+omp install @zosmaai/pi-llm-wiki
+```
+
+Both hosts load the same extension, skill, and `/wiki-*` slash commands — see
+[Dual-host support](#dual-host-support-pi--oh-my-pi) for what differs.
+
+### Other harnesses via MCP
+
+Claude Code, Codex, Cursor, Windsurf, Zed, Cline, and other MCP-capable
+harnesses use the packaged stdio server. Start with the Claude marketplace:
+
+```text
+/plugin marketplace add https://github.com/zosmaai/pi-llm-wiki
+/plugin install llm-wiki@zosmaai
+/reload-plugins
+```
+
+For every other MCP client, install the package and register
+`dist/mcp/index.js` as a local stdio server:
+
+```bash
+npm install --save-dev @zosmaai/pi-llm-wiki@latest
+```
+
+Use the client-specific JSON/TOML examples in
+[`docs/harnesses.md`](docs/harnesses.md). They cover Codex CLI, Cursor,
+Windsurf, Zed, Cline, and a generic MCP configuration. Set `WIKI_ROOT` to pin
+the vault; use an absolute server path because MCP clients do not expand `~`.
+
+The extension will proactively suggest creating a wiki on your first session. Alternatively:
 
 ```
 /wiki-init "AI Engineering"
@@ -95,7 +129,7 @@ pi install npm:@zosmaai/pi-llm-wiki
 | 📝 **Obsidian 友好** | 文件夹限定 wikilinks、稳定来源 ID 引用、兼容 vault |
 | 🛡️ **护栏** | 阻止直接编辑原始来源和生成的元数据 |
 | 🔧 **可配置的 PDF 提取** | 通过 `WIKI_MARKITDOWN_TIMEOUT_MS` 环境变量设置 MarkItDown 超时 |
-| 🧪 **562 测试、85.09% 覆盖率** | TypeScript、Vitest、Biome、Codecov、CodeQL |
+| 🧪 **Quality checks** | TypeScript, Vitest, Biome, Codecov, CodeQL |
 
 ---
 
@@ -149,31 +183,31 @@ pi install npm:@zosmaai/pi-llm-wiki
 
 ---
 
-## 分层 Vault 架构
+## Layered Vault Architecture
 
-知识随您到处。pi-llm-wiki 使用分层 vault 系统：
+Knowledge follows you everywhere. pi-llm-wiki uses a layered vault system:
 
-| 层 | 位置 | 用途 |
-|----|------|------|
-| 🏠 **个人** | `~/.llm-wiki/` | 始终激活。零设置。知识跨所有会话积累——无论您在哪个项目中。 |
-| 📁 **项目** | `{project}/.llm-wiki/` | 明确选择加入。每个项目专用 wiki，相关时共享个人知识。 |
-| 🏢 **公司**（未来） | git 跟踪 | 团队共享 wiki。`wiki_publish` 将个人/项目页面提升到公司 wiki。 |
+| Layer | Location | Purpose |
+|-------|----------|---------|
+| 🏠 **Personal** | `~/.llm-wiki/` | Always active. Zero setup. Knowledge compounds across all your sessions — regardless of which project you're in. |
+| 📁 **Project** | `{project}/.llm-wiki/` | Explicit opt-in. Dedicated wiki per project, sharing personal knowledge when relevant. |
+| 🏢 **Company** (future) | git-tracked | Shared wiki across a team. `wiki_publish` promotes personal/project pages to the company wiki. |
 
-**工作原理：**
+**How it works:**
 
-1. `resolveVaultRoot()` 检查：cwd → 向上查找 `.llm-wiki/` → `~/.llm-wiki/`
-2. `wiki_recall`（分层）搜索 **两个** 个人和项目 vault，合并结果带 vault 标签
-3. 个人结果在召回输出中首先显示，标记为 "📓 personal"
-4. `wiki_retro` 写入当前激活的 vault（项目优先）
-5. 设置 `WIKI_HOME` 环境变量覆盖个人 wiki 位置
+1. `resolveVaultRoot()` checks: cwd → walk up for `.llm-wiki/` → `~/.llm-wiki/`
+2. `wiki_recall` (layered) searches **both** personal and project vaults, merging results with vault labels
+3. Personal results are shown first in recall output, tagged as "📓 personal"
+4. `wiki_retro` writes to whichever vault is active (project takes priority)
+5. Set `WIKI_HOME` env var to override the personal wiki location
 
-这意味着：您可以有用于团队文档的项目 wiki **和** 用于个人笔记的个人 wiki，recall 同时搜索两者。
+This means: you can have a project wiki for team documentation **and** a personal wiki for your own notes, and recall searches both simultaneously.
 
 ---
 
-## 快速开始（详细）
+## Quick Start (Detailed)
 
-### 1) 创建新的 wiki
+### 1) Create a new wiki
 
 ```bash
 mkdir my-wiki
@@ -181,13 +215,13 @@ cd my-wiki
 pi
 ```
 
-询问 pi：
+Ask pi:
 
 ```
 Initialize an llm wiki here for AI research.
 ```
 
-这将调用 `wiki_bootstrap` 并创建：
+This calls `wiki_bootstrap` and creates:
 
 ```
 .llm-wiki/
@@ -199,7 +233,7 @@ Initialize an llm wiki here for AI research.
 └── WIKI_SCHEMA.md
 ```
 
-### 2) 捕获来源
+### 2) Capture a source
 
 ```
 Capture this article into the wiki: https://example.com/some-article
@@ -213,23 +247,23 @@ Capture this PDF into the wiki: ./papers/context-windows.pdf
 Capture these notes into the wiki: ...pasted text...
 ```
 
-### 3) 集成来源
+### 3) Integrate the source
 
-1. 捕获来源
-2. 读取 `.llm-wiki/wiki/sources/SRC-*.md`
-3. 更新该来源页面
-4. 用 `wiki_search` 搜索受影响的规范页面
-5. 用 `wiki_ensure_page` 创建缺失页面
-6. 更新概念/实体/综合页面带引用
-7. 用 `wiki_log_event kind=integrate` 标记集成
+1. Capture the source
+2. Read `.llm-wiki/wiki/sources/SRC-*.md`
+3. Update that source page
+4. Search for impacted canonical pages with `wiki_search`
+5. Create missing pages with `wiki_ensure_page`
+6. Update concept / entity / synthesis pages with citations
+7. Mark the integration with `wiki_log_event kind=integrate`
 
-### 4) 查询 wiki
+### 4) Query the wiki
 
 ```
 Based on the wiki, what are the main tradeoffs between long-context models and RAG?
 ```
 
-默认情况下，查询模式是 **只读**。要归档持久答案：
+By default, query mode is **read-only**. To file a durable answer:
 
 ```
 Answer the question and file the result as an analysis page.
@@ -237,55 +271,65 @@ Answer the question and file the result as an analysis page.
 
 ---
 
-## Vault 布局
+## Vault Layout
 
 ```
 my-wiki/
 └─ .llm-wiki/
-   ├─ config.json               # Vault 配置
-   ├─ templates/                 # 页面模板
+   ├─ config.json               # Vault config
+   ├─ templates/                 # Page templates
    ├─ raw/
    │  └─ sources/
    │     └─ SRC-2026-05-11-001/
    │        ├─ manifest.json
-   │        ├─ original/           # 原始工件
-   │        ├─ extracted.md        # 规范化文本
+   │        ├─ original/           # Original artifact
+   │        ├─ extracted.md        # Normalized text
    │        └─ attachments/
    ├─ wiki/
-   │  ├─ sources/                  # 来源页面（每个来源说什么）
-   │  ├─ concepts/                 # 概念和重复出现的想法
-   │  ├─ entities/                 # 人物、组织、产品、论文、系统
-   │  ├─ syntheses/                # 跨来源论点和张力
-   │  └─ analyses/                 # 来自查询的持久归档答案
+   │  ├─ sources/                  # Source pages (what each source says)
+   │  ├─ concepts/                 # Concepts and recurring ideas
+   │  ├─ entities/                 # People, orgs, products, papers, systems
+   │  ├─ syntheses/                # Cross-source theses and tensions
+   │  └─ analyses/                 # Durable filed answers from queries
    ├─ meta/
-   │  ├─ registry.json             # 自动生成搜索索引
+   │  ├─ registry.json             # Auto-generated search index
    │  ├─ backlinks.json
    │  ├─ index.md
-   │  ├─ events.jsonl              # 仅追加事件日志
+   │  ├─ events.jsonl              # Append-only event log
    │  ├─ log.md
    │  └─ lint-report.md
-   └─ WIKI_SCHEMA.md               # 操作手册
+   └─ WIKI_SCHEMA.md               # Operating manual
 ```
 
-### 所有权模型
+### Ownership Model
 
-| 路径 | 所有者 | 规则 |
-|------|--------|------|
-| `.llm-wiki/raw/**` | 扩展工具 | 捕获后不可变 |
-| `.llm-wiki/wiki/**` | 模型 + 用户 | 可编辑知识页面 |
-| `.llm-wiki/meta/registry.json` | 扩展 | 生成 |
-| `.llm-wiki/meta/backlinks.json` | 扩展 | 生成 |
-| `.llm-wiki/meta/index.md` | 扩展 | 生成 |
-| `.llm-wiki/meta/events.jsonl` | 扩展/工具 | 仅追加 |
-| `.llm-wiki/meta/log.md` | 扩展 | 从事件生成 |
-| `.llm-wiki/meta/lint-report.md` | 扩展 | 生成 |
-| `.llm-wiki/WIKI_SCHEMA.md` | 人工 + 明确请求 | 操作手册 |
+| Path | Owner | Rule |
+|------|-------|------|
+| Path | Owner | Rule |
+|------|-------|------|
+| `.llm-wiki/raw/**` | Extension tools | Immutable after capture |
+| `.llm-wiki/wiki/**` | Model + user | Editable knowledge pages |
+| `.llm-wiki/meta/registry.json` | Extension | Generated |
+| `.llm-wiki/meta/backlinks.json` | Extension | Generated |
+| `.llm-wiki/meta/index.md` | Extension | Generated |
+| `.llm-wiki/meta/events.jsonl` | Extension / tool | Authoritative append-only state; back up for activity continuity |
+| `.llm-wiki/meta/log.md` | Extension | Generated from events |
+| `.llm-wiki/meta/lint-report.md` | Extension | Generated |
+| `.llm-wiki/WIKI_SCHEMA.md` | Human + explicit request | Operating manual |
+
+### Activity history, backup, and portability
+
+`meta/events.jsonl` is the authoritative source for recorded extension activity. Unlike registry, backlinks, indexes, logs, and embeddings, it cannot be rebuilt from wiki pages or raw packets. Preserve it when backing up or Git-synchronizing a complete pi-llm-wiki vault.
+
+`meta/log.md` and OKF-mode `wiki/log.md` are generated views. `wiki/log.md` can travel with the OKF bundle as a readable snapshot, but it cannot reconstruct or resume the originating JSONL stream. Manual page edits are intentionally absent, so this is selected extension activity rather than a complete revision audit.
+
+File-capture events omit machine-local paths from the public log projection. Callers of `wiki_log_event` still control arbitrary detail fields and must not record secrets or private host paths.
 
 ---
 
-## 链接和引用风格
+## Linking & Citation Style
 
-### 内部导航
+### Internal Navigation
 
 ```markdown
 [[concepts/retrieval-augmented-generation]]
@@ -293,21 +337,21 @@ my-wiki/
 [[syntheses/long-context-vs-rag]]
 ```
 
-### 事实引用
+### Factual Citations
 
 ```markdown
 [[sources/SRC-2026-04-04-001|SRC-2026-04-04-001]]
 ```
 
-稳定的来源页面 ID 即使标题更改也保持溯源稳定。
+Stable source-page IDs keep provenance stable even if titles change.
 
 ---
 
-## 护栏
+## Guardrails
 
-扩展 **阻止** 直接工具调用编辑：
+The extension **blocks** direct tool-call edits to:
 
-- `.llm-wiki/raw/**`——不可变的来源工件
+- `.llm-wiki/raw/**` — immutable source artifacts
 - `.llm-wiki/meta/registry.json`
 - `.llm-wiki/meta/backlinks.json`
 - `.llm-wiki/meta/events.jsonl`
@@ -315,56 +359,73 @@ my-wiki/
 - `.llm-wiki/meta/log.md`
 - `.llm-wiki/meta/lint-report.md`
 
-如果模型直接使用 Pi 内置的 `write` 或 `edit` 工具编辑 `.llm-wiki/wiki/**`，扩展 **自动重建** 生成的元数据在代理回合结束时。
+If the model directly edits `.llm-wiki/wiki/**` using Pi's built-in `write` or `edit` tools, the extension **automatically rebuilds** generated metadata at the end of the agent turn.
 
 ---
 
-## 来源包格式
+## Source Packet Format
 
-每个捕获的来源存储为结构化包：
+Each captured source is stored as a structured packet:
 
 ```
 .llm-wiki/raw/sources/SRC-YYYY-MM-DD-NNN/
-├─ manifest.json     # 捕获元数据（标题、URL、格式、时间戳）
-├─ original/         # 原始工件（原样保留）
-├─ extracted.md      # 规范化文本（PDF→md、XML→md、JSON→md 等）
-└─ attachments/      # 未来附件下载
+├─ manifest.json     # Capture metadata (title, URL, format, timestamp)
+├─ original/         # Original artifact (preserved as-is)
+├─ extracted.md      # Normalized text (PDF→md, XML→md, JSON→md, etc.)
+└─ attachments/      # Future attachment downloads
 ```
 
-这同时保留 **原始工件** 和 **规范化提取视图** 供阅读。
+This preserves both the **original artifact** and a **normalized extracted view** for reading.
 
 ---
 
-## MCP 服务器
+## MCP Server
 
-从 **任何 MCP 兼容工具** 使用 wiki——Claude Code、Cursor、Windsurf 等。
+Use the wiki from **any MCP-compatible tool** — Claude Code, Cursor, Windsurf, and others.
 
-包附带独立 MCP 服务器，通过 stdio 暴露 6 个 wiki 工具：
+The package ships a standalone MCP server exposing 15 wiki tools over stdio:
 
-| 工具 | 描述 |
-|------|------|
-| `wiki_bootstrap` | 用配置、模板、模式和元数据初始化新的 wiki vault |
-| `wiki_recall` | 搜索 wiki 中与任务相关的页面 |
-| `wiki_search` | 完整注册表搜索 |
-| `wiki_status` | Wiki 统计（页面计数、类型分解） |
-| `wiki_retro` | 保存原子洞察 |
-| `wiki_capture_source` | 捕获文本为来源包 |
+| Tool | Description |
+|------|-------------|
+| `wiki_bootstrap` | Initialize a vault |
+| `wiki_recall` | Search relevant wiki pages |
+| `wiki_search` | Search the registry |
+| `wiki_status` | Show wiki health and counts |
+| `wiki_retro` | Save an atomic insight |
+| `wiki_capture_source` | Capture a source packet |
+| `wiki_ingest` | Synthesize captured sources synchronously over the configured task model |
+| `wiki_reindex` | Rebuild/repair QMD indexes |
+| `wiki_ensure_page` | Safely create a canonical page |
+| `wiki_lint` | Run deterministic health checks |
+| `wiki_log_event` | Append an activity event |
+| `wiki_observe` | Save a timestamped observation |
+| `wiki_rebuild_meta` | Rebuild metadata projections |
+| `wiki_reindex_embeddings` | Refresh semantic embeddings |
+| `wiki_watch` | Print an update cron line |
 
-### 用法
+### Usage
 
 ```bash
-# pi 自动发现：
+# Auto-discovered by pi:
 pi install npm:@zosmaai/pi-llm-wiki
 
-# 独立使用任何 MCP 客户端：
+# Standalone with any MCP client:
 WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js
 ```
 
-设置 `WIKI_ROOT` 为您的 wiki vault 目录。如果未设置，服务器从当前工作目录自动检测。
+Set `WIKI_ROOT` to your wiki vault directory. If unset, the server auto-detects from the current working directory.
 
-### 客户端配置
+### Claude marketplace installation
 
-在 `.mcp.json`（Claude Code）或 `claude_desktop_config.json` 中配置同一个服务器：
+```text
+/plugin marketplace add https://github.com/zosmaai/pi-llm-wiki
+/plugin install llm-wiki@zosmaai
+/reload-plugins
+```
+
+### Client configuration
+
+The same server as an entry in `.mcp.json` (Claude Code) or `claude_desktop_config.json`:
 
 ```json
 {
@@ -378,60 +439,120 @@ WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js
 }
 ```
 
-> MCP 客户端在**不经过 shell** 的情况下启动该命令，因此 `~` 不会被展开。`args` 或 `env` 中的 `~/my-wiki` 会被原样传递，服务器随即启动失败，而客户端只会报告一个笼统的连接错误——这里请使用绝对路径。上面的 shell 命令没有问题：`~` 由你的 shell 在 `node` 收到之前展开。
+> MCP clients spawn the command **without a shell**, so `~` is never expanded. A `~/my-wiki` in `args` or `env` is passed through literally and the server fails to start, which the client reports only as a generic connection error — use absolute paths here. The shell snippet above is fine: your shell expands `~` before `node` sees it.
 
 ---
 
-## 技能行为
+## Dual-host support (pi + oh-my-pi)
 
-捆绑的 `llm-wiki` 技能教导模型：
+The package targets two hosts from a single codebase:
 
-- ❌ 从不直接编辑原始来源
-- ❌ 从不编辑生成的元数据文件
-- ✅ 先捕获，后集成
-- ✅ 创建新规范页面前先搜索
-- ✅ 使用来源页面 ID 引用事实
-- ✅ 默认保持查询模式只读
-- ✅ 证据混合时使用 "张力/注意事项" 和 "开放问题"
+| | **pi** (`@mariozechner/pi-coding-agent`) | **oh-my-pi** (`omp`) |
+|---|---|---|
+| Extension entry | `package.json#pi.extensions` | `package.json#omp.extensions` (falls back to `#pi`) |
+| Skill | `skills/llm-wiki/SKILL.md` via `pi.skills` | same file, found by directory convention |
+| Slash commands | `prompts/*.md` via `pi.prompts` | `commands/*.md` (generated mirror of `prompts/`) |
+| Project config | `<cwd>/.pi/settings.json` | `<cwd>/.omp/settings.json`, then `.omp/config.yml` |
+| User config | `~/.pi/agent/settings.json` | `~/.omp/agent/settings.json`, then `config.yml` |
+| MCP server | auto-registered via `pi.mcpservers` | register manually (see below) |
+| Ambient surfaces without a project wiki | on (personal vault) | off — see below |
+
+No source changes are needed for the imports: oh-my-pi rewrites
+`@mariozechner/pi-*` and bare `typebox` specifiers onto its own bundled
+packages when it loads a legacy extension.
+
+**Settings are read from both layouts.** `llm-wiki` config is merged from every
+file above, host-native directory last. A vault configured under pi keeps
+working after `omp` takes over the same repository, and writes land in whichever
+config directory already exists (so a `.pi`-only repo does not sprout a second
+settings file). Writes are always JSON — a hand-authored `config.yml` is read
+but never rewritten.
+
+Set `LLM_WIKI_HOST=pi|omp` to override host detection; by default it is derived
+from the resolved agent directory.
+
+**Ambient surfaces are gated under oh-my-pi.** The session notice, the periodic
+observe/retro reminder, and `before_agent_start` recall all fire unprompted, and
+vault resolution falls back to the personal vault — so once `~/.llm-wiki/`
+exists they would speak up in *every* directory. Under pi that is the historical
+behaviour and it is kept; under omp the plugin is installed once and loads in
+every project, so a repository that never ran `/wiki-init` stays quiet. Override
+either default with `llm-wiki.ambientPersonalVault`. The wiki tools and slash
+commands are registered regardless, so `/wiki-init` always works — and a project
+with its own `.llm-wiki/` gets every surface back.
+
+**MCP under oh-my-pi.** `pi.mcpservers` is a pi-only manifest key, and the
+server's vault auto-detection depends on the client's working directory, so it
+cannot be declared with a relative path. Register it explicitly instead:
+
+```jsonc
+// <cwd>/.omp/.mcp.json
+{
+  "mcpServers": {
+    "llm-wiki": {
+      "command": "node",
+      "args": ["/abs/path/to/node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js"],
+      "env": { "WIKI_ROOT": "/abs/path/to/your/wiki" }
+    }
+  }
+}
+```
+
+You rarely need it: under either host the extension already registers the same
+capabilities as native tools.
 
 ---
 
-## 架构
+## Skill Behavior
 
-### Vault 层
+The bundled `llm-wiki` skill teaches the model to:
 
-参见上方 [分层 Vault 架构](#分层-vault-架构) 部分了解个人/项目/公司分层。
+- ❌ Never edit raw sources directly
+- ❌ Never edit generated metadata files
+- ✅ Capture first, integrate second
+- ✅ Search before creating new canonical pages
+- ✅ Cite facts using source-page IDs
+- ✅ Keep query mode read-only by default
+- ✅ Use "Tensions / caveats" and "Open questions" when evidence is mixed
 
-### 四层页面模型
+---
 
-每个 wiki vault 有四个层，所有权清晰：
+## Architecture
+
+### Vault Layers
+
+See the [Layered Vault Architecture](#layered-vault-architecture) section above for the personal/project/company layering.
+
+### Four-Layer Page Model
+
+Each wiki vault has four layers with clear ownership:
 
 ```
-.llm-wiki/raw/sources/SRC-*/     # 不可变来源包（扩展所有）
-.llm-wiki/wiki/                   # 可编辑知识页面（您 + LLM）
-.llm-wiki/meta/                   # 自动生成注册表、反向链接、索引、日志
-.llm-wiki/                        # 配置和模板
+.llm-wiki/raw/sources/SRC-*/     # Immutable source packets (extension-owned)
+.llm-wiki/wiki/                   # Editable knowledge pages (you + LLM)
+.llm-wiki/meta/                   # Durable event source + generated internal projections
+.llm-wiki/                        # Config and templates
 ```
 
-阅读 [docs/architecture.md](docs/architecture.md) 获取完整设计文档。
+Read [docs/architecture.md](docs/architecture.md) for the full design document.
 
 ---
 
-## 文档
+## Documentation
 
-| 文档 | 涵盖内容 |
-|------|----------|
-| [架构](docs/architecture.md) | 四层如何工作、所有权模型 |
-| [命令](docs/commands.md) | 所有斜杠命令和工具参考 |
-| [Obsidian 集成](docs/obsidian.md) | Vault 设置和推荐插件 |
-| [配置](docs/configuration.md) | Wiki 模式、主题、环境变量 |
-| [API](docs/api.md) | 扩展工具参数参考 |
+| Document | What it covers |
+|----------|---------------|
+| [Architecture](docs/architecture.md) | How the four layers work, ownership model |
+| [Commands](docs/commands.md) | All slash commands and tool reference |
+| [Obsidian Integration](docs/obsidian.md) | Vault setup and recommended plugins |
+| [Configuration](docs/configuration.md) | Wiki modes, topics, environment variables |
+| [API](docs/api.md) | Extension tool parameter reference |
 
 ---
 
-## 贡献
+## Contributing
 
-查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发设置、测试模式和 PR 工作流。
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, test patterns, and PR workflow.
 
 ---
 
@@ -449,9 +570,9 @@ WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js
 
 <br/>
 
-## 贡献者
+## Contributors
 
-感谢所有贡献者！此列表由 [`.github/workflows/contributors.yml`](.github/workflows/contributors.yml) 自动生成——查看 [#60](https://github.com/zosmaai/pi-llm-wiki/issues/60) 了解原因。
+Thanks to everyone who has contributed! This list is regenerated automatically by [`.github/workflows/contributors.yml`](.github/workflows/contributors.yml) — see [#60](https://github.com/zosmaai/pi-llm-wiki/issues/60) for the rationale.
 
 <!-- readme: contributors -start -->
 <table>
@@ -479,10 +600,31 @@ WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js
                 </a>
             </td>
             <td align="center">
+                <a href="https://github.com/mkuhl">
+                    <img src="https://avatars.githubusercontent.com/u/61073?v=4" width="64;" alt="mkuhl"/>
+                    <br />
+                    <sub><b>Mike P. Kuhl</b></sub>
+                </a>
+            </td>
+            <td align="center">
                 <a href="https://github.com/CelestialCreator">
                     <img src="https://avatars.githubusercontent.com/u/177931942?v=4" width="64;" alt="CelestialCreator"/>
                     <br />
                     <sub><b>Akshay</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/prestalab">
+                    <img src="https://avatars.githubusercontent.com/u/2825421?v=4" width="64;" alt="prestalab"/>
+                    <br />
+                    <sub><b>PrestaLab</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/wooksong">
+                    <img src="https://avatars.githubusercontent.com/u/2772376?v=4" width="64;" alt="wooksong"/>
+                    <br />
+                    <sub><b>wooksong</b></sub>
                 </a>
             </td>
             <td align="center">
@@ -492,11 +634,20 @@ WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js
                     <sub><b>xcsf</b></sub>
                 </a>
             </td>
+		</tr>
+		<tr>
             <td align="center">
                 <a href="https://github.com/danielnaab">
                     <img src="https://avatars.githubusercontent.com/u/136512?v=4" width="64;" alt="danielnaab"/>
                     <br />
                     <sub><b>Daniel Naab</b></sub>
+                </a>
+            </td>
+            <td align="center">
+                <a href="https://github.com/mdmayfield">
+                    <img src="https://avatars.githubusercontent.com/u/26154258?v=4" width="64;" alt="mdmayfield"/>
+                    <br />
+                    <sub><b>Matt Mayfield</b></sub>
                 </a>
             </td>
             <td align="center">
@@ -530,3 +681,8 @@ WIKI_ROOT=~/my-wiki node node_modules/@zosmaai/pi-llm-wiki/dist/mcp/index.js
 ## License
 
 MIT
+
+## Harness support
+
+Runs natively in pi, and as an MCP server in Claude Code (plugin), Codex,
+Cursor, Windsurf, Zed and opencode. See [docs/harnesses.md](docs/harnesses.md).

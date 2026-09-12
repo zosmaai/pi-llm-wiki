@@ -131,7 +131,7 @@ The result is a wiki that **compounds** as you capture sources, ask questions, a
 | 📝 **Obsidian-friendly** | Folder-qualified wikilinks, stable source-ID citations, compatible vault |
 | 🛡️ **Guardrails** | Blocks direct edits to raw sources and generated metadata |
 | 🔧 **Configurable PDF extraction** | MarkItDown timeout via `WIKI_MARKITDOWN_TIMEOUT_MS` env var |
-| 🧪 **562 tests, 85.09% coverage** | TypeScript, Vitest, Biome, Codecov, CodeQL |
+| 🧪 **Quality checks** | TypeScript, Vitest, Biome, Codecov, CodeQL |
 
 ---
 
