@@ -97,6 +97,12 @@ it("is silent for no vault, malformed input, and null input", () => {
     "",
   );
   expect(execFileSync(process.execPath, [script], { input: "null", encoding: "utf8" })).toBe("");
+  expect(
+    execFileSync(process.execPath, [script], {
+      input: JSON.stringify({ cwd: { malformed: true } }),
+      encoding: "utf8",
+    }),
+  ).toBe("");
 });
 
 it("uses empty counts for a malformed registry", () => {

@@ -91,7 +91,8 @@ try {
 }
 if (!event || typeof event !== "object" || Array.isArray(event)) process.exit(0);
 
-const root = projectVaultRoot(event.cwd || process.cwd());
+const cwd = typeof event.cwd === "string" ? event.cwd : process.cwd();
+const root = projectVaultRoot(cwd);
 if (!root || noticesDisabled(root)) process.exit(0);
 
 const stats = vaultStats(root);
