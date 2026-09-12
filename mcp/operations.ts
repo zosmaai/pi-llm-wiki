@@ -56,6 +56,7 @@ import {
 import {
   getWikiStatus,
   reindexWiki,
+  type RegistrySearchFilters,
   searchRegistry,
 } from "../extensions/llm-wiki/lib/wiki-service.js";
 import { resolveLaneModel } from "./model-lane.js";
@@ -149,13 +150,13 @@ export async function recallOperation(
 /** Shared search operation: delegates directly to wiki-service. */
 export async function searchOperation(
   paths: VaultPaths,
-  query: string,
-  type?: string,
+  query = "",
+  filters: RegistrySearchFilters = {},
 ): Promise<{
   matches: Array<{ id: string; title: string; type: string }>;
   diagnostics: Array<{ code: string; message: string }>;
 }> {
-  const result = searchRegistry(paths, query, type);
+  const result = searchRegistry(paths, query, filters);
   return {
     matches: result.matches,
     diagnostics: result.diagnostics.map((d) => ({ code: d.code, message: d.message })),

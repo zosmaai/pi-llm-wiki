@@ -148,14 +148,20 @@ Returns empty `matches: []` with a hint to use `wiki_retro` when the wiki has no
 ## wiki_search
 
 Exact keyword search across the generated registry. Faster and simpler than `wiki_recall` — no
-scoring, no PRF, no vault layering. Use for lookups when you already know what you're looking for.
+scoring, no PRF, no vault layering. Use for lookups when you already know what you're looking for,
+or combine structured filters with an empty query to list matching pages.
 
 **Parameters**
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `query` | `string` | ✅ | Search term matched against page IDs, titles, types, states, statuses, categories, domains, tags, aliases, and recall triggers |
+| `query` | `string` | — | Optional search term matched against page IDs, titles, types, states, statuses, categories, domains, tags, aliases, and recall triggers; omit to use structured filters alone |
 | `type` | `string` | — | Filter results to a specific page type (e.g. `"concept"`, `"entity"`) |
+| `state` | `string` | — | Exact, case-insensitive state filter |
+| `status` | `string` | — | Exact, case-insensitive status filter |
+| `category` | `string` | — | Exact, case-insensitive category filter |
+| `domain` | `string` | — | Exact, case-insensitive domain filter |
+| `tags` | `string[]` | — | Require every listed tag to be present |
 
 **Returns**
 
@@ -165,6 +171,10 @@ details: {
   matches: Array<{ id: string, title: string, type: string }>
 }
 ```
+
+Multiple structured filters use AND semantics. Tags also use AND semantics. For example,
+`wiki_search({ state: "open", tags: ["open-loop"] })` returns only pages satisfying both
+constraints.
 
 ---
 
