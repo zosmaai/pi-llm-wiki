@@ -822,9 +822,7 @@ export function registerWikiSearch(pi: ExtensionAPI): void {
       status: Type.Optional(Type.String({ description: "Filter by status" })),
       category: Type.Optional(Type.String({ description: "Filter by category" })),
       domain: Type.Optional(Type.String({ description: "Filter by domain" })),
-      tags: Type.Optional(
-        Type.Array(Type.String(), { description: "Require all specified tags" }),
-      ),
+      tags: Type.Optional(Type.Array(Type.String(), { description: "Require all specified tags" })),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const paths = getPaths(ctx.cwd);

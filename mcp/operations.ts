@@ -55,8 +55,8 @@ import {
 } from "../extensions/llm-wiki/lib/vault-format.js";
 import {
   getWikiStatus,
-  reindexWiki,
   type RegistrySearchFilters,
+  reindexWiki,
   searchRegistry,
 } from "../extensions/llm-wiki/lib/wiki-service.js";
 import { resolveLaneModel } from "./model-lane.js";

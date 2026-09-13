@@ -100,10 +100,7 @@ export function searchRegistry(
   return { matches, diagnostics };
 }
 
-function matchesFilters(
-  entry: Record<string, unknown>,
-  filters: RegistrySearchFilters,
-): boolean {
+function matchesFilters(entry: Record<string, unknown>, filters: RegistrySearchFilters): boolean {
   for (const field of ["type", "state", "status", "category", "domain"] as const) {
     const filter = filters[field];
     if (filter && String(entry[field] ?? "").toLowerCase() !== filter.toLowerCase()) {
