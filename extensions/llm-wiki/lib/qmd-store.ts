@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { createStore, type HybridQueryResult, type QMDStore, type SearchResult } from "@tobilu/qmd";
+import type { HybridQueryResult, QMDStore, SearchResult } from "@tobilu/qmd";
 
 /**
  * Package-private normalized adapter over the pinned @tobilu/qmd SDK.
@@ -143,6 +143,21 @@ export async function openQmdIndexStore(input: {
   dbPath: string;
   documentsPath: string;
 }): Promise<QmdIndexStore> {
+  // @tobilu/qmd is an optional dependency (issue #264): on restricted
+  // machines its native subtree (better-sqlite3) fails to install and npm
+  // skips it. Load lazily so the package installs everywhere — only QMD
+  // operations fail, with an actionable message.
+  let createStore: typeof import("@tobilu/qmd").createStore;
+  try {
+    ({ createStore } = await import("@tobilu/qmd"));
+  } catch {
+    throw new Error(
+      "@tobilu/qmd is unavailable (optional dependency skipped during install — its " +
+        "better-sqlite3 native build needs GitHub access or C++ build tools). Re-run " +
+        "npm install in a network with GitHub reachable, or with build tools available.",
+    );
+  }
+
   const store: QMDStore = await createStore({
     dbPath: input.dbPath,
     config: {
