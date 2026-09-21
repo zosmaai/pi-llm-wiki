@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { raceWithTimeout } from "./subagent.js";
 import { loadTaskConfig, noticesEnabled, TASK_DEFAULTS, type TaskConfig } from "./task-config.js";
 
 /**
@@ -318,7 +319,13 @@ export function registerBackgroundRuntime(pi: ExtensionAPI): Runtime {
     await runtime.awaitAll();
   });
   pi.on("session_shutdown", async () => {
-    await runtime.awaitAll();
+    // OMP caps session_shutdown handlers at 2000ms (hardcoded upstream,
+    // issue #263). Drain best-effort within budget so teardown stays prompt
+    // and OMP doesn't emit a "handler timed out" error; work the budget
+    // doesn't reach is abandoned gracefully.
+    await raceWithTimeout(runtime.awaitAll(), 1_900, "shutdown drain budget").catch(
+      () => undefined,
+    );
   });
 
   return runtime;
