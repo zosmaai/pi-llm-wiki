@@ -630,7 +630,10 @@ export function searchWiki(
 
 /**
  * Search both project/primary vault and personal vault, merging results.
- * Personal results are appended after primary results, deduplicated by page ID.
+ * Results are merged by page ID (personal copies win duplicates and get
+ * tagged), then sorted by score descending — stable, so ties keep the
+ * personal-first order. This way a high-scoring project page can't be cut
+ * by a full page of lower-scoring personal hits (issue #249).
  *
  * @param minScore - Minimum relevance score (default 0 = no filter).
  * @param includePersonal - Whether to search the personal vault (default true).
@@ -674,6 +677,9 @@ export function searchWikiLayered(
       merged.push(r);
     }
   }
+
+  // Score-descending (stable sort keeps personal-first order on ties).
+  merged.sort((a, b) => b.score - a.score);
 
   return merged.slice(0, maxResults);
 }
