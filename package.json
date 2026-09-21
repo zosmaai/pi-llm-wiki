@@ -119,12 +119,14 @@
     "@cfworker/json-schema": "^4.1.1",
     "@earendil-works/pi-tui": "0.85.1",
     "@modelcontextprotocol/server": "^2.0.0",
-    "@tobilu/qmd": "2.5.3",
     "mdast-util-from-markdown": "^2.0.3",
     "node-html-markdown": "^2.0.0",
     "typebox": "^1.1.34",
     "yaml": "^2.9.0",
     "zod": "^4.0"
+  },
+  "optionalDependencies": {
+    "@tobilu/qmd": "2.5.3"
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.41.10",

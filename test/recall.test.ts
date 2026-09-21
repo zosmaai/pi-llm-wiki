@@ -485,6 +485,57 @@ describe("wiki recall", () => {
         rmSync(personalPaths.dotWiki, { recursive: true, force: true });
       } catch {}
     });
+
+    it("ranks a high-score project page above low-score personal fills (issue #249)", () => {
+      // Primary vault: one page matching the query in strong fields (id + title).
+      createRegistryPage(
+        "zebra-kernel",
+        "concept",
+        "Zebra Kernel",
+        "Details about the zebra kernel.",
+      );
+
+      // Personal vault: three pages matching only in the body (weak score),
+      // enough to fill maxResults=3 and previously cut the project page.
+      const personalPaths = getPersonalWikiPaths();
+      const personalSourcesDir = join(personalPaths.wiki, "sources");
+      mkdirSync(personalSourcesDir, { recursive: true });
+      writeFileSync(
+        join(personalPaths.dotWiki, "config.json"),
+        JSON.stringify({ topic: "Personal", mode: "personal" }),
+      );
+      for (let i = 1; i <= 3; i++) {
+        writeFileSync(
+          join(personalSourcesDir, `note-${i}.md`),
+          [
+            "---",
+            "type: source",
+            `title: "Personal Note ${i}"`,
+            `slug: note-${i}`,
+            "created: 2026-05-21",
+            "updated: 2026-05-21",
+            "---",
+            "",
+            `# Personal Note ${i}`,
+            "",
+            "Mentions the zebra pattern once in the body.",
+          ].join("\n"),
+        );
+      }
+      rebuildMetadataLight(personalPaths);
+      rebuildMetadataLight(getVaultPaths(wikiDir));
+
+      const results = searchWikiLayered(getVaultPaths(wikiDir), "zebra", 3);
+      // The project page (id + title match) must survive and rank first,
+      // not be cut by three body-only personal hits.
+      expect(results[0].title).toBe("Zebra Kernel");
+      expect(results[0].vaultLabel).toBeUndefined();
+      expect(results.length).toBe(3);
+
+      try {
+        rmSync(personalPaths.dotWiki, { recursive: true, force: true });
+      } catch {}
+    });
   });
 
   // ── Two-stage (links-first) recall gated by vault size (issue #68) ──
