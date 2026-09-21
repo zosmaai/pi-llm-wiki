@@ -126,7 +126,7 @@
     "zod": "^4.0"
   },
   "optionalDependencies": {
-    "@tobilu/qmd": "2.5.3"
+    "@tobilu/qmd": "2.8.3"
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.41.10",

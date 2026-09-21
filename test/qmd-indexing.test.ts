@@ -73,6 +73,7 @@ function fakeFactory(opts: {
       updated: 0,
       unchanged: 0,
       removed: 0,
+      skipped: 0,
       needsEmbedding: 2,
     };
   });
@@ -759,6 +760,7 @@ describe("QMD staging cleanup", () => {
           updated: 0,
           unchanged: 0,
           removed: 0,
+          skipped: 0,
           needsEmbedding: 1,
         };
       },

@@ -9,7 +9,7 @@ import type { HybridQueryResult, QMDStore, SearchResult } from "@tobilu/qmd";
  * the rest of the extension never touches QMD internals or tables directly.
  */
 
-export const QMD_PACKAGE_VERSION = "2.5.3";
+export const QMD_PACKAGE_VERSION = "2.8.3";
 export const QMD_DEFAULT_MODELS = {
   embed: "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf",
   generate: "hf:tobil/qmd-query-expansion-1.7B-gguf/qmd-query-expansion-1.7B-q4_k_m.gguf",
@@ -28,6 +28,8 @@ export interface QmdStoreUpdateResult {
   updated: number;
   unchanged: number;
   removed: number;
+  /** Present since qmd 2.8 (documents excluded by ignore rules / not re-indexed). */
+  skipped: number;
   needsEmbedding: number;
 }
 
