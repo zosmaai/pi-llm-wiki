@@ -29,7 +29,7 @@ jobs:
           PUPPETEER_SKIP_DOWNLOAD: true
 
       - name: Cache QMD models
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/qmd/models
           key: qmd-2.5.3-models-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
