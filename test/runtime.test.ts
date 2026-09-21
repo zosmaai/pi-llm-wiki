@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Runtime } from "../extensions/llm-wiki/lib/runtime.js";
+import { Runtime, registerBackgroundRuntime } from "../extensions/llm-wiki/lib/runtime.js";
 import { runSubAgent } from "../extensions/llm-wiki/lib/subagent.js";
 import { loadTaskConfig } from "../extensions/llm-wiki/lib/task-config.js";
 
@@ -338,4 +338,36 @@ describe("Runtime.ensureConfig reloads on each call", () => {
     rt.ensureConfig(testDir);
     expect(rt.config.synthesisLanguage).toBe("fr");
   });
+});
+
+// ── shutdown drain budget (issue #263, layer 3) ─────────────
+
+describe("registerBackgroundRuntime session_shutdown drain", () => {
+  it("resolves within OMP's 2000ms handler budget when a task is stuck", async () => {
+    const handlers: Record<string, Array<(e: unknown, ctx: unknown) => Promise<unknown>>> = {};
+    const fakePi = {
+      on: (event: string, handler: (e: unknown, ctx: unknown) => Promise<unknown>) => {
+        const list = handlers[event] ?? [];
+        handlers[event] = list;
+        list.push(handler);
+        return () => {};
+      },
+    } as unknown as import("@earendil-works/pi-coding-agent").ExtensionAPI;
+
+    const runtime = registerBackgroundRuntime(fakePi);
+    const gate = deferred<void>();
+    void runtime.launchTask({ hasUI: false }, "stuck-task", () => gate.promise);
+
+    const started = Date.now();
+    await handlers.session_shutdown[0]({}, undefined);
+    const elapsed = Date.now() - started;
+
+    // Must stay under OMP's 2000ms cap (drain budget is 1900ms) and must not
+    // reject — a stuck task degrades to abandoned work, not an extension error.
+    expect(elapsed).toBeLessThan(1_950);
+    expect(runtime.isInFlight("stuck-task")).toBe(true);
+
+    gate.resolve();
+    await runtime.awaitAll();
+  }, 10_000);
 });
