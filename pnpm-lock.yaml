@@ -28,7 +28,7 @@ importers:
         version: 2.0.0
       typebox:
         specifier: ^1.1.34
-        version: 1.3.20
+        version: 1.3.34
       yaml:
         specifier: ^2.9.0
         version: 2.9.1
@@ -5123,8 +5123,8 @@ packages:
     resolution: {integrity: sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA==}
     engines: {node: '>= 18'}
 
-  typebox@1.3.20:
-    resolution: {integrity: sha512-qAQnoUNakcqjoTqwDzvqcg5e/+i3FHnltXFmKAbc0tpTPKT86bVOUPuevp/vYQguWUMC7YsVTmk1FT5UpjB/wg==}
+  typebox@1.3.34:
+    resolution: {integrity: sha512-wbnzrXXDW8xEFHDZZs2jo1MkhaYlKAY4FRhpBc1+2LF1fZVBGCXGdLEhA/Z/NBbgzJMFfeM8m7elKPa/+KxaUQ==}
 
   typebox@1.3.7:
     resolution: {integrity: sha512-meKuifc33Pccx0O6PdIzYMq3Og8zvP4TIi/a+Bw3AEMZMxOD0+RHGQvpglEe6Zdy3wZ8nqn/j95h8LUZLk/6Hg==}
@@ -11461,7 +11461,7 @@ snapshots:
       mime-types: 3.0.2
     optional: true
 
-  typebox@1.3.20: {}
+  typebox@1.3.34: {}
 
   typebox@1.3.7: {}
 
