@@ -1,7 +1,11 @@
 import type { AgentTool, StreamFn } from "@earendil-works/pi-agent-core";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { describe, expect, it, vi } from "vitest";
-import { type RunSubAgentArgs, raceWithTimeout, runSubAgent } from "../extensions/llm-wiki/lib/subagent.js";
+import {
+  type RunSubAgentArgs,
+  raceWithTimeout,
+  runSubAgent,
+} from "../extensions/llm-wiki/lib/subagent.js";
 
 /**
  * omp (compiled binary) rewrites @earendil-works/* specifiers at load time to

@@ -79,7 +79,11 @@ export interface RunSubAgentArgs<TApi extends Api = Api> {
  * Rejects after `timeoutMs` if `promise` has not settled. Exported for tests;
  * the stall timer is unref'd so a winning race leaves nothing pending.
  */
-export function raceWithTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+export function raceWithTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
   let timer: NodeJS.Timeout;
   const stalled = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => reject(new Error(message)), timeoutMs);
@@ -202,7 +206,11 @@ export async function runSubAgent<TApi extends Api = Api>(
         // Discard events; results are collected caller-side via tool side effects.
       }
     })();
-    await raceWithTimeout(drain, 120_000, "omp agentLoop stream stalled: no end/fail event within 120s");
+    await raceWithTimeout(
+      drain,
+      120_000,
+      "omp agentLoop stream stalled: no end/fail event within 120s",
+    );
   } else {
     throw new Error("Neither runAgentLoop nor agentLoop is exported by pi-agent-core");
   }
