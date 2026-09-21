@@ -70,6 +70,7 @@ function harness(): Harness {
         updated: 0,
         unchanged: 0,
         removed: 0,
+        skipped: 0,
         needsEmbedding: 1,
       }),
       embed: async () => ({ docsProcessed: 1, chunksEmbedded: 2, errors: 0, durationMs: 1 }),

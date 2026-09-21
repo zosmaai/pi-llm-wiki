@@ -38,7 +38,7 @@ describe("package structure", () => {
     // tools, so a hard dependency made the whole package uninstallable there.
     // qmd-store.ts loads it lazily; QMD degrades where it is absent.
     expect(pkg.dependencies["@tobilu/qmd"]).toBeUndefined();
-    expect(pkg.optionalDependencies["@tobilu/qmd"]).toBe("2.5.3");
+    expect(pkg.optionalDependencies["@tobilu/qmd"]).toBe("2.8.3");
     expect(pkg.pnpm.onlyBuiltDependencies).toEqual([
       "better-sqlite3",
       "node-llama-cpp",

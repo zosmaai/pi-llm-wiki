@@ -443,7 +443,7 @@ describe("QMD status and lint diagnostics", () => {
       canonicalDocuments: 1,
       evidenceDocuments: 1,
       hasVectorIndex: false,
-      qmdVersion: "2.5.3",
+      qmdVersion: "2.8.3",
     });
   });
 
