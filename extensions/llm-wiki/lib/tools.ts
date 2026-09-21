@@ -1155,7 +1155,7 @@ export function registerWikiReindex(pi: ExtensionAPI): void {
         Type.Array(Type.Union([Type.Literal("lexical"), Type.Literal("vectors")]), {
           minItems: 1,
           uniqueItems: true,
-          default: ["lexical", "vectors"],
+          default: () => ["lexical", "vectors"],
         }),
       ),
       force: Type.Optional(Type.Boolean({ default: false })),
