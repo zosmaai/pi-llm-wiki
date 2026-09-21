@@ -1,11 +1,15 @@
-import {
-  type AgentContext,
-  type AgentLoopConfig,
-  type AgentTool,
-  runAgentLoop,
-  type StreamFn,
+import type {
+  // runAgentLoop is not a static import because omp's legacy-pi shim rewrites
+  // @earendil-works/* specifiers at load time to the bundled @oh-my-pi/*
+  // copy (omp-legacy-pi-bundled:), which dropped runAgentLoop in favor of the
+  // EventStream-returning agentLoop. Types are stripped before omp's source
+  // rewrite runs, so type-only imports are safe to keep static.
+  AgentContext,
+  AgentLoopConfig,
+  AgentTool,
+  StreamFn,
 } from "@earendil-works/pi-agent-core";
-import type { Api, Message, Model } from "@earendil-works/pi-ai";
+import type { Api, EventStream, Message, Model } from "@earendil-works/pi-ai";
 
 let cachedDefaultStreamFn: StreamFn | undefined;
 
@@ -130,6 +134,11 @@ export async function runSubAgent<TApi extends Api = Api>(
     ...(env ? { env } : {}),
   };
 
+  // pi >= 0.85 requires streamFn explicitly (its internal fallback throws
+  // unless the host configured a default), so we always pass one: the
+  // provider-specific function when available, else pi-ai's default.
+  const activeStreamFn = streamFn ?? (await resolveDefaultStreamFn());
+
   // Drive the loop directly instead of agentLoop(): agentLoop() wraps the
   // loop in a detached promise (`void runAgentLoop(...).then(...)` with no
   // .catch), so a rejection from the stream path — e.g. "No API provider
@@ -137,9 +146,42 @@ export async function runSubAgent<TApi extends Api = Api>(
   // — escaped as an uncaughtException and killed the whole pi process while
   // this function's stream drain hung forever (issue #222). runAgentLoop is
   // the same loop with the rejection propagating to THIS promise.
-  // pi >= 0.85 requires streamFn explicitly (its internal fallback throws
-  // unless the host configured a default), so we always pass one: the
-  // provider-specific function when available, else pi-ai's default.
-  const activeStreamFn = streamFn ?? (await resolveDefaultStreamFn());
-  await runAgentLoop(prompts, context, config, async () => {}, signal, activeStreamFn);
+  //
+  // omp (compiled binary) rewrites @earendil-works/* specifiers at load time
+  // to its bundled @oh-my-pi/* copies (omp-legacy-pi-bundled:), and the
+  // bundled pi-agent-core dropped runAgentLoop in favor of the
+  // EventStream-returning agentLoop. runAgentLoop is therefore loaded via a
+  // variable specifier (opaque to omp's static source rewrite) and feature-
+  // detected: where it exists (regular pi) we keep the direct loop; where it
+  // does not (omp bundled) agentLoop drives the same loop and its returned
+  // EventStream's async iterator throws on stream.fail(), so for-await
+  // propagates rejections to THIS promise just like runAgentLoop.
+  const agentCoreSpecifier = "@earendil-works/pi-agent-core";
+  const agentCore = (await import(agentCoreSpecifier)) as {
+    runAgentLoop?: (
+      prompts: Message[],
+      context: AgentContext,
+      config: AgentLoopConfig,
+      emit: (event: unknown) => Promise<void>,
+      signal: AbortSignal | undefined,
+      streamFn: StreamFn,
+    ) => Promise<unknown>;
+    agentLoop?: (
+      prompts: Message[],
+      context: AgentContext,
+      config: AgentLoopConfig,
+      signal: AbortSignal | undefined,
+      streamFn: StreamFn,
+    ) => EventStream<unknown>;
+  };
+  if (agentCore.runAgentLoop) {
+    await agentCore.runAgentLoop(prompts, context, config, async () => {}, signal, activeStreamFn);
+  } else if (agentCore.agentLoop) {
+    const stream = agentCore.agentLoop(prompts, context, config, signal, activeStreamFn);
+    for await (const _event of stream) {
+      // Discard events; results are collected caller-side via tool side effects.
+    }
+  } else {
+    throw new Error("Neither runAgentLoop nor agentLoop is exported by pi-agent-core");
+  }
 }
