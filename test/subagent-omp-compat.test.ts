@@ -1,7 +1,7 @@
 import type { AgentTool, StreamFn } from "@earendil-works/pi-agent-core";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import { describe, expect, it, vi } from "vitest";
-import { type RunSubAgentArgs, runSubAgent } from "../extensions/llm-wiki/lib/subagent.js";
+import { type RunSubAgentArgs, raceWithTimeout, runSubAgent } from "../extensions/llm-wiki/lib/subagent.js";
 
 /**
  * omp (compiled binary) rewrites @earendil-works/* specifiers at load time to
@@ -80,5 +80,21 @@ describe("omp-bundled pi-agent-core (no runAgentLoop export)", () => {
     await expect(runSubAgent({ ...baseArgs(), streamFn: fakeStreamFn() })).rejects.toThrow(
       "No API provider registered",
     );
+  });
+
+  it("rejects when the agentLoop stream never ends (detached-rejection hang)", async () => {
+    // The bundled agentLoop has no .catch: a rejected runAgentLoop leaves the
+    // stream without an end/fail event. That is the exact shape that hangs an
+    // unguarded for-await. The 120s cap in runSubAgent is too long to await in
+    // a test, so pin the race helper directly with a short timeout (real
+    // timers — vitest's fake clock deadlocks on the mocked dynamic import).
+    const stuck = new Promise<unknown>(() => {});
+    await expect(raceWithTimeout(stuck, 10, "omp agentLoop stream stalled")).rejects.toThrow(
+      "omp agentLoop stream stalled",
+    );
+  });
+
+  it("resolves when the stream settles before the cap", async () => {
+    await expect(raceWithTimeout(Promise.resolve("done"), 10, "stalled")).resolves.toBe("done");
   });
 });

@@ -76,6 +76,19 @@ export interface RunSubAgentArgs<TApi extends Api = Api> {
 }
 
 /**
+ * Rejects after `timeoutMs` if `promise` has not settled. Exported for tests;
+ * the stall timer is unref'd so a winning race leaves nothing pending.
+ */
+export function raceWithTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const stalled = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    timer.unref?.();
+  });
+  return Promise.race([promise, stalled]);
+}
+
+/**
  * Run a sub-agent loop to completion.
  *
  * Returns nothing useful directly — by design, results are collected by the
@@ -178,9 +191,18 @@ export async function runSubAgent<TApi extends Api = Api>(
     await agentCore.runAgentLoop(prompts, context, config, async () => {}, signal, activeStreamFn);
   } else if (agentCore.agentLoop) {
     const stream = agentCore.agentLoop(prompts, context, config, signal, activeStreamFn);
-    for await (const _event of stream) {
-      // Discard events; results are collected caller-side via tool side effects.
-    }
+    // The bundled agentLoop is the detached `void runAgentLoop(...).then(...)`
+    // pattern with no `.catch` (verified across pi-agent-core 0.73.1-0.78.0):
+    // a rejected loop never ends the stream, so `for await` would hang
+    // forever. Cap it so a stall surfaces as a catchable error (degraded to a
+    // warning toast by BackgroundRuntime) instead of a hang.
+    // ponytail: hard cap — raise if legitimate runs exceed it.
+    const drain = (async () => {
+      for await (const _event of stream) {
+        // Discard events; results are collected caller-side via tool side effects.
+      }
+    })();
+    await raceWithTimeout(drain, 120_000, "omp agentLoop stream stalled: no end/fail event within 120s");
   } else {
     throw new Error("Neither runAgentLoop nor agentLoop is exported by pi-agent-core");
   }
