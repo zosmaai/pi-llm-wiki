@@ -173,14 +173,19 @@ server.registerTool(
   {
     description: "Search the wiki registry for pages matching a query.",
     inputSchema: z.object({
-      query: z.string().describe("Search term"),
+      query: z.string().optional().describe("Keyword search across registry fields"),
       type: z
         .string()
         .optional()
         .describe("Filter by page type (source, entity, concept, synthesis, analysis)"),
+      state: z.string().optional().describe("Filter by state"),
+      status: z.string().optional().describe("Filter by status"),
+      category: z.string().optional().describe("Filter by category"),
+      domain: z.string().optional().describe("Filter by domain"),
+      tags: z.array(z.string()).optional().describe("Require all specified tags"),
     }),
   },
-  async ({ query, type }) => {
+  async ({ query, type, state, status, category, domain, tags }) => {
     if (!hasVault()) {
       return {
         content: [
@@ -194,11 +199,18 @@ server.registerTool(
     }
 
     const paths = getPaths();
-    const result = await searchOperation(paths, query, type);
+    const result = await searchOperation(paths, query ?? "", {
+      type,
+      state,
+      status,
+      category,
+      domain,
+      tags,
+    });
 
     if (result.matches.length === 0) {
       return {
-        content: [{ type: "text" as const, text: `No pages found for "${query}"` }],
+        content: [{ type: "text" as const, text: `No pages found for "${query ?? ""}"` }],
       };
     }
 

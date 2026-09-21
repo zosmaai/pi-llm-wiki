@@ -93,6 +93,31 @@ describe("MCP parity with shared services", () => {
     expect(mcpStatusSearch.matches).toEqual(piStatusSearch.matches);
   });
 
+  it("searches with structured filters and empty queries", async () => {
+    mkdirSync(join(paths.wiki, "concepts"), { recursive: true });
+    writeFileSync(
+      join(paths.wiki, "concepts", "filtered.md"),
+      "---\ntype: concept\ntitle: Filtered Concept\nstate: open\nstatus: active\ncategory: research\ndomain: cars\ntags: [open-loop, priority]\n---\n\n# Filtered Concept\n",
+    );
+    writeFileSync(
+      join(paths.wiki, "concepts", "other.md"),
+      "---\ntype: concept\ntitle: Other Concept\nstate: closed\nstatus: active\ntags: [priority]\n---\n\n# Other Concept\n",
+    );
+    rebuildMetadata(paths);
+
+    const filters = {
+      state: "OPEN",
+      status: "active",
+      domain: "CARS",
+      tags: ["priority", "OPEN-LOOP"],
+    };
+    const piSearch = searchRegistry(paths, "", filters);
+    const mcpSearch = await searchOperation(paths, "", filters);
+
+    expect(piSearch.matches.map((match) => match.id)).toEqual(["concepts/filtered"]);
+    expect(mcpSearch.matches).toEqual(piSearch.matches);
+  });
+
   it("status parity: MCP matches shared getWikiStatus", async () => {
     rebuildMetadata(paths);
 
