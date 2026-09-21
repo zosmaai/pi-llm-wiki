@@ -5,7 +5,7 @@
   "productionRecallChanged": false,
   "packageContract": {
     "node": ">=22.0.0",
-    "qmd": "2.5.3"
+    "qmd": "2.8.3"
   },
   "queryCounts": {
     "all": 60,

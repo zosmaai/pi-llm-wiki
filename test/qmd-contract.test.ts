@@ -73,7 +73,7 @@ afterAll(async () => {
   rmSync(tempRoot, { recursive: true, force: true });
 });
 
-describe("QMD 2.5.3 SDK contract", () => {
+describe("QMD 2.8.3 SDK contract", () => {
   it("keeps the four-mode request shapes type-compatible", () => {
     expect(modeContracts.hybrid.queries).toEqual(hybridQueries);
     expect(modeContracts.adaptiveUncertain.rerank).toBe(true);
@@ -147,6 +147,7 @@ describe("QMD normalized index store adapter", () => {
         updated: 0,
         unchanged: 0,
         removed: 0,
+        skipped: 0,
         needsEmbedding: 2,
       });
       expect(await handle.status()).toMatchObject({
