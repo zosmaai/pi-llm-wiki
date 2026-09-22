@@ -1,5 +1,5 @@
 ---
-description: Run the full wiki cycle: discover → ingest → lint. Optionally schedule for auto-updates.
+description: "Run the full wiki cycle: discover → ingest → lint. Optionally schedule for auto-updates."
 argument-hint: "[--schedule daily|weekly]"
 section: LLM Wiki
 topLevelCli: true

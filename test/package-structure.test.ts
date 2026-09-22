@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 import { readFile, rootDir } from "./helpers.js";
 
 function readProductionFiles(directory: string): string[] {
@@ -158,6 +159,39 @@ describe("package structure", () => {
       expect(content).toContain("section: LLM Wiki");
       expect(content).toContain("topLevelCli: true");
     }
+  });
+
+  // pi's parseFrontmatter() uses yaml.parse and throws on an unquoted
+  // colon-space, which surfaces as "[Prompt conflicts]" and drops the template.
+  it("parses every prompt frontmatter the way pi does", () => {
+    const prompts = readdirSync(join(rootDir, "prompts")).filter((name) => name.endsWith(".md"));
+    expect(prompts.length).toBeGreaterThan(0);
+    for (const name of prompts) {
+      const content = readFile(join(rootDir, "prompts", name));
+      const match = content.match(/^---\n([\s\S]*?)\n---/);
+      expect(match, name).not.toBeNull();
+      let frontmatter: unknown;
+      try {
+        frontmatter = parse(match?.[1] ?? "");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`${name}: ${message.split("\n")[0]}`);
+      }
+      expect(frontmatter, name).toEqual(
+        expect.objectContaining({
+          description: expect.any(String),
+        }),
+      );
+      const description = (frontmatter as { description: string }).description;
+      expect(description.length, name).toBeGreaterThan(0);
+    }
+
+    const wikiRun = parse(
+      readFile(join(rootDir, "prompts", "wiki-run.md")).match(/^---\n([\s\S]*?)\n---/)?.[1] ?? "",
+    ) as { description: string };
+    expect(wikiRun.description).toBe(
+      "Run the full wiki cycle: discover → ingest → lint. Optionally schedule for auto-updates.",
+    );
   });
 
   it("should include prompt arguments in templates that accept them", () => {
