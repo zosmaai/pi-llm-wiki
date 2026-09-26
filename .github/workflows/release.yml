@@ -42,15 +42,19 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
-      - name: Verify package and plugin versions
+      # ponytail: tag is the release version; package/plugin versions are ignored upstream.
+      # Write the tag version into the checked-in files right before publish so npm ships exactly vTAG.
+      - name: Set published version from release tag
         run: |
           node - <<'NODE'
           const fs = require("node:fs");
-          const expected = process.env.RELEASE_VERSION;
-          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-          const plugin = JSON.parse(fs.readFileSync(".claude-plugin/plugin.json", "utf8"));
-          if (pkg.version !== expected) throw new Error(`package.json is ${pkg.version}, tag is ${expected}`);
-          if (plugin.version !== expected) throw new Error(`plugin.json is ${plugin.version}, tag is ${expected}`);
+          const v = process.env.RELEASE_VERSION;
+          for (const f of ["package.json", ".claude-plugin/plugin.json"]) {
+            const o = JSON.parse(fs.readFileSync(f, "utf8"));
+            o.version = v;
+            fs.writeFileSync(f, `${JSON.stringify(o, null, 2)}\n`);
+            console.log(`set ${f} -> ${v}`);
+          }
           NODE
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.VERSION }}
