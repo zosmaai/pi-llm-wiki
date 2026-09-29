@@ -26,11 +26,12 @@ describe("package structure", () => {
     // The pi host was rebranded from @mariozechner/* to @earendil-works/* and
     // the CVE-2026-54328 fix only exists at >=0.78.1 in the new scope (issue #212).
     expect(pkg.peerDependencies["@earendil-works/pi-coding-agent"]).toBe(">=0.78.1");
-    // `typebox` is imported at runtime by the dist extension modules, so it
-    // must be a real dependency — a fresh install without the pi host (e.g.
-    // MCP-only, peers omitted) has to resolve it (issue #153).
-    expect(pkg.peerDependencies.typebox).toBeUndefined();
-    expect(pkg.dependencies.typebox).toBeTruthy();
+    // Host-provided packages must resolve to the host's single copies rather
+    // than nested duplicates (issue #282).
+    expect(pkg.peerDependencies["@earendil-works/pi-tui"]).toBe("*");
+    expect(pkg.peerDependencies.typebox).toBe("*");
+    expect(pkg.dependencies["@earendil-works/pi-tui"]).toBeUndefined();
+    expect(pkg.dependencies.typebox).toBeUndefined();
 
     expect(pkg.engines.node).toBe(">=22.0.0");
     // @tobilu/qmd is optional (issue #264): its native subtree
