@@ -130,9 +130,10 @@ export async function runSubAgent<TApi extends Api = Api>(
     },
   ];
 
+  // pi-agent-core 0.87 dropped `context.systemPrompt`; the system prompt is now
+  // the leading system message of the transcript.
   const context: AgentContext = {
-    systemPrompt,
-    messages: [],
+    messages: [{ role: "system", content: systemPrompt, timestamp: Date.now() }],
     tools,
   };
 

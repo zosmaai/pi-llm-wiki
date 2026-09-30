@@ -72,7 +72,11 @@ describe("omp-bundled pi-agent-core (no runAgentLoop export)", () => {
 
     expect(agentLoopMock).toHaveBeenCalledTimes(1);
     const [, context, _config, _signal, streamFn] = agentLoopMock.mock.calls[0];
-    expect(context.messages).toEqual([]);
+    expect(context.messages).toHaveLength(1);
+    expect(context.messages[0]).toMatchObject({
+      role: "system",
+      content: "You are a test sub-agent.",
+    });
     expect(context.tools).toEqual([]);
     expect(streamFn).toBeDefined();
   });
