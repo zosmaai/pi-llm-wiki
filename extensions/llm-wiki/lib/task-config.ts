@@ -116,6 +116,21 @@ export interface TaskConfig {
   notices?: boolean;
 
   /**
+   * Run automatic recall injection in the `before_agent_start` hook — the
+   * per-turn wiki recall that surfaces relevant pages without the agent asking.
+   * Default `true` for backward compatibility.
+   *
+   * Set to `false` to disable ONLY the automatic recall search + injection. The
+   * `wiki_recall` tool, the MCP tools, and the `/wiki-*` commands stay
+   * registered and fully usable for explicit use (issue #262). This is for
+   * users who run the wiki as a deliberately-invoked research tool alongside
+   * another memory system. Distinct from `notices` (UI visibility) and
+   * `ambientPersonalVault` (whether the personal vault applies): this directly
+   * gates the recall in `index.ts`.
+   */
+  autoRecall?: boolean;
+
+  /**
    * Let the PERSONAL wiki act as this project's ambient vault when the project
    * has no wiki of its own.
    *
@@ -189,6 +204,16 @@ export const TASK_DEFAULTS: TaskConfig = {};
  */
 export function noticesEnabled(config: TaskConfig | undefined): boolean {
   return config?.notices !== false;
+}
+
+/**
+ * Resolve whether automatic `before_agent_start` recall is enabled (issue
+ * #262). Same polarity as {@link noticesEnabled}: defaults to `true`; only an
+ * explicit `autoRecall: false` disables the automatic recall injection. The
+ * `wiki_recall` tool, MCP tools, and `/wiki-*` commands are unaffected.
+ */
+export function autoRecallEnabled(config: TaskConfig | undefined): boolean {
+  return config?.autoRecall !== false;
 }
 
 const WIKILINK_VALIDATION_MODES: readonly WikilinkValidationMode[] = [
@@ -287,6 +312,10 @@ function readNamespacedConfig(path: string): Partial<TaskConfig> {
 
     if (typeof section.notices === "boolean") {
       out.notices = section.notices;
+    }
+
+    if (typeof section.autoRecall === "boolean") {
+      out.autoRecall = section.autoRecall;
     }
 
     if (typeof section.ambientPersonalVault === "boolean") {
@@ -511,6 +540,7 @@ const KNOWN_KEYS = [
   "recallLinksThreshold",
   "recallSkillInlineMax",
   "notices",
+  "autoRecall",
   "ambientPersonalVault",
   "trajectories",
   "synthesisLanguage",

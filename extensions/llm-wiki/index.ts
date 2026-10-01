@@ -24,6 +24,7 @@ import { registerWikiRetro } from "./lib/retro.js";
 import { registerBackgroundRuntime } from "./lib/runtime.js";
 import { registerWikiSettingsCommand } from "./lib/settings-command.js";
 import {
+  autoRecallEnabled,
   loadTaskConfig,
   noticesEnabled,
   personalVaultIsAmbient,
@@ -304,7 +305,7 @@ Then call wiki_bootstrap with the inferred topic and mode to finalize the setup.
     // Personal vault is excluded — it contains cross-project pages that
     // produce noise in unrelated sessions. Users can call wiki_recall
     // explicitly for personal-vault searches.
-    if (prompt.trim()) {
+    if (prompt.trim() && autoRecallEnabled(runtime.config)) {
       // minScore=5: requires at least a title/heading/alias/trigger match,
       // or multiple body matches. This eliminates accidental body-only
       // substring matches (e.g. a Tally page matching on common words).
