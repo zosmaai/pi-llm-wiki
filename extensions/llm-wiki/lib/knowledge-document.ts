@@ -693,7 +693,11 @@ export function readKnowledgeDocumentFile(path: string, id: string): ParseKnowle
   return parseKnowledgeDocument(content, id);
 }
 
-export function writeKnowledgeDocumentFile(path: string, document: KnowledgeDocument): void {
+export function writeKnowledgeDocumentFile(
+  path: string,
+  document: KnowledgeDocument,
+  opts?: { flag?: "w" | "wx" },
+): void {
   const content = serializeKnowledgeDocument(document);
-  writeFileSync(path, content, "utf8");
+  writeFileSync(path, content, { encoding: "utf8", flag: opts?.flag ?? "w" });
 }
