@@ -16,3 +16,7 @@ src/content/docs/architecture.md
 src/content/docs/commands.md
 src/content/docs/configuration.md
 src/content/docs/obsidian.md
+src/content/docs/harnesses.md
+src/content/docs/qmd-compatibility.md
+src/content/docs/retrieval-benchmark.md
+src/content/docs/dependency-security.md

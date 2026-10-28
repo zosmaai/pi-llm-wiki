@@ -54,6 +54,10 @@ Start with a new OKF vault, or point pi-llm-wiki at an existing vault and adopt 
 pi install npm:@zosmaai/pi-llm-wiki
 ```
 
+If npm 12 prints audit findings or an `install-scripts` warning during this
+install, that is the `@tobilu/qmd` and pi dependency trees, not this package:
+see [`docs/dependency-security.md`](docs/dependency-security.md).
+
 **oh-my-pi** ([`omp`](https://github.com/can1357/oh-my-pi)):
 
 ```bash
@@ -80,6 +84,11 @@ For every other MCP client, install the package and register
 ```bash
 npm install --save-dev @zosmaai/pi-llm-wiki@latest
 ```
+
+If that install warns that install scripts were blocked, the `node-llama-cpp`
+and tree-sitter native builds were skipped and QMD retrieval will run
+lexical-only; [`docs/dependency-security.md`](docs/dependency-security.md) has
+the `npm install-scripts approve` commands.
 
 Use the client-specific JSON/TOML examples in
 [`docs/harnesses.md`](docs/harnesses.md). They cover Codex CLI, Cursor,

@@ -399,6 +399,22 @@ describe("package structure", () => {
     expect(fixture.private).toBe(true);
     expect(fixture.name).toBe("pi-llm-wiki-consumer-audit");
   });
+
+  // docs/dependency-security.md is the remediation consumers copy. If an
+  // override key or version changes in package.json and the doc is not updated,
+  // the documented fix is wrong, so compare the quoted JSON `"key": "version"`
+  // pairs for every key in pnpm.overrides (issue #321).
+  it("documents every pnpm.overrides entry in docs/dependency-security.md", () => {
+    const pkg = JSON.parse(readFile(join(rootDir, "package.json")));
+    const overrides = pkg.pnpm.overrides as Record<string, string>;
+    const doc = readFile(join(rootDir, "docs", "dependency-security.md"));
+    expect(doc.split("\n")[0]).toBe("# Dependency Security");
+    for (const [key, version] of Object.entries(overrides)) {
+      expect(doc, `${key}: ${version}`).toContain(`"${key}": "${version}"`);
+    }
+    expect(doc).toContain("npm install-scripts approve");
+    expect(doc).toContain("npm audit fix --force");
+  });
 });
 
 // ─── SKILL.md Frontmatter Validation ────────────────────

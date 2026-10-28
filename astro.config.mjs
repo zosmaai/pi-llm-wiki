@@ -21,6 +21,7 @@ export default defineConfig({
         { label: "Commands", slug: "commands" },
         { label: "API Reference", slug: "api" },
         { label: "Obsidian Integration", slug: "obsidian" },
+        { label: "Dependency Security", slug: "dependency-security" },
       ],
     }),
   ],
