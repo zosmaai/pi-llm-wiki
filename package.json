@@ -1,7 +1,7 @@
 {
   "name": "@zosmaai/pi-llm-wiki",
   "version": "0.6.3",
-  "description": "Self-maintaining LLM Wiki for Pi \u2014 Karpathy-pattern knowledge base with immutable source capture, automated ingestion, search, linting, and Obsidian-compatible vault. auto-updating personal & company wiki.",
+  "description": "Self-maintaining LLM Wiki for Pi — Karpathy-pattern knowledge base with immutable source capture, automated ingestion, search, linting, and Obsidian-compatible vault. auto-updating personal & company wiki.",
   "keywords": [
     "pi",
     "pi-package",
@@ -135,9 +135,9 @@
   "devDependencies": {
     "@astrojs/starlight": "^0.42.4",
     "@biomejs/biome": "^2.5.11",
-    "@earendil-works/pi-agent-core": "^0.87.1",
-    "@earendil-works/pi-ai": "^0.87.1",
-    "@earendil-works/pi-coding-agent": "^1.0.1",
+    "@earendil-works/pi-agent-core": "^1.4.0",
+    "@earendil-works/pi-ai": "^1.4.0",
+    "@earendil-works/pi-coding-agent": "^1.4.0",
     "@mermaid-js/mermaid-cli": "^11.12.0",
     "@types/mdast": "^4.0.4",
     "@types/node": "^26.6.3",

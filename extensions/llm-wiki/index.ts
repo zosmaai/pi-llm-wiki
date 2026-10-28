@@ -257,7 +257,14 @@ export default function (pi: ExtensionAPI) {
       return;
     }
 
-    const prompt = event.prompt || "";
+    // pi 1.4.0 split this event into a union: `prompt` exists only on the
+    // "user" variant, while runs triggered by an idle custom message carry
+    // `message` instead. The `in` check keeps the peer floor honest — pi
+    // 0.78.1 through 1.3.x has a single shape where `prompt` is always
+    // present — and a custom-triggered run on 1.4+ sees an empty prompt,
+    // which is what pi 1.0.1 passed there.
+    const rawPrompt = "prompt" in event ? event.prompt : "";
+    const prompt = typeof rawPrompt === "string" ? rawPrompt : "";
     // Volatile, per-turn content (recall results + one-time topic-inference
     // directive) MUST NOT go into the system prompt (issue #92). The system
     // prompt is the provider's primary cache prefix; rewriting it every turn
