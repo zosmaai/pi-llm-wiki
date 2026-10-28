@@ -38,9 +38,62 @@ jobs:
       - run: pnpm install --frozen-lockfile
         env:
           PUPPETEER_SKIP_DOWNLOAD: true
-      - name: pnpm audit (informational, high)
-        run: pnpm audit --audit-level=high
-        continue-on-error: true
+      # Issue #321: this ran with continue-on-error: true, so it never blocked
+      # anything. The production graph is now a gate. The dev tree (astro,
+      # starlight, mermaid-cli, vitest) still has 81 open findings and stays
+      # informational — they are tracked on issue #321, not gated here.
+      - name: pnpm audit (production graph, high)
+        run: pnpm audit --prod --audit-level=high
+
+  # The pi-pinned undici never appears in the graph above:
+  # @earendil-works/pi-coding-agent is a peer + dev dependency here, so
+  # `pnpm audit --prod` skips it. Consumers install without our lockfile and
+  # resolve the newest versions our ranges allow (issue #128), and that graph is
+  # the one that prints the audit block in issue #321. Same pack-and-install
+  # shape as `packaged-mcp-consumer` in ci.yml, but audited instead of smoked.
+  consumer-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: true
+
+      - name: Audit the consumer-resolved dependency graph
+        shell: bash
+        run: |
+          set -euo pipefail
+          consumer="$RUNNER_TEMP/consumer-audit"
+          mkdir -p "$consumer"
+
+          # prepack builds dist/, so no --ignore-scripts here.
+          tarball=$(npm pack --pack-destination "$RUNNER_TEMP" --silent | tail -1)
+
+          # The fixture carries the same overrides block docs/dependency-security.md
+          # tells consumers to add; test/package-structure.test.ts keeps the two
+          # maps equal, so this job audits the documented remediation.
+          cp test/fixtures/consumer-audit/package.json "$consumer/package.json"
+
+          cd "$consumer"
+          # Lockfile is written on purpose: the audit must run against the exact
+          # resolved graph. --ignore-scripts only skips native build steps, which
+          # cannot change what `npm audit` reports.
+          npm install --ignore-scripts "$RUNNER_TEMP/$tarball" "@earendil-works/pi-server"
+
+          # Diagnostic only: npm ls exits non-zero on unresolved optional/peer
+          # edges, so print the versions without letting them gate the job.
+          npm ls simple-git @simple-git/argv-parser @modelcontextprotocol/server undici zod || true
+
+          # Exits non-zero on any high-or-worse finding, which fails the job.
+          npm audit --audit-level=high
 
   trivy:
     runs-on: ubuntu-latest
