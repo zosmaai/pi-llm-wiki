@@ -97,7 +97,7 @@ The **separate, non-security half** of #321: npm 12 flipped dependency lifecycle
 - Modify: `test/package-structure.test.ts` (insert before line 51)
 - Test: `test/package-structure.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Insert this block in `test/package-structure.test.ts` immediately **before** line 51, `  it("keeps Claude plugin and marketplace metadata aligned with the package", () => {` (i.e. directly after the closing `  });` of the first `it(...)` block). Match the file's existing convention: a short block comment that names the issue and the reason, as in the `issue #264` and `issue #282` comments already in this file.
 
@@ -119,7 +119,7 @@ Insert this block in `test/package-structure.test.ts` immediately **before** lin
   });
 ```
 
-- [ ] **Step 2: Run the test and verify it fails**
+- [x] **Step 2: Run the test and verify it fails**
 
 Run:
 
@@ -150,7 +150,7 @@ AssertionError: expected { undici: '8.10.1' } to deeply equal { undici: '8.12.3'
       Tests  1 failed | 22 passed (23)
 ```
 
-- [ ] **Step 3: Do NOT commit**
+- [x] **Step 3: Do NOT commit**
 
 A red test on its own would leave the branch bisectable-but-broken. Task 2 changes `package.json` + `pnpm-lock.yaml` in the same commit as this test, so every commit on the branch is green. Stop here and go straight to Task 2.
 
@@ -163,7 +163,7 @@ A red test on its own would leave the branch bisectable-but-broken. Task 2 chang
 - Modify: `pnpm-lock.yaml` (regenerated, not hand-edited)
 - Test: `test/package-structure.test.ts`
 
-- [ ] **Step 1: Replace the override block**
+- [x] **Step 1: Replace the override block**
 
 In `package.json`, replace lines 107-109:
 
@@ -187,7 +187,7 @@ with:
 
 Leave `pnpm.onlyBuiltDependencies` exactly as it is — `test/package-structure.test.ts:45-49` asserts the array `["better-sqlite3", "node-llama-cpp", "sqlite-vec"]` and this plan must not change it. Do not touch `version`, `dependencies`, `optionalDependencies`, or `peerDependencies`.
 
-- [ ] **Step 2: Regenerate the lockfile**
+- [x] **Step 2: Regenerate the lockfile**
 
 Run:
 
@@ -208,7 +208,7 @@ Expected:
  M pnpm-lock.yaml
 ```
 
-- [ ] **Step 3: Run the Task 1 test and verify it passes**
+- [x] **Step 3: Run the Task 1 test and verify it passes**
 
 Run:
 
@@ -223,7 +223,7 @@ Expected:
       Tests  23 passed (23)
 ```
 
-- [ ] **Step 4: Verify the production graph is now audit-clean**
+- [x] **Step 4: Verify the production graph is now audit-clean**
 
 Run:
 
@@ -241,7 +241,7 @@ exit=0
 
 This is the exact command the hardened CI job will run in Task 4, so it must be green here before that job is switched on.
 
-- [ ] **Step 5: Verify the forced versions did not break the QMD and MCP contract**
+- [x] **Step 5: Verify the forced versions did not break the QMD and MCP contract**
 
 The overrides force `@tobilu/qmd` onto `@modelcontextprotocol/server` 2.4.0 and `zod` 4.6.7, and force `node-llama-cpp` onto `simple-git` 4.0.2. `test/mcp-package.test.ts` spawns the packaged stdio MCP server and completes the `initialize` → `tools/list` handshake, so it is the regression test for the SDK jump; `test/qmd-contract.test.ts` covers the model-free QMD contract.
 
@@ -262,7 +262,7 @@ Expected:
 
 If these fail, stop: the override set is not safe and the plan's premise needs revisiting rather than a test edit.
 
-- [ ] **Step 6: Verify the whole repo still builds, lints, and tests**
+- [x] **Step 6: Verify the whole repo still builds, lints, and tests**
 
 Run:
 
@@ -272,7 +272,7 @@ pnpm typecheck && pnpm lint && pnpm test
 
 Expected: `tsc --noEmit` prints nothing and exits 0; Biome prints `Checked N files. No errors found` (or warnings only) and exits 0; Vitest reports `Test Files 74 passed (74)` / `Tests 928 passed | 3 skipped (931)` (baseline 930 plus the one test added in Task 1). If `test/mcp-parity.test.ts:112` fails with `Error: Test timed out in 10000ms`, re-run `pnpm exec vitest run test/mcp-parity.test.ts` alone — it passes in isolation and is the pre-existing flake named in "Before you start".
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add package.json pnpm-lock.yaml test/package-structure.test.ts
@@ -291,7 +291,7 @@ Expected: one commit created, e.g. `3 files changed, …`.
 
 The fixture is the single source of truth for the consumer-facing override block: the docs quote it, and the CI job in Task 4 installs into it. Keeping it under `test/fixtures/` matches the existing `test/fixtures/okf/` and `test/fixtures/retrieval-benchmark/`, and Vitest never collects it (`vitest.config.ts` includes only `test/**/*.test.ts`).
 
-- [ ] **Step 1: Write the failing parity test**
+- [x] **Step 1: Write the failing parity test**
 
 Insert this block in `test/package-structure.test.ts` **inside** `describe("package structure")`, immediately after the last existing test's closing `  });` (currently line 371) and **before** the `});` on line 372 that closes the `describe`:
 
@@ -311,7 +311,7 @@ Insert this block in `test/package-structure.test.ts` **inside** `describe("pack
   });
 ```
 
-- [ ] **Step 2: Run the test and verify it fails**
+- [x] **Step 2: Run the test and verify it fails**
 
 Run:
 
@@ -329,7 +329,7 @@ Error: ENOENT: no such file or directory, open '/home/arjun/code/pi-packages/pi-
       Tests  1 failed | 23 passed (24)
 ```
 
-- [ ] **Step 3: Create the fixture**
+- [x] **Step 3: Create the fixture**
 
 Create `test/fixtures/consumer-audit/package.json` with the write tool (no heredoc). Two-space indent, LF, trailing newline — Biome formats JSON and `pnpm lint` must stay clean:
 
@@ -349,7 +349,7 @@ Create `test/fixtures/consumer-audit/package.json` with the write tool (no hered
 
 The `overrides` map must be spelled identically to `package.json#pnpm.overrides`: `undici`, `zod`, `@modelcontextprotocol/server`, `simple-git`, `@simple-git/argv-parser`.
 
-- [ ] **Step 4: Run the test and verify it passes**
+- [x] **Step 4: Run the test and verify it passes**
 
 Run:
 
@@ -364,7 +364,7 @@ Expected:
       Tests  24 passed (24)
 ```
 
-- [ ] **Step 5: Verify lint and format accept the fixture**
+- [x] **Step 5: Verify lint and format accept the fixture**
 
 Run:
 
@@ -374,7 +374,7 @@ pnpm lint
 
 Expected: Biome exits 0 with no errors (its output line is `Checked N files.` plus at most pre-existing warnings). If it reports a format diff on the fixture, run `pnpm lint:fix` and re-read the fixture to confirm it is still valid JSON.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add test/fixtures/consumer-audit/package.json test/package-structure.test.ts
@@ -388,7 +388,7 @@ git commit -m "test: pin the consumer override fixture to pnpm.overrides (#321)"
 **Files:**
 - Modify: `.github/workflows/security.yml` (`audit` job at lines 29-43; append a `consumer-audit` job)
 
-- [ ] **Step 1: Make the `audit` job a gate**
+- [x] **Step 1: Make the `audit` job a gate**
 
 In `.github/workflows/security.yml`, replace the last step of the `audit` job (lines 41-43):
 
@@ -411,7 +411,7 @@ with:
 
 Nothing else in the job changes: `pnpm install --frozen-lockfile` with `PUPPETEER_SKIP_DOWNLOAD: true` above it already runs, and the lockfile regenerated in Task 2 now satisfies the gate.
 
-- [ ] **Step 2: Add the `consumer-audit` job**
+- [x] **Step 2: Add the `consumer-audit` job**
 
 Insert this job after the `audit` job and before the `trivy` job in `.github/workflows/security.yml`:
 
@@ -469,7 +469,7 @@ Insert this job after the `audit` job and before the `trivy` job in `.github/wor
 
 Why `@earendil-works/pi-server` is installed explicitly: `@earendil-works/pi-coding-agent` imports it at runtime but does not declare it, so a lockfile-free consumer install can resolve nothing for it — the same reason `packaged-mcp-consumer` in `ci.yml:140-143` adds it. Why `npm pack` has no `--ignore-scripts`: `prepack` builds `dist/` (`package.json` `scripts.prepack`).
 
-- [ ] **Step 3: Validate the YAML without network**
+- [x] **Step 3: Validate the YAML without network**
 
 Run:
 
@@ -485,7 +485,7 @@ security.yml parses
 
 (The `yaml` package is a direct dependency, so it resolves from this repo's `node_modules`.)
 
-- [ ] **Step 4: Prove the job's steps locally before committing**
+- [x] **Step 4: Prove the job's steps locally before committing**
 
 This runs the same command sequence the job will run. The `rm -rf` below targets only the scratch probe directory it creates, nothing else.
 
@@ -514,7 +514,7 @@ exit=0
 
 If `npm audit` still lists vulnerable versions, the install was incremental or the fixture overrides are not being applied — delete `$probe` and re-run from the `mkdir` line, because an incremental install leaves a stale nested copy.
 
-- [ ] **Step 5: Confirm the repo suite is still green**
+- [x] **Step 5: Confirm the repo suite is still green**
 
 Run:
 
@@ -524,7 +524,7 @@ pnpm test
 
 Expected: `Test Files 74 passed (74)` / `Tests 929 passed | 3 skipped (932)` (baseline 930 plus Task 1 and Task 3) (subject to the known `test/mcp-parity.test.ts` flake from "Before you start"). CI workflow changes cannot break Vitest, so this only guards against an accidental edit to something else in the same pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .github/workflows/security.yml
@@ -543,7 +543,7 @@ git commit -m "ci: gate the production audit and audit the consumer graph (#321)
 - Modify: `.gitignore` (append one line)
 - Generated: `src/content/docs/dependency-security.md` (by `node scripts/sync-docs.js`, then ignored)
 
-- [ ] **Step 1: Write the failing drift-guard test**
+- [x] **Step 1: Write the failing drift-guard test**
 
 Insert this block in `test/package-structure.test.ts` inside `describe("package structure")`, after the fixture-parity test added in Task 3 and before the `});` that closes the `describe`:
 
@@ -565,7 +565,7 @@ Insert this block in `test/package-structure.test.ts` inside `describe("package 
   });
 ```
 
-- [ ] **Step 2: Run the test and verify it fails**
+- [x] **Step 2: Run the test and verify it fails**
 
 Run:
 
@@ -575,7 +575,7 @@ pnpm exec vitest run test/package-structure.test.ts --reporter=verbose
 
 Expected: FAIL — `Error: ENOENT: no such file or directory, open '/home/arjun/code/pi-packages/pi-llm-wiki/docs/dependency-security.md'`, summary `Tests 1 failed | 24 passed (25)`.
 
-- [ ] **Step 3: Create `docs/dependency-security.md`**
+- [x] **Step 3: Create `docs/dependency-security.md`**
 
 Create the file with the write tool (never a heredoc). The first line must be exactly `# Dependency Security`, because `scripts/sync-docs.js` takes the page title from the first `# ` heading.
 
@@ -737,7 +737,7 @@ Not every advisory is equally reachable in the default configuration:
   poisoning entries affect real requests. If you only fix one, fix `undici`.
 ````
 
-- [ ] **Step 4: Run the drift guard and verify it passes**
+- [x] **Step 4: Run the drift guard and verify it passes**
 
 Run:
 
@@ -752,7 +752,7 @@ Expected:
       Tests  25 passed (25)
 ```
 
-- [ ] **Step 5: Add the Starlight sidebar entry**
+- [x] **Step 5: Add the Starlight sidebar entry**
 
 In `astro.config.mjs`, replace line 23:
 
@@ -767,7 +767,7 @@ with:
         { label: "Dependency Security", slug: "dependency-security" },
 ```
 
-- [ ] **Step 6: Add the two README pointers**
+- [x] **Step 6: Add the two README pointers**
 
 In `README.md`, immediately after the pi Quick Start code block that ends on line 55 (the fence after `pi install npm:@zosmaai/pi-llm-wiki` on line 54), insert:
 
@@ -790,7 +790,7 @@ the `npm install-scripts approve` commands.
 
 Do not touch the other nine `README.*.md` translations — see "Out of scope".
 
-- [ ] **Step 7: Generate the Starlight page and keep the tree clean**
+- [x] **Step 7: Generate the Starlight page and keep the tree clean**
 
 Run:
 
@@ -841,7 +841,7 @@ Expected:
 `.gitignore` lines are for. `src/content/docs/index.md` is the one committed
 page and stays tracked.)
 
-- [ ] **Step 8: Verify lint, typecheck, and the full suite**
+- [x] **Step 8: Verify lint, typecheck, and the full suite**
 
 Run:
 
@@ -851,7 +851,7 @@ pnpm typecheck && pnpm lint && pnpm test
 
 Expected: `tsc` silent and exit 0; Biome exit 0; Vitest `Test Files 74 passed (74)` / `Tests 930 passed | 3 skipped (933)` (baseline 930 plus the three tests added in Tasks 1, 3 and 5), subject to the known `test/mcp-parity.test.ts` flake.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add docs/dependency-security.md astro.config.mjs README.md .gitignore test/package-structure.test.ts
@@ -865,7 +865,7 @@ git commit -m "docs: document npm 12 audit findings and blocked install scripts 
 **Files:**
 - Modify: `CHANGELOG.md` — one bullet at the end of the first `### Fixed` subsection under `## [Unreleased]` (currently line 16 onward)
 
-- [ ] **Step 1: Add the changelog bullet**
+- [x] **Step 1: Add the changelog bullet**
 
 Append this bullet as the last item of the first `### Fixed` subsection in `CHANGELOG.md` (the one under `## [Unreleased]`, which starts on line 3):
 
@@ -873,7 +873,7 @@ Append this bullet as the last item of the first `### Fixed` subsection in `CHAN
 - **npm 12 consumer installs were not audit-clean, and nothing gated them** (Issue #321): a clean `npm install @zosmaai/pi-llm-wiki` resolved 320 packages with **9 vulnerabilities (1 moderate, 6 high, 2 critical)**, because `@tobilu/qmd` pins `@modelcontextprotocol/server@2.0.0`, `zod@4.2.1` and `node-llama-cpp@3.20.0` (which reaches critical `simple-git@3.36.0` / `@simple-git/argv-parser@1.1.1`) at exact versions, and `@earendil-works/pi-coding-agent@1.4.0` pins `undici@8.10.2` exactly. Our own `pnpm.overrides` made it worse: it pinned `undici` to `8.10.1`, itself inside the vulnerable range `8.0.0 - 8.12.1`. `pnpm.overrides` now pins `undici` `8.12.3`, `zod` `^4.6.7`, `@modelcontextprotocol/server` `2.4.0`, `simple-git` `4.0.2` and `@simple-git/argv-parser` `2.0.1`, which reaches `found 0 vulnerabilities` in a clean consumer install. New `consumer-audit` job in `.github/workflows/security.yml` packs the tarball, installs it into `test/fixtures/consumer-audit/package.json` (the documented override block, kept equal to `pnpm.overrides` by `test/package-structure.test.ts`), prints the resolved versions with `npm ls`, and fails on any `npm audit --audit-level=high` finding; the `audit` job became `pnpm audit --prod --audit-level=high` **without** `continue-on-error`, so the production graph can no longer regress silently. `docs/dependency-security.md` covers both npm 12 blocks: the override map plus the clean-reinstall command pair, why `npm audit fix --force` must never be run (it downgrades to 0.12.2), and the `npm install-scripts approve` path for the six lifecycle scripts npm 12 denies by default (npm RFC 868) whose absence degrades QMD recall to lexical-only.
 ```
 
-- [ ] **Step 2: Run the full verification set**
+- [x] **Step 2: Run the full verification set**
 
 Run:
 
@@ -890,7 +890,7 @@ Expected: `tsc --noEmit` silent, exit 0. Biome exit 0. Vitest:
 
 If `test/mcp-parity.test.ts:112` fails with `Error: Test timed out in 10000ms`, re-run `pnpm exec vitest run test/mcp-parity.test.ts` alone (expected `Tests 21 passed (21)`) — it is the pre-existing host flake, not this change.
 
-- [ ] **Step 3: Re-verify both audits one last time**
+- [x] **Step 3: Re-verify both audits one last time**
 
 Run:
 
@@ -919,14 +919,14 @@ cd /home/arjun/code/pi-packages/pi-llm-wiki
 
 Expected: `found 0 vulnerabilities` and `exit=0`. The `rm -rf` above removes only the scratch directory it just created.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add CHANGELOG.md
 git commit -m "docs: changelog for the npm 12 dependency security hardening (#321)"
 ```
 
-- [ ] **Step 5: Stop. The release is a maintainer decision**
+- [x] **Step 5: Stop. The release is a maintainer decision**
 
 This plan deliberately does **not** run `npm run release:patch` or
 `npm run release:push`. AGENTS.md forbids hand-editing the version and requires the
