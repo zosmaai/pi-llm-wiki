@@ -48,6 +48,22 @@ describe("package structure", () => {
     ]);
   });
 
+  // @tobilu/qmd pins @modelcontextprotocol/server, zod and node-llama-cpp at
+  // exact versions, and @earendil-works/pi-coding-agent pins undici at an exact
+  // version, so a vulnerable release keeps resolving for every consumer install
+  // no matter which ranges we declare. npm honours `overrides` only from the
+  // root package, so re-pinning the patched versions is ours to maintain (issue #321).
+  it("pins patched versions of vulnerable transitive dependencies (issue #321)", () => {
+    const pkg = JSON.parse(readFile(join(rootDir, "package.json")));
+    expect(pkg.pnpm.overrides).toEqual({
+      undici: "8.12.3",
+      zod: "^4.6.7",
+      "@modelcontextprotocol/server": "2.4.0",
+      "simple-git": "4.0.2",
+      "@simple-git/argv-parser": "2.0.1",
+    });
+  });
+
   it("keeps Claude plugin and marketplace metadata aligned with the package", () => {
     const pkg = JSON.parse(readFile(join(rootDir, "package.json"))) as {
       name: string;

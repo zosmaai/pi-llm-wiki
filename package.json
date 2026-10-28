@@ -105,7 +105,11 @@
   },
   "pnpm": {
     "overrides": {
-      "undici": "8.10.1"
+      "undici": "8.12.3",
+      "zod": "^4.6.7",
+      "@modelcontextprotocol/server": "2.4.0",
+      "simple-git": "4.0.2",
+      "@simple-git/argv-parser": "2.0.1"
     },
     "onlyBuiltDependencies": [
       "better-sqlite3",
