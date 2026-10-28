@@ -29,7 +29,7 @@ A clean `npm install @zosmaai/pi-llm-wiki` resolves 320 packages and reports
 | `zod@4.2.1` | high (GHSA-mrhx-c7xc-m3w5) | `@tobilu/qmd` pins it exact | 4.6.6+ |
 | `@simple-git/argv-parser@1.1.1` | critical (GHSA-v5rq-49vh-5v5c) | `@tobilu/qmd` via `node-llama-cpp@3.20.0` via `simple-git@3.36.0` | 2.0.1 |
 | `simple-git@3.36.0` | critical (GHSA-x6jw-m9v5-85vh, GHSA-g4wm-2vf7-vfgr, GHSA-858h-whjf-mvg5) | same path | 4.0.1+ |
-| `undici@8.10.2` | high, 7 advisories, including TLS certificate validation bypass GHSA-2m5v-pch6-74hx | `@earendil-works/pi-coding-agent@1.4.0` pins it exact | 8.12.2+ |
+| `undici@8.10.2` | high, 7 advisories, including TLS certificate validation bypass GHSA-2m5v-pch6-74hx | `@earendil-works/pi-coding-agent` pins it exact (1.0.1 and 1.4.0 both do) | 8.12.2+ |
 
 Add this to your `package.json`. npm honours `overrides` only from the root
 package, so we cannot apply it for you from inside our published manifest:
@@ -133,7 +133,9 @@ The versions above are not lazily pinned by us. `@tobilu/qmd` declares its
 dependencies at exact versions (`@modelcontextprotocol/server` 2.0.0, `zod`
 4.2.1, `node-llama-cpp` 3.20.0), and `2.8.3` is the latest release, so a
 consumer has nothing newer to move to inside qmd. `@earendil-works/pi-coding-agent`
-1.4.0 pins `undici` exactly at `8.10.2`, which is vulnerable through `8.12.1`.
+pins `undici` exactly at `8.10.2`, which is vulnerable through `8.12.1`, and both
+1.0.1 (the version this repo develops against) and 1.4.0 (the version a fresh
+consumer install resolves) carry that same exact pin.
 Until those upstream packages widen their ranges or move, an `overrides` block in
 the consuming project is the only mechanism that reaches these advisories, which
 is why it is documented here and asserted in CI rather than left to a lockfile
