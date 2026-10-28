@@ -385,6 +385,20 @@ describe("package structure", () => {
       }
     }
   });
+
+  // The consumer-facing override block exists in three places: pnpm.overrides,
+  // test/fixtures/consumer-audit/package.json (which the consumer-audit CI job
+  // installs into), and docs/dependency-security.md. One map, three copies —
+  // keep the fixture identical to what the repo ships (issue #321).
+  it("keeps the consumer audit fixture overrides equal to pnpm.overrides", () => {
+    const pkg = JSON.parse(readFile(join(rootDir, "package.json")));
+    const fixture = JSON.parse(
+      readFile(join(rootDir, "test", "fixtures", "consumer-audit", "package.json")),
+    );
+    expect(fixture.overrides).toEqual(pkg.pnpm.overrides);
+    expect(fixture.private).toBe(true);
+    expect(fixture.name).toBe("pi-llm-wiki-consumer-audit");
+  });
 });
 
 // ─── SKILL.md Frontmatter Validation ────────────────────
