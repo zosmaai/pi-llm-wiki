@@ -35,6 +35,11 @@ Install it locally in the project that owns the MCP configuration:
 npm install --save-dev @zosmaai/pi-llm-wiki@latest
 ```
 
+If you want semantic search in that project, add `--legacy-peer-deps`: npm
+silently skips the optional `@tobilu/qmd` subtree whenever its
+`typescript@^5.9.3` peer cannot be met. See
+[QMD compatibility](qmd-compatibility.md#installing-on-npm-hosts).
+
 Use absolute paths in client configuration. MCP clients spawn commands directly;
 `~` is not expanded inside JSON/TOML argument values.
 

@@ -138,6 +138,44 @@ export type QmdStoreFactory = (input: {
 }) => Promise<QmdIndexStore>;
 
 /**
+ * Issue #302: two unrelated install failures reach this one catch, and the
+ * single message we used to print blamed a native build for both. They need
+ * different remedies, so name the cause.
+ *
+ * - The module is not on disk at all. npm drops an optional subtree whose peer
+ *   requirements cannot be met, and it does so without a warning.
+ *   @tobilu/qmd declares `peer typescript@^5.9.3`, so any consumer on
+ *   TypeScript 6 or 7 loses qmd silently.
+ * - The module is on disk but its native subtree failed to build or load
+ *   (`ERR_DLOPEN_FAILED`), which is what the old message described.
+ */
+export function describeQmdUnavailable(cause: unknown): string {
+  const reason = cause instanceof Error ? cause.message : String(cause);
+  const code = cause instanceof Error ? (cause as { code?: unknown }).code : undefined;
+  const moduleMissing =
+    code === "ERR_MODULE_NOT_FOUND" ||
+    code === "MODULE_NOT_FOUND" ||
+    /Cannot find (?:package|module)/.test(reason);
+  if (moduleMissing) {
+    return (
+      `@tobilu/qmd ${QMD_PACKAGE_VERSION} is not installed. It is an optional dependency, and npm ` +
+      "silently drops an optional subtree whose peer requirements cannot be met — qmd declares " +
+      "`peer typescript@^5.9.3`, so any host that has TypeScript 6 or 7 installed loses it without " +
+      "a warning. Install it with peer resolution relaxed: " +
+      "`npm install @tobilu/qmd@" +
+      QMD_PACKAGE_VERSION +
+      " --legacy-peer-deps` (pi's own `pi install` already passes `--legacy-peer-deps`). " +
+      "Keyword recall keeps working; only the semantic index needs qmd."
+    );
+  }
+  return (
+    `@tobilu/qmd ${QMD_PACKAGE_VERSION} is installed but failed to load: ${reason}. Its native ` +
+    "subtree (better-sqlite3, sqlite-vec, node-llama-cpp) needs GitHub access or a C++ toolchain " +
+    "to build. Re-run the install with GitHub reachable, or with build tools available."
+  );
+}
+
+/**
  * Open a QMD index store over the mirror documents directory, with two
  * non-overlapping collections (canonical and evidence).
  */
@@ -145,19 +183,15 @@ export async function openQmdIndexStore(input: {
   dbPath: string;
   documentsPath: string;
 }): Promise<QmdIndexStore> {
-  // @tobilu/qmd is an optional dependency (issue #264): on restricted
-  // machines its native subtree (better-sqlite3) fails to install and npm
-  // skips it. Load lazily so the package installs everywhere — only QMD
-  // operations fail, with an actionable message.
+  // @tobilu/qmd is an optional dependency (issue #264): on restricted machines
+  // its native subtree (better-sqlite3) fails to install, and npm also drops it
+  // when a peer requirement is unmet (issue #302). Load lazily so the package
+  // installs everywhere — only QMD operations fail, with an actionable message.
   let createStore: typeof import("@tobilu/qmd").createStore;
   try {
     ({ createStore } = await import("@tobilu/qmd"));
-  } catch {
-    throw new Error(
-      "@tobilu/qmd is unavailable (optional dependency skipped during install — its " +
-        "better-sqlite3 native build needs GitHub access or C++ build tools). Re-run " +
-        "npm install in a network with GitHub reachable, or with build tools available.",
-    );
+  } catch (cause) {
+    throw new Error(describeQmdUnavailable(cause), { cause });
   }
 
   const store: QMDStore = await createStore({

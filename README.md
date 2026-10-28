@@ -58,6 +58,11 @@ If npm 12 prints audit findings or an `install-scripts` warning during this
 install, that is the `@tobilu/qmd` and pi dependency trees, not this package:
 see [`docs/dependency-security.md`](docs/dependency-security.md).
 
+`@tobilu/qmd`, the optional package behind semantic search, is dropped without a
+warning by npm when its `typescript@^5.9.3` peer cannot be met. If
+`~/.pi/agent/npm/node_modules/@tobilu/qmd` is missing, [`docs/qmd-compatibility.md`](docs/qmd-compatibility.md#installing-on-npm-hosts)
+gives the one-line fix.
+
 **oh-my-pi** ([`omp`](https://github.com/can1357/oh-my-pi)):
 
 ```bash
