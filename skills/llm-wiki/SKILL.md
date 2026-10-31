@@ -54,9 +54,11 @@ WIKI_ROOT/
 2. **META IS EXTENSION-OWNED.** Never edit `meta/` directly. `events.jsonl` is append-only authoritative activity state; other metadata files are generated projections.
 3. **YOU OWN THE WIKI.** Create, update, and cross-reference everything in `wiki/`.
 4. **ONE FILE PER THING.** Each entity, concept, source gets its own `.md` file.
-5. **CROSS-REFERENCE EVERYTHING.** Every page needs at least 2 links. Prefer standard Markdown: `[label](/folder/page.md)`. Legacy wikilinks `[[folder/page]]` remain readable.
+5. **CROSS-REFERENCE BOTH WAYS.** Every page needs at least 2 outgoing links, and every page must be linked *from* at least one other page. Prefer standard Markdown: `[label](/folder/page.md)`. Legacy wikilinks `[[folder/page]]` remain readable.
 6. **CITE SOURCES.** Every claim links back to its raw source packet.
 7. **FLAG CONTRADICTIONS.** When sources disagree, document both sides.
+8. **READ THE SCHEMA FIRST.** `.llm-wiki/WIKI_SCHEMA.md` is the operating manual and holds the ownership, linking and structural rules. Read it before creating pages in an area you have not worked in before — do not assume the conventions below are the whole of it.
+9. **NO ORPHANS, ONE INDEX PER DOMAIN.** Every domain space gets an index page, and every page belonging to it links from that index. `wiki_lint` and `/wiki-dashboard` report zero-backlink pages; treat them as defects to fix, not style preferences.
 
 > Preserve `meta/events.jsonl` in full-vault backups. `meta/log.md` and `wiki/log.md` cannot reconstruct it. Do not place secrets or private machine paths in manual event details.
 
@@ -269,6 +271,17 @@ Use these directly — they handle scaffolding, bookkeeping, recall, and capture
 - Standard Markdown links: `[label](/concepts/retrieval-augmented-generation.md)`
 - Legacy wikilinks still readable: `[[concepts/retrieval-augmented-generation]]`
 
+### Linking and Structure
+
+- **No orphans.** Every page must be referenced by at least one other page. A page nothing links to is invisible to recall and is a defect — link it, or remove it. Never leave one.
+- **One index page per domain space.** When work enters an area that has no index — a new machine, service, engine, model or problem space — create that domain's index page as part of the work, not afterwards.
+- **Domain detail links from its index.** The index is the entry point, so nothing in a domain should be reachable only by search.
+- **The result is a DAG.** Each page has at least one parent. Occasional loops are fine and the tree may get deep; what is not allowed is a page with no inbound link at all.
+- Creating a page therefore has two halves: the page itself, and the edge that connects it. A page written without its inbound link is unfinished work.
+- **Verify the edge landed.** After writing pages, read `meta/backlinks.json` and confirm your new pages appear as values. A link the resolver did not record is not an edge.
+
+Link resolution is relative to the page that contains the link: from `wiki/syntheses/`, a concept is reached as `../concepts/foo.md`. A leading slash has been observed to resolve as a path *under* the containing directory rather than as vault-root, so prefer paths relative to the page you are editing and confirm the result in `backlinks.json`.
+
 ### Frontmatter
 
 ```yaml
@@ -326,4 +339,5 @@ Recommended plugins: Dataview, Graph View, Backlinks
 - **Start small:** 3-5 sources, let it grow organically
 - **Batch efficiently:** Plan all pages for a source, then write them rapidly
 - **Trust the extension:** Never waste tokens updating INDEX.md or LOG.md manually
-- **Evolve the schema:** Update `WIKI_SCHEMA.md` as conventions mature
+- **Read the schema:** `.llm-wiki/WIKI_SCHEMA.md` is the operating manual, and it is not reproduced here. Read it before creating pages in a new area.
+- **Evolve the schema:** Update `WIKI_SCHEMA.md` as conventions mature, and when a failure mode repeats
