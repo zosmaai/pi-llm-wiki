@@ -56,15 +56,17 @@ export function saveObservation(
   const today = fmtDate();
   const timestamp = new Date().toISOString();
 
-  // Generate a slug from title
-  const slugBase = input.title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 60);
+  // Generate a slug from title. \p{L}\p{N} keeps non-Latin letters (CJK titles
+  // used to collapse to an empty slug and collide on one filename per day);
+  // every other character run becomes a separator, as before. Truncation counts
+  // code points rather than UTF-16 units, so a surrogate pair is never split in
+  // half, and the trailing separator that truncation can expose is stripped.
+  const slugBase =
+    [...input.title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-")]
+      .slice(0, 60)
+      .join("")
+      .replace(/^-+|-+$/g, "") || "untitled";
   const slug = `obs-${today}-${slugBase}`;
-
-  const pagePath = join(paths.wiki, "sources", `${slug}.md`);
 
   const relevanceEmoji = RELEVANCE_EMOJIS[input.relevance] ?? "📝";
   const tags = input.tags ?? "";
@@ -79,28 +81,46 @@ ${input.content}
 ---
 *Observed: ${timestamp}*`;
 
-  const doc = createKnowledgeDocument(
-    `sources/${slug}.md`,
-    {
-      type: "source",
-      title: `Observation: ${input.title}`,
-      slug,
-      status: "observation",
-      created: today,
-      updated: today,
-      relevance: input.relevance,
-      observed_at: timestamp,
-      ...(tags ? { tags: tags.split(/\s+/).filter(Boolean) } : {}),
-      ...(sourceContext ? { source_context: sourceContext } : {}),
-    },
-    body,
-  );
-  writeKnowledgeDocumentFile(pagePath, doc);
+  // Reserve the filename atomically and never overwrite an observation: the
+  // exclusive "wx" write fails with EEXIST instead of racing a separate
+  // existsSync check, so two concurrent writers can never choose the same path.
+  // The loser retries with a -2, -3, … suffix.
+  let finalSlug = "";
+  let pagePath = "";
+  for (let n = 1; ; n++) {
+    const candidateSlug = n === 1 ? slug : `${slug}-${n}`;
+    const candidatePath = join(paths.wiki, "sources", `${candidateSlug}.md`);
+    const doc = createKnowledgeDocument(
+      `sources/${candidateSlug}.md`,
+      {
+        type: "source",
+        title: `Observation: ${input.title}`,
+        slug: candidateSlug,
+        status: "observation",
+        created: today,
+        updated: today,
+        relevance: input.relevance,
+        observed_at: timestamp,
+        ...(tags ? { tags: tags.split(/\s+/).filter(Boolean) } : {}),
+        ...(sourceContext ? { source_context: sourceContext } : {}),
+      },
+      body,
+    );
+    try {
+      writeKnowledgeDocumentFile(candidatePath, doc, { flag: "wx" });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") continue;
+      throw error;
+    }
+    finalSlug = candidateSlug;
+    pagePath = candidatePath;
+    break;
+  }
 
   // Log event
   appendEvent(paths, {
     kind: "observe",
-    slug,
+    slug: finalSlug,
     title: input.title,
     relevance: input.relevance,
   });
@@ -110,7 +130,7 @@ ${input.content}
   // a non-blocking reindex instead.
   if (opts?.rebuild !== false) rebuildMetadataLight(paths);
 
-  return { slug, pagePath };
+  return { slug: finalSlug, pagePath };
 }
 
 // ─── Shared Reminder State ────────────────────────────
