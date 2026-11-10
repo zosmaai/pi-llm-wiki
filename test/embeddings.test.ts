@@ -188,6 +188,33 @@ describe("embedding store + staleness", () => {
     expect(stats).toEqual({ embedded: 0, skipped: 0, total: 1 });
     expect(calls).toHaveLength(0);
   });
+
+  it("persists completed batches when a later batch fails, then resumes", async () => {
+    const ids = Array.from({ length: 100 }, (_, i) => `entities/p${i}`);
+    for (const id of ids)
+      writePage(paths, id, `---\ntype: entity\ntitle: ${id.slice(9)}\n---\n\nbody`);
+    let call = 0;
+    const failing = {
+      model: "mock-embed",
+      embed: async (texts: string[]): Promise<number[][]> => {
+        call++;
+        if (call === 2) throw new Error("embedding API error: rate limited");
+        return texts.map(() => [1, 0, 0, 0, 0, 0, 0, 0]);
+      },
+    };
+
+    // Batch 1 (96 pages) succeeds, batch 2 (4 pages) hits the rate limit.
+    await expect(embedPages(paths, ids, failing)).rejects.toThrow("rate limited");
+    const store1 = readEmbeddingStore(paths);
+    expect(Object.keys(store1.entries)).toHaveLength(96);
+
+    // Next run skips the 96 fresh pages and embeds only the remainder.
+    const { embedder, calls } = makeMockEmbedder();
+    const stats = await embedPages(paths, ids, embedder);
+    expect(stats).toEqual({ embedded: 4, skipped: 96, total: 100 });
+    expect(calls).toHaveLength(1);
+    expect(Object.keys(readEmbeddingStore(paths).entries)).toHaveLength(100);
+  });
 });
 
 // ── backfill / reindex ────────────────────────────────────
@@ -243,7 +270,6 @@ describe("resolveEmbedder", () => {
     prev[ENV_KEY] = process.env[ENV_KEY];
     prev.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
     delete process.env[ENV_KEY];
-    // biome-ignore lint/performance/noDelete: delete truly unsets the env var (assigning undefined coerces to "undefined")
     delete process.env.OPENAI_API_KEY;
   });
   afterEach(() => {
