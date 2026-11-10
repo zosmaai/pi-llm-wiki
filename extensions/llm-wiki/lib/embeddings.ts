@@ -201,7 +201,11 @@ function readPageText(paths: VaultPaths, id: string): PageText | undefined {
 /**
  * Embed the given page ids, writing fresh vectors into the sidecar store.
  * Stale-aware: pages whose hash + model already match are skipped (unless
- * `force`). Pure async — pass a mock `Embedder` to test without a network.
+ * `force`). Inputs are batched under the provider caps and the store is
+ * persisted after EACH batch, so a mid-run failure (e.g. rate limit) keeps
+ * every completed batch and the next run resumes via staleness instead of
+ * redoing all work. Pure async — pass a mock `Embedder` to test without a
+ * network.
  */
 export async function embedPages(
   paths: VaultPaths,
@@ -227,13 +231,19 @@ export async function embedPages(
     targets.push(page);
   }
 
-  if (targets.length > 0) {
-    const vectors = await embedder.embed(targets.map((t) => t.text));
+  let embedded = 0;
+  for (const batch of chunkByBudget(
+    targets,
+    DEFAULT_MAX_EMBED_BATCH,
+    DEFAULT_MAX_EMBED_BATCH_CHARS,
+    (t) => t.text.length,
+  )) {
+    const vectors = await embedder.embed(batch.map((t) => t.text));
     const now = new Date().toISOString();
-    for (let i = 0; i < targets.length; i++) {
+    for (let i = 0; i < batch.length; i++) {
       const vec = normalizeVector(vectors[i] ?? []);
-      store.entries[targets[i].id] = {
-        hash: targets[i].hash,
+      store.entries[batch[i].id] = {
+        hash: batch[i].hash,
         model: embedder.model,
         dim: vec.length,
         vector: vec,
@@ -241,9 +251,10 @@ export async function embedPages(
       };
     }
     writeEmbeddingStore(paths, store);
+    embedded += batch.length;
   }
 
-  return { embedded: targets.length, skipped, total: seen.size };
+  return { embedded, skipped, total: seen.size };
 }
 
 /**
@@ -316,24 +327,38 @@ export const DEFAULT_MAX_EMBED_BATCH_CHARS = 45_000;
 
 /**
  * Split `texts` into batches that stay under BOTH a count cap and a total
- * char budget. A single oversized text is emitted as its own batch rather than
+ * char budget. A single oversized item is emitted as its own batch rather than
  * dropped, so every input is always embedded. Pure — unit-testable with no
- * network.
+ * network. `sizeOf` lets callers batch non-string items (defaults to string
+ * length).
  */
-export function chunkByBudget(texts: string[], maxCount: number, maxChars: number): string[][] {
-  const batches: string[][] = [];
-  let batch: string[] = [];
+export function chunkByBudget(texts: string[], maxCount: number, maxChars: number): string[][];
+export function chunkByBudget<T>(
+  items: T[],
+  maxCount: number,
+  maxChars: number,
+  sizeOf: (item: T) => number,
+): T[][];
+export function chunkByBudget<T>(
+  items: T[],
+  maxCount: number,
+  maxChars: number,
+  sizeOf?: (item: T) => number,
+): T[][] {
+  const size = sizeOf ?? ((item) => (item as string).length);
+  const batches: T[][] = [];
+  let batch: T[] = [];
   let chars = 0;
-  for (const text of texts) {
-    // Close the current batch before adding a text that would exceed either
-    // cap — but never emit an empty batch (an oversized text stands alone).
-    if (batch.length > 0 && (batch.length >= maxCount || chars + text.length > maxChars)) {
+  for (const text of items) {
+    // Close the current batch before adding an item that would exceed either
+    // cap — but never emit an empty batch (an oversized item stands alone).
+    if (batch.length > 0 && (batch.length >= maxCount || chars + size(text) > maxChars)) {
       batches.push(batch);
       batch = [];
       chars = 0;
     }
     batch.push(text);
-    chars += text.length;
+    chars += size(text);
   }
   if (batch.length > 0) batches.push(batch);
   return batches;
