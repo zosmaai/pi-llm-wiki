@@ -133,7 +133,7 @@
     "@tobilu/qmd": "2.8.3"
   },
   "devDependencies": {
-    "@astrojs/starlight": "^0.42.4",
+    "@astrojs/starlight": "^0.43.1",
     "@biomejs/biome": "^2.6.3",
     "@earendil-works/pi-agent-core": "^1.4.0",
     "@earendil-works/pi-ai": "^1.4.0",
