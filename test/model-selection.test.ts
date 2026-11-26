@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { formatActiveModelLabel } from "../extensions/llm-wiki/lib/model-command.js";
+import { formatActiveModelLabel } from "../extensions/llm-wiki/lib/model-command-core.js";
 import { Runtime } from "../extensions/llm-wiki/lib/runtime.js";
 import {
   loadTaskConfig,

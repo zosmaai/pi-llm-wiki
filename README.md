@@ -474,9 +474,10 @@ The package targets two hosts from a single codebase:
 | MCP server | auto-registered via `pi.mcpservers` | register manually (see below) |
 | Ambient surfaces without a project wiki | on (personal vault) | off — see below |
 
-No source changes are needed for the imports: oh-my-pi rewrites
-`@mariozechner/pi-*` and bare `typebox` specifiers onto its own bundled
-packages when it loads a legacy extension.
+Starting with omp 19, the loader rejects the upstream `pi-tui` component
+package. The omp entry uses native pickers for `/wiki-model` and
+`/wiki-settings`, and a read-only rows view for `/wiki-dashboard`. The pi
+entry retains its custom screens; both entries share tools and vault logic.
 
 **Settings are read from both layouts.** `llm-wiki` config is merged from every
 file above, host-native directory last. A vault configured under pi keeps

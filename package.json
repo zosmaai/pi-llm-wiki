@@ -95,7 +95,7 @@
   },
   "omp": {
     "extensions": [
-      "./extensions/llm-wiki/index.ts"
+      "./extensions/llm-wiki/omp.ts"
     ]
   },
   "peerDependencies": {

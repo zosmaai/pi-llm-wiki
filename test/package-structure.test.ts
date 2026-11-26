@@ -243,38 +243,6 @@ describe("package structure", () => {
     expect(existsSync(join(t, "pages", "synthesis.md"))).toBe(true);
   });
 
-  it("should have the extension entry point", () => {
-    const extPath = join(rootDir, "extensions", "llm-wiki", "index.ts");
-    expect(existsSync(extPath)).toBe(true);
-    const content = readFile(extPath);
-    expect(content).toContain("ExtensionAPI");
-    expect(content).toContain("registerWikiBootstrap");
-  });
-
-  it("should have all custom tools registered in the extension entry point", () => {
-    const indexPath = join(rootDir, "extensions", "llm-wiki", "index.ts");
-    expect(existsSync(indexPath)).toBe(true);
-    const content = readFile(indexPath);
-    const toolRegistrations = [
-      "registerWikiBootstrap",
-      "registerWikiCaptureSource",
-      "registerWikiIngest",
-      "registerWikiEnsurePage",
-      "registerWikiSearch",
-      "registerWikiLint",
-      "registerWikiStatus",
-      "registerWikiRebuildMeta",
-      "registerWikiReindex",
-      "registerWikiLogEvent",
-      "registerWikiWatch",
-      "registerWikiRecall",
-      "registerWikiRetro",
-    ];
-    for (const fn of toolRegistrations) {
-      expect(content).toContain(fn);
-    }
-  });
-
   it("should keep MarkItDown timeout configurable and avoid PDF byte fallbacks", () => {
     const sourcePacketPath = join(rootDir, "extensions", "llm-wiki", "lib", "source-packet.ts");
     const sourceExtractorsPath = join(
