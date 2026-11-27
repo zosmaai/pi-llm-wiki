@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MODEL_STATUS_KEY } from "../extensions/llm-wiki/lib/model-command.js";
+import { MODEL_STATUS_KEY } from "../extensions/llm-wiki/lib/model-command-core.js";
 import { buildReminderText, buildSessionNotice } from "../extensions/llm-wiki/lib/observation.js";
 import { Runtime } from "../extensions/llm-wiki/lib/runtime.js";
 import { loadTaskConfig, noticesEnabled } from "../extensions/llm-wiki/lib/task-config.js";

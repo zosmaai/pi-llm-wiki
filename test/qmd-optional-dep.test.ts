@@ -10,7 +10,9 @@ describe("@tobilu/qmd optional dependency guard", () => {
   const root = new URL("../", import.meta.url);
   const libDir = new URL("extensions/llm-wiki/lib/", root);
   const files = [
-    "extensions/llm-wiki/index.ts",
+    ...readdirSync(new URL("extensions/llm-wiki/", root))
+      .filter((f) => f.endsWith(".ts"))
+      .map((f) => `extensions/llm-wiki/${f}`),
     ...readdirSync(libDir)
       .filter((f) => f.endsWith(".ts"))
       .map((f) => `extensions/llm-wiki/lib/${f}`),

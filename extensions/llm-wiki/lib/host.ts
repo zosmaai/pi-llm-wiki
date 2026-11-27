@@ -8,9 +8,9 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
  *  - **pi**   — `@earendil-works/pi-coding-agent`, config dir `.pi`
  *  - **omp**  — oh-my-pi (`@oh-my-pi/pi-coding-agent`), config dir `.omp`
  *
- * omp rewrites `@earendil-works/pi-*` (and bare `typebox`) imports onto its own
- * bundled packages at load time (its `legacy-pi-compat.ts`), so the *module
- * graph* needs no changes. What does differ is the on-disk config layout:
+ * omp rewrites shared agent and TypeBox imports to its bundled packages. It
+ * no longer provides upstream `pi-tui`; `omp.ts` registers native UI adapters.
+ * The host's settings layout differs too:
  *
  * | | pi | omp |
  * |---|---|---|

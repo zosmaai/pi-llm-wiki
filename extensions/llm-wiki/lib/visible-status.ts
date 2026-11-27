@@ -1,4 +1,4 @@
-import { formatActiveModelLabel, MODEL_STATUS_KEY } from "./model-command.js";
+import { formatActiveModelLabel, MODEL_STATUS_KEY } from "./model-command-core.js";
 import type { Runtime } from "./runtime.js";
 import { noticesEnabled } from "./task-config.js";
 
