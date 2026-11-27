@@ -52,7 +52,11 @@ function buildPickerItems(pool: ModelRef[], currentRef?: string) {
   return { items, selectedIndex };
 }
 
-export function registerModelCommand(pi: ExtensionAPI, runtime: Runtime, pickModel: PickModel): void {
+export function registerModelCommand(
+  pi: ExtensionAPI,
+  runtime: Runtime,
+  pickModel: PickModel,
+): void {
   pi.registerCommand("wiki-model", {
     description:
       "View or set the model used for LLM Wiki background tasks (default: session model)",

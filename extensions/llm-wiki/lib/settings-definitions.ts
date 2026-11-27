@@ -176,4 +176,3 @@ export function describeSetting(def: SettingDef, source: string): string {
   const where = source === "default" ? "Not set — using default." : `Set in ${source} settings.`;
   return `${def.hint}\n${where}`;
 }
-

@@ -19,7 +19,7 @@ import {
   vaultPageCount,
 } from "./lib/recall.js";
 import { registerWikiRetro } from "./lib/retro.js";
-import { registerBackgroundRuntime, type Runtime } from "./lib/runtime.js";
+import { type Runtime, registerBackgroundRuntime } from "./lib/runtime.js";
 import {
   autoRecallEnabled,
   loadTaskConfig,
